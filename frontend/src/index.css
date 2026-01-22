@@ -1,0 +1,169 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "@fontsource/fira-code/400.css";
+@import "@fontsource/fira-code/500.css";
+@import "@fontsource/fira-code/600.css";
+@import "@fontsource/fira-code/700.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+
+/* Yo-Score Design System */
+
+@layer base {
+  :root {
+    /* Core brand colors */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+
+    /* Primary - Brand Green #347928 */
+    --primary: 110 52% 31%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - Pure White */
+    --secondary: 0 0% 100%;
+    --secondary-foreground: 0 0% 0%;
+
+    /* Accent - Warm Cream #FFF1E9 */
+    --accent: 20 100% 96%;
+    --accent-foreground: 0 0% 0%;
+
+    /* Card surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 0%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 0%;
+
+    /* Muted - Light gray for subtle backgrounds */
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+
+    /* Destructive - Error states */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Success states */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning states */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+
+    /* Borders and inputs */
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 110 52% 31%;
+
+    --radius: 0.5rem;
+
+    /* Sidebar */
+    --sidebar-background: 20 100% 96%;
+    --sidebar-foreground: 0 0% 0%;
+    --sidebar-primary: 110 52% 31%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 110 52% 31%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 85%;
+    --sidebar-ring: 110 52% 31%;
+
+    /* Typography */
+    --font-mono: "Fira Code", monospace;
+    --font-sans: "Inter", sans-serif;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.1);
+  }
+
+  .dark {
+    --background: 0 0% 5%;
+    --foreground: 0 0% 95%;
+
+    --primary: 110 52% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 95%;
+
+    --accent: 20 30% 15%;
+    --accent-foreground: 0 0% 95%;
+
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 95%;
+
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 65%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 110 52% 40%;
+
+    --sidebar-background: 0 0% 8%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 110 52% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 15%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 0 0% 20%;
+    --sidebar-ring: 110 52% 40%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: var(--font-sans);
+  }
+
+  code, pre, .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+@layer components {
+  .score-circle {
+    @apply relative flex items-center justify-center rounded-full;
+    background: conic-gradient(
+      hsl(var(--primary)) calc(var(--score-percent) * 1%),
+      hsl(var(--muted)) 0%
+    );
+  }
+
+  .score-circle-inner {
+    @apply absolute flex items-center justify-center rounded-full bg-card;
+    width: calc(100% - 12px);
+    height: calc(100% - 12px);
+  }
+
+  .trust-badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  .trust-low {
+    @apply bg-destructive/10 text-destructive;
+  }
+
+  .trust-medium {
+    @apply bg-warning/10 text-warning;
+  }
+
+  .trust-high {
+    @apply bg-primary/10 text-primary;
+  }
+}
