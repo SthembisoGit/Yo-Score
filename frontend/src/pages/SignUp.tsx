@@ -17,32 +17,34 @@ export default function SignUp() {
   const { signup, isLoading } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError('');
 
-    if (!name || !email || !password || !confirmPassword) {
-      setError('Please fill in all fields');
-      return;
-    }
+  if (!name || !email || !password || !confirmPassword) {
+    setError('Please fill in all fields');
+    return;
+  }
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
+  if (password !== confirmPassword) {
+    setError('Passwords do not match');
+    return;
+  }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
-      return;
-    }
+  if (password.length < 8) {
+    setError('Password must be at least 8 characters');
+    return;
+  }
 
-    try {
-      await signup(name, email, password);
-      navigate('/dashboard');
-    } catch (err) {
-      setError('Failed to create account');
-    }
-  };
+  try {
+    // Add role parameter - default to 'developer'
+    await signup(name, email, password, 'developer');
+    navigate('/dashboard');
+  } catch (err: any) {
+    // Use actual error message from backend
+    setError(err.message || 'Failed to create account');
+  }
+};
 
   return (
     <div className="min-h-screen bg-accent flex">
