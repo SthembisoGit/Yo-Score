@@ -1,9 +1,9 @@
 # YoScore MVP Development Checklist
 
 ## Step 1: Backend Foundation
-- [ ] `feature/data-model` → Database schema created
-- [ ] `feature/backend-api` → API endpoints implemented
-- [ ] `feature/auth-security` → JWT, RBAC, password hashing secured
+- [*] `feature/data-model` → Database schema created
+- [*] `feature/backend-api` → API endpoints implemented
+- [*] `feature/auth-security` → JWT, RBAC, password hashing secured
 
 ## Step 2: Scoring & Proctoring
 - [ ] `feature/scoring-engine` → Challenge scoring & trust score calculation implemented
