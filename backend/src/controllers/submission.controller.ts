@@ -7,6 +7,13 @@ const submissionService = new SubmissionService();
 export class SubmissionController {
   async submitChallenge(req: AuthenticatedRequest, res: Response) {
     try {
+      console.log('=== SUBMISSION DEBUG ===');
+      console.log('Request body:', req.body);
+      console.log('Body type:', typeof req.body);
+      console.log('Body keys:', Object.keys(req.body || {}));
+      console.log('Content-Type:', req.headers['content-type']);
+      console.log('=======================');
+
       if (!req.user) {
         return res.status(401).json({
           success: false,
@@ -16,7 +23,11 @@ export class SubmissionController {
 
       const { challenge_id, code } = req.body;
 
+      console.log('Extracted challenge_id:', challenge_id);
+      console.log('Extracted code:', code ? 'Present' : 'Missing');
+
       if (!challenge_id || !code) {
+        console.log('Validation failed - missing fields');
         return res.status(400).json({
           success: false,
           message: 'Challenge ID and code are required'
@@ -31,10 +42,15 @@ export class SubmissionController {
       return res.status(201).json({
         success: true,
         message: 'Submission received',
-        data: result
+        data: {
+          submission_id: result.submission_id,
+          status: result.status,
+          message: result.message
+        }
       });
 
     } catch (error) {
+      console.error('Submission error:', error);
       const message = error instanceof Error ? error.message : 'Failed to submit challenge';
       
       return res.status(400).json({

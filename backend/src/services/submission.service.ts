@@ -5,17 +5,6 @@ export interface SubmissionInput {
   code: string;
 }
 
-export interface SubmissionResult {
-  submission_id: string;
-  score: number;
-  trust_level: string;
-  violations: Array<{
-    type: string;
-    penalty: number;
-    timestamp: Date;
-  }>;
-}
-
 export class SubmissionService {
   async createSubmission(userId: string, data: SubmissionInput) {
     const result = await query(
@@ -27,13 +16,13 @@ export class SubmissionService {
 
     const submission = result.rows[0];
     
-    // Trigger scoring engine (simulated for MVP)
-    this.triggerScoring(submission.id);
+    // For MVP, score immediately instead of simulating async
+    await this.scoreSubmission(submission.id);
 
     return {
       submission_id: submission.id,
-      status: submission.status,
-      message: 'Submission received'
+      status: 'graded', // Now immediately graded
+      message: 'Submission received and scored'
     };
   }
 
@@ -53,7 +42,6 @@ export class SubmissionService {
 
     const submission = result.rows[0];
 
-    // Get proctoring logs for this submission
     const logsResult = await query(
       `SELECT violation_type, penalty, timestamp
        FROM proctoring_logs
@@ -96,59 +84,56 @@ export class SubmissionService {
     }));
   }
 
-  private async triggerScoring(submissionId: string) {
-    // Simulate scoring process for MVP
-    // In production, this would call a separate scoring service
-    
-    setTimeout(async () => {
-      try {
-        // Simulate scoring logic
-        const score = Math.floor(Math.random() * 40) + 60; // 60-100
+  private async scoreSubmission(submissionId: string) {
+    try {
+      // Simple scoring for MVP
+      const score = Math.floor(Math.random() * 40) + 60; // 60-100
+      
+      await query(
+        `UPDATE submissions 
+         SET score = $1, status = 'graded'
+         WHERE id = $2`,
+        [score, submissionId]
+      );
+
+      // Get user ID for trust score update
+      const submission = await query(
+        `SELECT user_id FROM submissions WHERE id = $1`,
+        [submissionId]
+      );
+
+      if (submission.rows.length > 0) {
+        const userId = submission.rows[0].user_id;
         
         await query(
-          `UPDATE submissions 
-           SET score = $1, status = 'graded'
-           WHERE id = $2`,
-          [score, submissionId]
-        );
-
-        // Update trust score (simplified)
-        const submission = await query(
-          `SELECT user_id FROM submissions WHERE id = $1`,
-          [submissionId]
-        );
-
-        if (submission.rows.length > 0) {
-          const userId = submission.rows[0].user_id;
-          
-          await query(
-            `INSERT INTO trust_scores (user_id, total_score, trust_level)
-             VALUES ($1, $2, 
-               CASE 
+          `INSERT INTO trust_scores (user_id, total_score, trust_level)
+           VALUES ($1, $2, 
+             CASE 
+               WHEN $2 >= 75 THEN 'High'
+               WHEN $2 >= 50 THEN 'Medium'
+               ELSE 'Low'
+             END)
+           ON CONFLICT (user_id) DO UPDATE
+           SET total_score = $2,
+               trust_level = CASE 
                  WHEN $2 >= 75 THEN 'High'
                  WHEN $2 >= 50 THEN 'Medium'
                  ELSE 'Low'
-               END)
-             ON CONFLICT (user_id) DO UPDATE
-             SET total_score = $2,
-                 trust_level = CASE 
-                   WHEN $2 >= 75 THEN 'High'
-                   WHEN $2 >= 50 THEN 'Medium'
-                   ELSE 'Low'
-                 END,
-                 updated_at = NOW()`,
-            [userId, score]
-          );
-        }
-
-      } catch (error) {
-        console.error('Scoring failed:', error);
-        
-        await query(
-          `UPDATE submissions SET status = 'failed' WHERE id = $1`,
-          [submissionId]
+               END,
+               updated_at = NOW()`,
+          [userId, score]
         );
       }
-    }, 5000); // Simulate 5-second scoring delay
+
+    } catch (error) {
+      console.error('Scoring failed:', error);
+      
+      await query(
+        `UPDATE submissions SET status = 'failed' WHERE id = $1`,
+        [submissionId]
+      );
+      
+      throw error;
+    }
   }
 }
