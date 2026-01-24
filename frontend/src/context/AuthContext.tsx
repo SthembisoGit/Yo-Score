@@ -134,31 +134,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   checkAuth();
 }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    setIsLoading(true);
-    try {
-      const response = await authService.login({ email, password });
-      
-      // Transform backend user data to frontend User interface
-      const userData: User = {
-        id: response.user.user_id,
-        name: response.user.name,
-        email: email,
-        role: response.user.role,
-        totalScore: 0, // Will be fetched from dashboard later
-        trustLevel: 'Low', // Will be fetched from dashboard later
-        categoryScores: [],
-        workExperienceMonths: 0
-      };
-      
-      setUser(userData);
-    } catch (error) {
-      console.error('Login failed:', error);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+
+const login = useCallback(async (email: string, password: string) => {
+  setIsLoading(true);
+  try {
+    const response = await authService.login({ email, password });
+    
+    const userData: User = {
+      id: response.user.user_id,
+      name: response.user.name,
+      email: email,
+      role: response.user.role,
+      totalScore: 0,
+      trustLevel: 'Low',
+      categoryScores: [],
+      workExperienceMonths: 0
+    };
+    
+    setUser(userData);
+  } catch (error: any) {
+    // Re-throw the error with proper context
+    const errorMessage = error.message || 'Login failed';
+    const errorStatus = error.status || 500;
+    
+    throw {
+      message: errorMessage,
+      status: errorStatus,
+      response: error.data
+    };
+  } finally {
+    setIsLoading(false);
+  }
+}, []);
 
   const signup = useCallback(async (name: string, email: string, password: string, role: string = 'developer') => {
     setIsLoading(true);
