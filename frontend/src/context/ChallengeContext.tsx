@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Category } from './AuthContext';
+import { challengeService } from '@/services/challengeService';
+import { dashboardService } from '@/services/dashboardService';
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard';
 
@@ -18,131 +20,123 @@ export interface Challenge {
 interface ChallengeContextType {
   challenges: Challenge[];
   selectedChallenge: Challenge | null;
+  isLoading: boolean;
+  error: string | null;
   selectChallenge: (challenge: Challenge | null) => void;
   filterByCategory: (category: Category | 'All') => Challenge[];
   filterByDifficulty: (difficulty: Difficulty | 'All') => Challenge[];
+  fetchChallenges: () => Promise<void>;
+  getAssignedChallenge: () => Promise<Challenge>;
 }
 
 const ChallengeContext = createContext<ChallengeContextType | undefined>(undefined);
 
-const mockChallenges: Challenge[] = [
-  {
-    id: '1',
-    title: 'Build a Responsive Navigation',
-    category: 'Frontend',
-    difficulty: 'Easy',
-    description: 'Create a responsive navigation component that collapses to a hamburger menu on mobile devices.',
-    duration: 30,
-    points: 100,
-    completed: true,
-    score: 85,
-  },
-  {
-    id: '2',
-    title: 'REST API Authentication',
-    category: 'Backend',
-    difficulty: 'Medium',
-    description: 'Implement JWT-based authentication for a REST API with login, register, and token refresh endpoints.',
-    duration: 45,
-    points: 150,
-    completed: true,
-    score: 72,
-  },
-  {
-    id: '3',
-    title: 'SQL Injection Prevention',
-    category: 'Security',
-    difficulty: 'Hard',
-    description: 'Identify and fix SQL injection vulnerabilities in a given codebase. Implement parameterized queries.',
-    duration: 60,
-    points: 200,
-  },
-  {
-    id: '4',
-    title: 'React State Management',
-    category: 'Frontend',
-    difficulty: 'Medium',
-    description: 'Build a shopping cart using React Context API with add, remove, and quantity update functionality.',
-    duration: 45,
-    points: 150,
-  },
-  {
-    id: '5',
-    title: 'Database Schema Design',
-    category: 'Backend',
-    difficulty: 'Hard',
-    description: 'Design an efficient database schema for an e-commerce platform with proper relationships and indexes.',
-    duration: 60,
-    points: 200,
-  },
-  {
-    id: '6',
-    title: 'XSS Attack Prevention',
-    category: 'Security',
-    difficulty: 'Medium',
-    description: 'Sanitize user input to prevent cross-site scripting attacks in a web application.',
-    duration: 40,
-    points: 150,
-  },
-  {
-    id: '7',
-    title: 'Troubleshoot Network Issues',
-    category: 'IT Support',
-    difficulty: 'Easy',
-    description: 'Diagnose and resolve common network connectivity problems using command-line tools.',
-    duration: 25,
-    points: 80,
-  },
-  {
-    id: '8',
-    title: 'CI/CD Pipeline Setup',
-    category: 'DevOps',
-    difficulty: 'Hard',
-    description: 'Configure a complete CI/CD pipeline with automated testing, building, and deployment.',
-    duration: 75,
-    points: 250,
-  },
-  {
-    id: '9',
-    title: 'AWS S3 & Lambda Integration',
-    category: 'Cloud Engineering',
-    difficulty: 'Medium',
-    description: 'Set up an S3 bucket with Lambda triggers for automatic image processing.',
-    duration: 50,
-    points: 175,
-  },
-  {
-    id: '10',
-    title: 'Data Visualization Dashboard',
-    category: 'Data Science',
-    difficulty: 'Medium',
-    description: 'Create interactive charts and graphs to visualize large datasets with filtering capabilities.',
-    duration: 55,
-    points: 160,
-  },
-  {
-    id: '11',
-    title: 'Mobile App Navigation',
-    category: 'Mobile Development',
-    difficulty: 'Easy',
-    description: 'Implement stack and tab navigation patterns in a React Native application.',
-    duration: 35,
-    points: 100,
-  },
-  {
-    id: '12',
-    title: 'Automated Test Suite',
-    category: 'QA Testing',
-    difficulty: 'Medium',
-    description: 'Write comprehensive unit and integration tests for a web application using Jest and Cypress.',
-    duration: 45,
-    points: 140,
-  },
-];
+// Helper function to map backend challenge to frontend format
+const mapBackendChallenge = (backendChallenge: any, completedSubmissions: any[]): Challenge => {
+  // Find if this challenge has a completed submission
+  const submission = completedSubmissions.find(
+    sub => sub.challenge_id === backendChallenge.challenge_id && sub.status === 'graded'
+  );
+  
+  const isCompleted = !!submission;
+  
+  // Map backend difficulty to frontend format
+  const difficultyMap: Record<string, Difficulty> = {
+    'easy': 'Easy',
+    'medium': 'Medium', 
+    'hard': 'Hard'
+  };
+
+  // Map backend category (case-insensitive)
+  const categoryMap: Record<string, Category> = {
+    'frontend': 'Frontend',
+    'backend': 'Backend',
+    'security': 'Security',
+    'it support': 'IT Support',
+    'devops': 'DevOps',
+    'cloud engineering': 'Cloud Engineering',
+    'data science': 'Data Science',
+    'mobile development': 'Mobile Development',
+    'qa testing': 'QA Testing',
+    // Add any other categories from your backend
+  };
+
+  const backendCategory = (backendChallenge.category || '').toLowerCase().trim();
+  const mappedCategory = categoryMap[backendCategory] || 'Frontend'; // Default to Frontend
+
+  // Calculate points based on difficulty
+  const points = backendChallenge.difficulty === 'easy' ? 100 : 
+                 backendChallenge.difficulty === 'medium' ? 150 : 200;
+
+  // Calculate duration based on difficulty
+  const duration = backendChallenge.difficulty === 'easy' ? 30 : 
+                   backendChallenge.difficulty === 'medium' ? 45 : 60;
+
+  return {
+    id: backendChallenge.challenge_id,
+    title: backendChallenge.title,
+    category: mappedCategory,
+    difficulty: difficultyMap[backendChallenge.difficulty?.toLowerCase()] || 'Medium',
+    description: backendChallenge.description || 'No description available.',
+    duration: duration,
+    points: points,
+    completed: isCompleted,
+    score: submission?.score
+  };
+};
 
 export function ChallengeProvider({ children }: { children: ReactNode }) {
-  const [challenges] = useState<Challenge[]>(mockChallenges);
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchCompletedSubmissions = async (): Promise<any[]> => {
+    try {
+      const submissions = await dashboardService.getUserSubmissions();
+      return submissions.filter(sub => sub.status === 'graded');
+    } catch (error) {
+      console.error('Failed to fetch submissions:', error);
+      return [];
+    }
+  };
+
+  const fetchChallenges = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Fetch in parallel: challenges and completed submissions
+      const [backendChallenges, completedSubmissions] = await Promise.all([
+        challengeService.getAllChallenges(),
+        fetchCompletedSubmissions()
+      ]);
+      
+      // Transform backend challenges to frontend format
+      const mappedChallenges = backendChallenges.map(challenge => 
+        mapBackendChallenge(challenge, completedSubmissions)
+      );
+      
+      setChallenges(mappedChallenges);
+    } catch (err) {
+      console.error('Failed to fetch challenges:', err);
+      setError('Failed to load challenges. Please try again.');
+      setChallenges([]); // Set empty array instead of mock data
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const getAssignedChallenge = useCallback(async (): Promise<Challenge> => {
+    try {
+      const completedSubmissions = await fetchCompletedSubmissions();
+      const backendChallenge = await challengeService.getAssignedChallenge();
+      return mapBackendChallenge(backendChallenge, completedSubmissions);
+    } catch (err) {
+      console.error('Failed to get assigned challenge:', err);
+      throw err;
+    }
+  }, []);
 
   const selectChallenge = (challenge: Challenge | null) => {
     setSelectedChallenge(challenge);
@@ -158,14 +152,23 @@ export function ChallengeProvider({ children }: { children: ReactNode }) {
     return challenges.filter((c) => c.difficulty === difficulty);
   };
 
+  // Fetch challenges on mount
+  useEffect(() => {
+    fetchChallenges();
+  }, [fetchChallenges]);
+
   return (
     <ChallengeContext.Provider
       value={{
         challenges,
         selectedChallenge,
+        isLoading,
+        error,
         selectChallenge,
         filterByCategory,
         filterByDifficulty,
+        fetchChallenges,
+        getAssignedChallenge,
       }}
     >
       {children}
