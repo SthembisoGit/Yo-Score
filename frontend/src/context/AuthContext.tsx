@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
 import { authService } from '@/services/authService';
+import { dashboardService } from '@/services/dashboardService';
 
 export type Category = 
   | 'Frontend' 
@@ -111,9 +112,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             name: data.user.name,
             email: data.user.email,
             role: data.user.role,
-            totalScore: 0, // Will be fetched from dashboard
+            totalScore: 0, 
             trustLevel: 'Low',
-            categoryScores: [],
+            categoryScores:[],
             workExperienceMonths: 0
           };
           
@@ -135,33 +136,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }, []);
 
 
+// In your AuthContext.tsx, update the login function:
 const login = useCallback(async (email: string, password: string) => {
   setIsLoading(true);
   try {
     const response = await authService.login({ email, password });
     
+    // Fetch dashboard data after successful login
+    const dashboardData = await dashboardService.getDashboardData();
+    const userProfile = await dashboardService.getUserProfile();
+    const workExperience = await dashboardService.getWorkExperience();
+    
+    // Calculate total work experience months
+    const totalWorkExperienceMonths = workExperience.reduce(
+      (total, exp) => total + exp.duration_months, 
+      0
+    );
+    
+    // Convert category_scores object to array
+    const categoryScoresArray = Object.entries(dashboardData.category_scores || {}).map(
+      ([category, score]) => ({ category: category as any, score: score as number })
+    );
+
     const userData: User = {
-      id: response.user.user_id,
-      name: response.user.name,
-      email: email,
-      role: response.user.role,
-      totalScore: 0,
-      trustLevel: 'Low',
-      categoryScores: [],
-      workExperienceMonths: 0
+      id: userProfile.user_id,
+      name: userProfile.name,
+      email: userProfile.email,
+      role: userProfile.role,
+      totalScore: dashboardData.total_score,
+      trustLevel: dashboardData.trust_level,
+      categoryScores: categoryScoresArray,
+      workExperienceMonths: totalWorkExperienceMonths,
+      createdAt: userProfile.created_at
     };
     
     setUser(userData);
-  } catch (error: any) {
-    // Re-throw the error with proper context
-    const errorMessage = error.message || 'Login failed';
-    const errorStatus = error.status || 500;
-    
-    throw {
-      message: errorMessage,
-      status: errorStatus,
-      response: error.data
-    };
+  } catch (error) {
+    console.error('Login failed:', error);
+    throw error;
   } finally {
     setIsLoading(false);
   }
