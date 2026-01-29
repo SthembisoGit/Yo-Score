@@ -1,4 +1,3 @@
-// pages/ChallengeDetail.tsx
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ChevronRight, Loader2, AlertCircle, FileText } from 'lucide-react';
@@ -9,6 +8,9 @@ import { ChallengeOverview } from '@/components/challenge-detail/ChallengeOvervi
 import { ChallengeSession } from '@/components/challenge-detail/ChallengeSession';
 import { useChallengeData } from '@/hooks/useChallengeData';
 import { useAuth } from '@/context/AuthContext';
+import { toast } from 'react-hot-toast';
+import ProctoringMonitor from '@/components/proctoring/ProctoringMonitor';
+import { useProctoring } from '@/hooks/useProctoring';
 
 export default function ChallengeDetail() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +21,10 @@ export default function ChallengeDetail() {
   const [showProctoringModal, setShowProctoringModal] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [violations, setViolations] = useState<any[]>([]);
+
+  const { startSession, endSession, logViolation, isActive } = useProctoring();
 
   // Initialize language from user preference
   useState(() => {
@@ -40,9 +46,40 @@ export default function ChallengeDetail() {
     setShowProctoringModal(true);
   };
 
-  const handleProctoringConfirm = () => {
-    setShowProctoringModal(false);
-    setSessionStarted(true);
+  const handleProctoringConfirm = async () => {
+    try {
+      setShowProctoringModal(false);
+      
+      if (!id || !user?.id) {
+        toast.error('Missing challenge or user information');
+        return;
+      }
+      
+      // Start proctoring session
+      const newSessionId = await startSession(id, user.id);
+      setSessionId(newSessionId);
+      setSessionStarted(true);
+      
+      toast.success('Proctoring session started. Camera and microphone are now active.');
+    } catch (error) {
+      toast.error('Failed to start proctoring session');
+      console.error(error);
+    }
+  };
+
+  const handleViolationDetected = (type: string, data: any) => {
+    setViolations(prev => [...prev, { type, timestamp: new Date(), data }]);
+    
+    // Log to backend
+    if (sessionId) {
+      logViolation(sessionId, type, data.description || `Violation: ${type}`);
+    }
+    
+    // Show warning
+    toast(`Proctoring alert: ${type}`, {
+      duration: 5000,
+      icon: '⚠️'
+    });
   };
 
   // Loading state
@@ -136,14 +173,28 @@ export default function ChallengeDetail() {
             onBack={() => navigate('/challenges')}
           />
         ) : (
-          <ChallengeSession
-            challenge={challenge}
-            referenceDocs={referenceDocs}
-            selectedLanguage={selectedLanguage}
-            availableLanguages={availableLanguages}
-            onLanguageChange={handleLanguageChange}
-            challengeId={id!}
-          />
+          <>
+            {/* Proctoring Monitor */}
+            {sessionId && user && (
+              <ProctoringMonitor
+                sessionId={sessionId}
+                userId={user.id}
+                challengeId={id!}
+                onViolation={handleViolationDetected}
+              />
+            )}
+            
+            <ChallengeSession
+              challenge={challenge}
+              referenceDocs={referenceDocs}
+              selectedLanguage={selectedLanguage}
+              availableLanguages={availableLanguages}
+              onLanguageChange={handleLanguageChange}
+              challengeId={id!}
+              sessionId={sessionId}
+              onViolation={handleViolationDetected}
+            />
+          </>
         )}
       </main>
 
