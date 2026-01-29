@@ -12,6 +12,8 @@ const envSchema = z.object({
   JWT_SECRET: z.string(),
   JWT_EXPIRES_IN: z.string().default('24h'),
   BCRYPT_SALT_ROUNDS: z.coerce.number().default(12),
+   ML_SERVICE_URL: z.string().default('http://localhost:5000'),
+  ML_SERVICE_TIMEOUT: z.coerce.number().default(10000),
 });
 
 type EnvConfig = z.infer<typeof envSchema>;
