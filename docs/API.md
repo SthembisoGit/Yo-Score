@@ -197,6 +197,7 @@ This document defines all **backend API endpoints** for YoScore MVP, including a
 }
 ```
 
+
 ---
 
 ## 6. Work Experience
