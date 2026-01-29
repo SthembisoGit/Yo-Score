@@ -6,6 +6,8 @@ import userRoutes from './routes/user.routes';
 import challengeRoutes from './routes/challenge.routes';
 import submissionRoutes from './routes/submission.routes';
 import dashboardRoutes from './routes/dashboard.routes';
+import proctoringRoutes from './routes/proctoring.routes';
+
 
 const app = express();
 
@@ -38,6 +40,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/challenges', challengeRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/proctoring', proctoringRoutes);
 
 app.use('*', (req, res) => {
   res.status(404).json({
