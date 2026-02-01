@@ -86,7 +86,20 @@ const availableCategories: Category[] = [
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true); // Start with loading to check token
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  
+
+  useEffect(() => {
+  const handleUnauthorized = () => {
+    setUser(null);
+  };
+
+  window.addEventListener("unauthorized", handleUnauthorized);
+  return () =>
+    window.removeEventListener("unauthorized", handleUnauthorized);
+}, []);
+
 
   // Check for existing token on mount
  useEffect(() => {
@@ -120,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           setUser(userData);
         } else {
-          // Token is invalid, remove it
+          
           localStorage.removeItem('yoScore_auth_token');
         }
       } catch (error) {
@@ -129,18 +142,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
     
-    setIsLoading(false);
+    
+    setIsCheckingAuth(false);
   };
 
   checkAuth();
 }, []);
 
 
-// In your AuthContext.tsx, update the login function:
+
 const login = useCallback(async (email: string, password: string) => {
-  setIsLoading(true);
+  
   try {
     const response = await authService.login({ email, password });
+
+    localStorage.setItem('yoScore_auth_token', response.token);
     
     // Fetch dashboard data after successful login
     const dashboardData = await dashboardService.getDashboardData();
@@ -223,7 +239,7 @@ const login = useCallback(async (email: string, password: string) => {
       value={{
         user,
         isAuthenticated: !!user,
-        isLoading,
+        isLoading:isCheckingAuth,
         login,
         signup,
         logout,
