@@ -1,6 +1,7 @@
 import { Router, Request } from 'express';
 import { AuthController } from '../controllers/auth.controller';
 import { authenticate } from '../middleware/auth.middleware'; 
+import { rotateToken } from '../services/auth.token-rotate';
 
 declare global {
   namespace Express {
@@ -20,7 +21,23 @@ const authController = new AuthController();
 
 router.post('/signup', authController.signup.bind(authController));
 router.post('/login', authController.login.bind(authController));
-router.post('/logout', authenticate, authController.logout.bind(authController)); // Add authenticate here too
+router.post('/logout', authenticate, authController.logout.bind(authController));
+router.post('/auth/rotate', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ message: 'Missing token' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const result = await rotateToken(token);
+
+    res.json(result);
+  } catch (error: any) {
+    res.status(401).json({ message: 'Unauthorized', error: error.message });
+  }
+});
+
 
 // Add authenticate middleware to validate route
 router.get('/validate', authenticate, async (req, res) => {
