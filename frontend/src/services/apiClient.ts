@@ -1,54 +1,59 @@
-
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
-const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT || '15000');
-const JWT_STORAGE_KEY = import.meta.env.VITE_JWT_STORAGE_KEY || 'yoScore_auth_token';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+
+const JWT_STORAGE_KEY =
+  import.meta.env.VITE_JWT_STORAGE_KEY || 'yoScore_auth_token';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: API_TIMEOUT,
-  headers: {
-    'Content-Type': 'application/json',
-  },
   withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
 });
 
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem(JWT_STORAGE_KEY);
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+apiClient.interceptors.request.use(config => {
+  const token = localStorage.getItem(JWT_STORAGE_KEY);
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 apiClient.interceptors.response.use(
-  (response) => response.data,
-  (error) => {
+  response => response.data,
+  async error => {
     if (error.response?.status === 401) {
-      localStorage.removeItem(JWT_STORAGE_KEY);
-      window.location.href = '/login';
+      try {
+        const token = localStorage.getItem(JWT_STORAGE_KEY);
+        if (!token) throw error;
+
+        const rotateResponse = await axios.post(
+          `${API_BASE_URL}/auth/rotate`,
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        );
+
+        localStorage.setItem(JWT_STORAGE_KEY, rotateResponse.data.token);
+
+        error.config.headers.Authorization =
+          `Bearer ${rotateResponse.data.token}`;
+
+        return apiClient(error.config);
+      } catch {
+        localStorage.removeItem(JWT_STORAGE_KEY);
+        window.dispatchEvent(new Event('unauthorized'));
+      }
     }
-    
-    return Promise.reject({
-      message: error.response?.data?.message || 'An error occurred',
-      status: error.response?.status,
-      data: error.response?.data
-    });
+
+    return Promise.reject(error);
   }
 );
-
-export const setAuthToken = (token: string | null) => {
-  if (token) {
-    localStorage.setItem(JWT_STORAGE_KEY, token);
-  } else {
-    localStorage.removeItem(JWT_STORAGE_KEY);
-  }
-};
-
-export const getAuthToken = () => localStorage.getItem(JWT_STORAGE_KEY);
 
 export default apiClient;

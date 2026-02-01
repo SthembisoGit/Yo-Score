@@ -1,5 +1,4 @@
-// frontend/src/services/authService.ts
-import apiClient, { setAuthToken } from './apiClient';
+import apiClient from './apiClient';
 
 interface SignupData {
   name: string;
@@ -22,41 +21,36 @@ interface AuthResponse {
   };
 }
 
+const JWT_STORAGE_KEY =
+  import.meta.env.VITE_JWT_STORAGE_KEY || 'yoScore_auth_token';
+
 export const authService = {
   async signup(userData: SignupData): Promise<{ message: string; user_id: string }> {
-    try {
-      const response = await apiClient.post<{ message: string; user_id: string }>('/auth/signup', userData);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
+    return await apiClient.post('/auth/signup', userData);
   },
 
   async login(credentials: LoginData): Promise<AuthResponse> {
-    try {
-      const response = await apiClient.post<AuthResponse>('/auth/login', credentials);
-      const { token, user } = response.data;
-      
-      if (token) {
-        setAuthToken(token);
-      }
-      
-      return { token, user };
-    } catch (error) {
-      throw error;
+    const result = await apiClient.post<AuthResponse>(
+      '/auth/login',
+      credentials
+    );
+
+    if (result.data.token) {
+      localStorage.setItem(JWT_STORAGE_KEY, result.data.token);
     }
+
+    return result.data;
   },
 
   async logout(): Promise<void> {
     try {
       await apiClient.post('/auth/logout');
     } finally {
-      setAuthToken(null);
+      localStorage.removeItem(JWT_STORAGE_KEY);
     }
   },
 
-  validateToken(): boolean {
-    const token = localStorage.getItem(import.meta.env.VITE_JWT_STORAGE_KEY || 'yoScore_auth_token');
-    return !!token;
+  hasToken(): boolean {
+    return !!localStorage.getItem(JWT_STORAGE_KEY);
   }
 };
