@@ -28,7 +28,7 @@ export default function Login() {
     let isValid = true;
     setEmailError('');
     setPasswordError('');
-    
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!email.trim()) {
@@ -54,7 +54,7 @@ export default function Login() {
     e.preventDefault();
 
     if (isSubmitting || isLoading) return;
-    
+
     setError('');
 
     if (!validateForm()) return;
@@ -92,8 +92,8 @@ export default function Login() {
 
       setError(displayError);
       setPassword('');
-      
-      
+
+
       if (emailInputRef.current) {
         emailInputRef.current.focus();
       }
@@ -102,13 +102,9 @@ export default function Login() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !isSubmitting && !isLoading) {
-      handleSubmit(e as any);
-    }
-  };
 
-  const isLoadingState = isLoading || isSubmitting;
+
+  const isLoadingState =isSubmitting;
 
   return (
     <div className="min-h-screen bg-accent flex">
@@ -162,10 +158,9 @@ export default function Login() {
               </div>
             )}
 
-            <form 
-              onSubmit={handleSubmit} 
+            <form
+              onSubmit={handleSubmit}
               className="space-y-4"
-              onKeyDown={handleKeyDown}
               noValidate
             >
               <div className="space-y-2">
@@ -198,8 +193,8 @@ export default function Login() {
                   <Label htmlFor="password" className="text-sm font-medium">
                     Password
                   </Label>
-                  <Link 
-                    to="/forgot-password" 
+                  <Link
+                    to="/forgot-password"
                     className="text-xs text-primary hover:text-primary/80 hover:underline"
                   >
                     Forgot password?
@@ -235,8 +230,8 @@ export default function Login() {
                 )}
               </div>
 
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full h-10"
                 disabled={isLoadingState}
               >
@@ -254,8 +249,8 @@ export default function Login() {
             <div className="mt-6 pt-6 border-t border-border">
               <p className="text-center text-sm text-muted-foreground">
                 Do not have an account?{' '}
-                <Link 
-                  to="/signup" 
+                <Link
+                  to="/signup"
                   className="text-primary font-medium hover:underline"
                 >
                   Create account
