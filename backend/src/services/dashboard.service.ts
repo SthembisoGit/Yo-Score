@@ -66,13 +66,17 @@ export class DashboardService {
       [userId]
     );
 
-    const challengeProgress = progressResult.rows.map(row => ({
-      challenge_id: row.challenge_id,
-      title: row.title,
-      status: row.status || 'not_started',
-      score: row.score,
-      submitted_at: row.submitted_at
-    }));
+    const challengeProgress = progressResult.rows.map(row => {
+      const rawStatus = row.status || 'not_started';
+      const displayStatus = rawStatus === 'graded' ? 'completed' : rawStatus;
+      return {
+        challenge_id: row.challenge_id,
+        title: row.title,
+        status: displayStatus,
+        score: row.score,
+        submitted_at: row.submitted_at
+      };
+    });
 
     // Calculate total submissions and completed challenges
     const statsResult = await query(
