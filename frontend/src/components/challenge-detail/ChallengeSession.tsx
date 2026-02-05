@@ -21,6 +21,7 @@ interface ChallengeSessionProps {
   challengeId: string;
   sessionId?: string | null;
   onViolation?: (type: string, data: any) => void;
+  violationCount?: number;
 }
 
 export const ChallengeSession = ({
@@ -31,14 +32,15 @@ export const ChallengeSession = ({
   onLanguageChange,
   challengeId,
   sessionId,
-  onViolation
+  onViolation,
+  violationCount: propViolationCount = 0
 }: ChallengeSessionProps) => {
   const [showDocs, setShowDocs] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [code, setCode] = useState<string>('// Write your solution here\n');
   const [proctoringReady, setProctoringReady] = useState(false);
-  const [violationCount, setViolationCount] = useState(0);
+  const [violationCount, setViolationCount] = useState(propViolationCount);
   const [isSessionEnded, setIsSessionEnded] = useState(false);
 
   // Initialize with language-specific template
@@ -94,26 +96,18 @@ int main() {
     }
   }, [sessionId]);
 
-  // Setup violation listener
+  // Update violation count from parent
   useEffect(() => {
-    if (onViolation) {
-      // We'll increment violation count when parent notifies us
-      const handleViolation = (type: string, data: any) => {
-        setViolationCount(prev => prev + 1);
-        
-        // Show warning after 3 violations
-        if (violationCount >= 2) {
-          toast(`Multiple proctoring violations (${violationCount + 1}). Your trust score may be affected.`, {
-            duration: 6000,
-            icon: '⚠️'
-          });
-        }
-      };
-
-      // This is just for tracking - actual violation handling is in parent
-      return () => {};
+    setViolationCount(propViolationCount);
+    
+    // Show warning after 3 violations
+    if (propViolationCount >= 3) {
+      toast(`Multiple proctoring violations (${propViolationCount}). Your trust score may be affected.`, {
+        duration: 6000,
+        icon: '⚠️'
+      });
     }
-  }, [onViolation, violationCount]);
+  }, [propViolationCount]);
 
   const handleCodeChange = (newCode: string) => {
     setCode(newCode);
