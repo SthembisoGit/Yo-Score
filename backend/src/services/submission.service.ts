@@ -1,27 +1,49 @@
 import { query } from '../db';
+import { ScoringService } from './scoring.service';
 
 export interface SubmissionInput {
   challenge_id: string;
   code: string;
+  session_id?: string;
 }
+
+const scoringService = new ScoringService();
 
 export class SubmissionService {
   async createSubmission(userId: string, data: SubmissionInput) {
     const result = await query(
-      `INSERT INTO submissions (user_id, challenge_id, code, status)
-       VALUES ($1, $2, $3, 'pending')
+      `INSERT INTO submissions (user_id, challenge_id, code, status, session_id)
+       VALUES ($1, $2, $3, 'pending', $4)
        RETURNING id, user_id, challenge_id, code, status, submitted_at`,
-      [userId, data.challenge_id, data.code]
+      [userId, data.challenge_id, data.code, data.session_id ?? null]
     );
 
     const submission = result.rows[0];
-    
-    // For MVP, score immediately instead of simulating async
-    await this.scoreSubmission(submission.id);
+
+    try {
+      await query(
+        `UPDATE proctoring_logs SET submission_id = $1 WHERE session_id = $2`,
+        [submission.id, data.session_id]
+      );
+    } catch {
+      // Logs may not have session_id column or session may have no logs
+    }
+
+    await this.scoreSubmission(submission.id, userId, data.code, data.session_id ?? null);
+
+    try {
+      await query(
+        `UPDATE proctoring_sessions SET submission_id = $1, end_time = NOW(), status = 'completed'
+         WHERE id = $2`,
+        [submission.id, data.session_id]
+      );
+    } catch {
+      // Session may not exist or table structure may differ
+    }
 
     return {
       submission_id: submission.id,
-      status: 'graded', // Now immediately graded
+      status: 'graded',
       message: 'Submission received and scored'
     };
   }
@@ -84,55 +106,23 @@ export class SubmissionService {
     }));
   }
 
-  private async scoreSubmission(submissionId: string) {
+  private async scoreSubmission(
+    submissionId: string,
+    userId: string,
+    code: string,
+    sessionId: string | null
+  ) {
     try {
-      // Simple scoring for MVP
-      const score = Math.floor(Math.random() * 40) + 60; // 60-100
-      
+      const { score } = await scoringService.computeSubmissionScore(userId, code, sessionId);
+
       await query(
-        `UPDATE submissions 
-         SET score = $1, status = 'graded'
-         WHERE id = $2`,
+        `UPDATE submissions SET score = $1, status = 'graded' WHERE id = $2`,
         [score, submissionId]
       );
 
-      // Get user ID for trust score update
-      const submission = await query(
-        `SELECT user_id FROM submissions WHERE id = $1`,
-        [submissionId]
-      );
-
-      if (submission.rows.length > 0) {
-        const userId = submission.rows[0].user_id;
-        
-        await query(
-          `INSERT INTO trust_scores (user_id, total_score, trust_level)
-           VALUES ($1, $2, 
-             CASE 
-               WHEN $2 >= 75 THEN 'High'
-               WHEN $2 >= 50 THEN 'Medium'
-               ELSE 'Low'
-             END)
-           ON CONFLICT (user_id) DO UPDATE
-           SET total_score = $2,
-               trust_level = CASE 
-                 WHEN $2 >= 75 THEN 'High'
-                 WHEN $2 >= 50 THEN 'Medium'
-                 ELSE 'Low'
-               END,
-               updated_at = NOW()`,
-          [userId, score]
-        );
-      }
-
+      await scoringService.recomputeTrustScore(userId);
     } catch (error) {
-      console.error('Scoring failed:', error);
-      
-      await query(
-        `UPDATE submissions SET status = 'failed' WHERE id = $1`,
-        [submissionId]
-      );
-      
+      await query(`UPDATE submissions SET status = 'failed' WHERE id = $1`, [submissionId]);
       throw error;
     }
   }
