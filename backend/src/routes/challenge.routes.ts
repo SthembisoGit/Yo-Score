@@ -7,8 +7,8 @@ const router = Router();
 const challengeController = new ChallengeController();
 const referenceDocsController = new ReferenceDocsController();
 
-// Public routes
 router.get('/', challengeController.listChallenges.bind(challengeController));
+router.get('/next', authenticate, challengeController.getNextChallenge.bind(challengeController));
 router.get('/:challenge_id', challengeController.getChallengeDetails.bind(challengeController));
 
 // Reference docs routes
