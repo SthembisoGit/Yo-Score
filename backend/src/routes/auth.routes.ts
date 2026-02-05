@@ -22,33 +22,26 @@ const authController = new AuthController();
 router.post('/signup', authController.signup.bind(authController));
 router.post('/login', authController.login.bind(authController));
 router.post('/logout', authenticate, authController.logout.bind(authController));
-router.post('/auth/rotate', async (req, res) => {
+router.post('/rotate', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
       return res.status(401).json({ message: 'Missing token' });
     }
-
     const token = authHeader.split(' ')[1];
     const result = await rotateToken(token);
-
     res.json(result);
-  } catch (error: any) {
-    res.status(401).json({ message: 'Unauthorized', error: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unauthorized';
+    res.status(401).json({ message: 'Unauthorized', error: message });
   }
 });
 
-
-// Add authenticate middleware to validate route
 router.get('/validate', authenticate, async (req, res) => {
   try {
-    // The authenticate middleware already verified the token
-    // and attached user to req.user
-    
     if (!req.user) {
       return res.status(401).json({ valid: false, error: 'Invalid token' });
     }
-
     res.json({
       valid: true,
       user: {
@@ -58,7 +51,7 @@ router.get('/validate', authenticate, async (req, res) => {
         role: req.user.role
       }
     });
-  } catch (error) {
+  } catch {
     res.status(401).json({ valid: false, error: 'Invalid token' });
   }
 });
