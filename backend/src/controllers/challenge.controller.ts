@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { ChallengeService } from '../services/challenge.service';
-import { authenticate } from '../middleware/auth.middleware';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 const challengeService = new ChallengeService();
 
@@ -56,6 +56,38 @@ export class ChallengeController {
         });
       }
 
+      return res.status(500).json({
+        success: false,
+        message,
+        error: 'CHALLENGE_FETCH_FAILED'
+      });
+    }
+  }
+
+  async getNextChallenge(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated',
+          error: 'UNAUTHORIZED'
+        });
+      }
+      const challenge = await challengeService.getNextChallengeForUser(req.user.id);
+      return res.status(200).json({
+        success: true,
+        message: 'Next challenge retrieved',
+        data: challenge
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to get next challenge';
+      if (message.includes('No challenges available')) {
+        return res.status(404).json({
+          success: false,
+          message,
+          error: 'NO_CHALLENGES_AVAILABLE'
+        });
+      }
       return res.status(500).json({
         success: false,
         message,
