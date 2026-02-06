@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { unwrapData } from '@/lib/apiHelpers';
 
 interface SignupData {
   name: string;
@@ -12,11 +13,12 @@ interface LoginData {
   password: string;
 }
 
-interface AuthResponse {
+export interface AuthResponse {
   token: string;
   user: {
     user_id: string;
     name: string;
+    email?: string;
     role: string;
   };
 }
@@ -26,20 +28,17 @@ const JWT_STORAGE_KEY =
 
 export const authService = {
   async signup(userData: SignupData): Promise<{ message: string; user_id: string }> {
-    return await apiClient.post('/auth/signup', userData);
+    const response = await apiClient.post('/auth/signup', userData);
+    return unwrapData<{ message: string; user_id: string }>(response);
   },
 
   async login(credentials: LoginData): Promise<AuthResponse> {
-    const result = await apiClient.post<AuthResponse>(
-      '/auth/login',
-      credentials
-    );
-
-    if (result.data.token) {
-      localStorage.setItem(JWT_STORAGE_KEY, result.data.token);
+    const response = await apiClient.post('/auth/login', credentials);
+    const result = unwrapData<AuthResponse>(response);
+    if (result.token) {
+      localStorage.setItem(JWT_STORAGE_KEY, result.token);
     }
-
-    return result.data;
+    return result;
   },
 
   async logout(): Promise<void> {
@@ -52,5 +51,11 @@ export const authService = {
 
   hasToken(): boolean {
     return !!localStorage.getItem(JWT_STORAGE_KEY);
+  },
+
+  async validateToken(): Promise<{ valid: boolean; user?: { user_id: string; name: string; email: string; role: string } }> {
+    const response = await apiClient.get('/auth/validate');
+    const body = response as { valid?: boolean; user?: { user_id: string; name: string; email: string; role: string } };
+    return body.valid && body.user ? { valid: true, user: body.user } : { valid: false };
   }
 };

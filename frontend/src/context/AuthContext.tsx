@@ -101,53 +101,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }, []);
 
 
-  // Check for existing token on mount
- useEffect(() => {
-  const checkAuth = async () => {
-    const token = localStorage.getItem('yoScore_auth_token');
-    
-    if (token) {
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem('yoScore_auth_token');
+      if (!token) {
+        setIsCheckingAuth(false);
+        return;
+      }
       try {
-        // Validate token with backend
-        const response = await fetch('http://localhost:3000/api/auth/validate', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          
-          // Transform backend user data to frontend User interface
+        const response = await authService.validateToken();
+        if (response?.user) {
+          const u = response.user;
           const userData: User = {
-            id: data.user.user_id,
-            name: data.user.name,
-            email: data.user.email,
-            role: data.user.role,
-            totalScore: 0, 
+            id: u.user_id,
+            name: u.name,
+            email: u.email ?? '',
+            role: u.role,
+            totalScore: 0,
             trustLevel: 'Low',
-            categoryScores:[],
+            categoryScores: [],
             workExperienceMonths: 0
           };
-          
           setUser(userData);
         } else {
-          
           localStorage.removeItem('yoScore_auth_token');
         }
-      } catch (error) {
-        console.error('Token validation failed:', error);
+      } catch {
         localStorage.removeItem('yoScore_auth_token');
+      } finally {
+        setIsCheckingAuth(false);
       }
-    }
-    
-    
-    setIsCheckingAuth(false);
-  };
-
-  checkAuth();
-}, []);
+    };
+    checkAuth();
+  }, []);
 
 
 
