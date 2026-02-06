@@ -1,7 +1,7 @@
 const { Client } = require('pg');
 
 const client = new Client({
-  connectionString: "postgresql://postgres.vllkcrhddpagxioljdpm:zRkRLKJ4QbaxOaaS@aws-1-us-east-1.pooler.supabase.com:6543/postgres"
+  connectionString: "link"
 
 });
 
