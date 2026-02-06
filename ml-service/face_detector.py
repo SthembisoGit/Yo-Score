@@ -204,6 +204,40 @@ class FaceDetector:
         coverage = 1 - (visible_count / total_count)
         return max(0, min(1, coverage))
     
+    def _detect_mouth_movement(self, landmarks, prev_landmarks=None) -> Dict[str, Any]:
+        """Detect mouth movement to correlate with audio speech detection"""
+        if not landmarks or not prev_landmarks:
+            return {"mouth_moving": False, "movement_confidence": 0.0}
+        
+        # Mouth landmark indices (MediaPipe)
+        mouth_points = [
+            61, 146, 91, 181, 84, 17, 314, 405, 320, 307, 375, 321, 308, 324, 318
+        ]
+        
+        # Calculate mouth opening/closing
+        upper_lip = landmarks.landmark[13]  # Upper lip
+        lower_lip = landmarks.landmark[14]  # Lower lip
+        
+        prev_upper = prev_landmarks.landmark[13] if prev_landmarks else None
+        prev_lower = prev_landmarks.landmark[14] if prev_landmarks else None
+        
+        if prev_upper and prev_lower:
+            # Calculate vertical distance (mouth opening)
+            current_opening = abs(upper_lip.y - lower_lip.y)
+            prev_opening = abs(prev_upper.y - prev_lower.y)
+            
+            # Movement threshold
+            movement = abs(current_opening - prev_opening)
+            is_moving = movement > 0.01  # Threshold for mouth movement
+            
+            return {
+                "mouth_moving": is_moving,
+                "movement_confidence": min(movement * 10, 1.0),
+                "mouth_opening": float(current_opening)
+            }
+        
+        return {"mouth_moving": False, "movement_confidence": 0.0}
+    
     def _to_dict(self, analysis: FaceAnalysis) -> Dict[str, Any]:
         return {
             "face_count": analysis.face_count,
