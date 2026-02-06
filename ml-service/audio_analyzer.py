@@ -99,8 +99,8 @@ class AudioAnalyzer:
         
         return results
     
-    def _detect_speech(self, y, sr, threshold=0.03):
-        """Simple speech detection using energy threshold"""
+    def _detect_speech(self, y, sr, threshold=0.02):
+        """Enhanced speech detection focusing on user speech patterns (not just ambient noise)"""
         # Calculate short-term energy
         frame_length = int(0.025 * sr)  # 25ms
         hop_length = int(0.01 * sr)     # 10ms
@@ -110,27 +110,58 @@ class AudioAnalyzer:
             for i in range(0, len(y)-frame_length, hop_length)
         ])
         
-        # Normalize
+        # Calculate spectral features for better speech detection
+        # Speech has more energy in certain frequency bands
+        stft = librosa.stft(y, hop_length=hop_length, n_fft=frame_length*4)
+        magnitude = np.abs(stft)
+        
+        # Focus on speech frequency range (300-3400 Hz for human speech)
+        freq_bins = librosa.fft_frequencies(sr=sr, n_fft=frame_length*4)
+        speech_mask = (freq_bins >= 300) & (freq_bins <= 3400)
+        speech_energy = np.mean(magnitude[speech_mask, :], axis=0)
+        
+        # Normalize both energy measures
         if len(energy) > 0:
-            energy = energy / np.max(energy)
+            energy = energy / (np.max(energy) + 1e-10)
+        if len(speech_energy) > 0:
+            speech_energy = speech_energy / (np.max(speech_energy) + 1e-10)
         
-        # Find speech segments
-        speech_frames = energy > threshold
+        # Combine energy and spectral features
+        # Speech typically has higher spectral energy in speech bands
+        min_length = min(len(energy), len(speech_energy))
+        combined_signal = (energy[:min_length] + speech_energy[:min_length]) / 2
+        
+        # Lower threshold to catch more speech, but require sustained activity
+        # This helps distinguish user speech from brief ambient noise
+        speech_frames = combined_signal > threshold
+        
+        # Require at least 200ms of continuous speech (reduces false positives from noise)
+        min_speech_frames = int(0.2 * sr / hop_length)  # 200ms
+        
         speech_intervals = []
-        
         in_speech = False
         start = 0
+        consecutive_frames = 0
         
         for i, is_speech in enumerate(speech_frames):
-            if is_speech and not in_speech:
-                start = i * hop_length / sr
-                in_speech = True
-            elif not is_speech and in_speech:
-                end = i * hop_length / sr
-                speech_intervals.append((start, end))
-                in_speech = False
+            if is_speech:
+                consecutive_frames += 1
+                if not in_speech:
+                    start = i * hop_length / sr
+                    in_speech = True
+            else:
+                consecutive_frames = 0
+                if in_speech and consecutive_frames == 0:
+                    # Only add interval if it was long enough
+                    duration = (i * hop_length / sr) - start
+                    if duration >= 0.2:  # At least 200ms
+                        speech_intervals.append((start, i * hop_length / sr))
+                    in_speech = False
         
         if in_speech:
-            speech_intervals.append((start, len(y) / sr))
+            end = len(y) / sr
+            duration = end - start
+            if duration >= 0.2:
+                speech_intervals.append((start, end))
         
         return speech_intervals
