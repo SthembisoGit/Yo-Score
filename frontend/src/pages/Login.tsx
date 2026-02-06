@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
 
+
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -104,7 +105,7 @@ export default function Login() {
 
 
 
-  const isLoadingState =isSubmitting;
+  const isLoadingState = isSubmitting;
 
   return (
     <div className="min-h-screen bg-accent flex">
@@ -189,17 +190,9 @@ export default function Login() {
               </div>
 
               <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label htmlFor="password" className="text-sm font-medium">
-                    Password
-                  </Label>
-                  <Link
-                    to="/forgot-password"
-                    className="text-xs text-primary hover:text-primary/80 hover:underline"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
+                <Label htmlFor="password" className="text-sm font-medium">
+                  Password
+                </Label>
                 <div className="relative">
                   <Input
                     id="password"
@@ -260,6 +253,9 @@ export default function Login() {
           </div>
         </div>
       </div>
+     
     </div>
+
+
   );
 }
