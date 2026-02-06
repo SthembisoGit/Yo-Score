@@ -1,5 +1,5 @@
-import apiClient from "./apiClient";
-
+import apiClient from './apiClient';
+import { unwrapData } from '@/lib/apiHelpers';
 
 export interface ProctoringSession {
   sessionId: string;
@@ -43,15 +43,10 @@ class ProctoringService {
    */
   async startSession(challengeId: string): Promise<{ sessionId: string }> {
     try {
-      const response = await apiClient.post('/proctoring/session/start', {
-        challengeId
-      });
-      
-      return {
-        sessionId: response.data.data.sessionId
-      };
-    } catch (error) {
-      console.error('Failed to start proctoring session:', error);
+      const response = await apiClient.post('/proctoring/session/start', { challengeId });
+      const data = unwrapData<{ sessionId: string }>(response);
+      return { sessionId: data.sessionId };
+    } catch {
       throw new Error('Could not start proctoring session');
     }
   }
@@ -65,9 +60,8 @@ class ProctoringService {
         sessionId,
         submissionId
       });
-    } catch (error) {
-      console.error('Failed to end proctoring session:', error);
-      // Don't throw - we don't want to block submission if proctoring fails
+    } catch {
+      // Do not block submission if proctoring end fails
     }
   }
 
@@ -86,9 +80,8 @@ class ProctoringService {
         description: description || `Violation: ${type}`
       });
       
-      return response.data.data;
-    } catch (error) {
-      console.error('Failed to log violation:', error);
+      return unwrapData<ProctoringViolation>(response);
+    } catch {
       // Return a mock violation if backend fails
       return {
         type,
@@ -106,9 +99,8 @@ class ProctoringService {
   async getSessionDetails(sessionId: string): Promise<ProctoringSessionDetails> {
     try {
       const response = await apiClient.get(`/proctoring/session/${sessionId}`);
-      return response.data.data;
-    } catch (error) {
-      console.error('Failed to get session details:', error);
+      return unwrapData<ProctoringSessionDetails>(response);
+    } catch {
       throw new Error('Could not retrieve session details');
     }
   }
@@ -119,9 +111,8 @@ class ProctoringService {
   async getUserSessions(userId: string, limit: number = 10): Promise<ProctoringSession[]> {
     try {
       const response = await apiClient.get(`/proctoring/user/${userId}/sessions?limit=${limit}`);
-      return response.data.data;
-    } catch (error) {
-      console.error('Failed to get user sessions:', error);
+      return unwrapData<ProctoringSession[]>(response);
+    } catch {
       return [];
     }
   }
@@ -136,9 +127,8 @@ class ProctoringService {
   }> {
     try {
       const response = await apiClient.get(`/proctoring/user/${userId}/violations/summary`);
-      return response.data.data;
-    } catch (error) {
-      console.error('Failed to get violation summary:', error);
+      return unwrapData(response);
+    } catch {
       return {
         totalViolations: 0,
         totalPenalty: 0,
@@ -158,7 +148,7 @@ class ProctoringService {
         status: 'healthy',
         message: 'Proctoring service is available'
       };
-    } catch (error) {
+    } catch {
       return {
         status: 'unhealthy',
         message: 'Proctoring service is temporarily unavailable'
@@ -174,13 +164,9 @@ class ProctoringService {
     violations: Array<{ type: string; description?: string }>
   ): Promise<ProctoringViolation[]> {
     try {
-      const response = await apiClient.post('/proctoring/violations/batch', {
-        sessionId,
-        violations
-      });
-      return response.data.data;
-    } catch (error) {
-      console.error('Failed to log multiple violations:', error);
+      const response = await apiClient.post('/proctoring/violations/batch', { sessionId, violations });
+      return unwrapData<ProctoringViolation[]>(response);
+    } catch {
       return violations.map(violation => ({
         type: violation.type,
         severity: 'medium',
@@ -201,9 +187,8 @@ class ProctoringService {
   }> {
     try {
       const response = await apiClient.get(`/proctoring/session/${sessionId}/analytics`);
-      return response.data.data;
-    } catch (error) {
-      console.error('Failed to get session analytics:', error);
+      return unwrapData(response);
+    } catch {
       return {
         violationTimeline: [],
         severityDistribution: { high: 0, medium: 0, low: 0 },
@@ -213,48 +198,45 @@ class ProctoringService {
   }
 
   /**
-   * Upload frame for ML analysis (for future use)
+   * Upload frame for ML analysis
    */
   async analyzeFrame(sessionId: string, frame: Blob): Promise<any> {
     try {
-      const formData = new FormData();
-      formData.append('frame', frame, 'frame.jpg');
-      formData.append('sessionId', sessionId);
-      formData.append('timestamp', new Date().toISOString());
-
-      const response = await apiClient.post('/proctoring/analyze-face', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
+      const arrayBuffer = await frame.arrayBuffer();
+      const response = await apiClient.post(
+        `/proctoring/analyze-face?sessionId=${sessionId}&timestamp=${encodeURIComponent(new Date().toISOString())}`,
+        arrayBuffer,
+        {
+          headers: {
+            'Content-Type': 'image/jpeg',
+          },
         }
-      });
-      
-      return response.data;
+      );
+      return unwrapData(response);
     } catch (error) {
-      console.error('Failed to analyze frame:', error);
+      console.error('Frame analysis failed:', error);
       return null;
     }
   }
 
   /**
-   * Upload audio for ML analysis (for future use)
+   * Upload audio for ML analysis
    */
   async analyzeAudio(sessionId: string, audio: Blob, durationMs: number): Promise<any> {
     try {
-      const formData = new FormData();
-      formData.append('audio', audio, 'audio.webm');
-      formData.append('sessionId', sessionId);
-      formData.append('durationMs', durationMs.toString());
-      formData.append('timestamp', new Date().toISOString());
-
-      const response = await apiClient.post('/proctoring/analyze-audio', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
+      const arrayBuffer = await audio.arrayBuffer();
+      const response = await apiClient.post(
+        `/proctoring/analyze-audio?sessionId=${sessionId}&timestamp=${encodeURIComponent(new Date().toISOString())}&durationMs=${durationMs}`,
+        arrayBuffer,
+        {
+          headers: {
+            'Content-Type': 'audio/webm',
+          },
         }
-      });
-      
-      return response.data;
+      );
+      return unwrapData(response);
     } catch (error) {
-      console.error('Failed to analyze audio:', error);
+      console.error('Audio analysis failed:', error);
       return null;
     }
   }
@@ -269,9 +251,8 @@ class ProctoringService {
   }> {
     try {
       const response = await apiClient.get(`/proctoring/session/${sessionId}/status`);
-      return response.data.data;
-    } catch (error) {
-      console.error('Failed to get session status:', error);
+      return unwrapData(response);
+    } catch {
       return {
         isActive: true,
         violationsSinceLastCheck: 0,
@@ -292,10 +273,8 @@ class ProctoringService {
   }> {
     try {
       const response = await apiClient.get('/proctoring/settings');
-      return response.data.data;
-    } catch (error) {
-      console.error('Failed to get proctoring settings:', error);
-      // Default settings
+      return unwrapData(response);
+    } catch {
       return {
         requireCamera: true,
         requireMicrophone: true,
@@ -318,13 +297,11 @@ class ProctoringService {
   }>): Promise<void> {
     try {
       await apiClient.put('/proctoring/settings', settings);
-    } catch (error) {
-      console.error('Failed to update proctoring settings:', error);
+    } catch {
       throw new Error('Could not update settings');
     }
   }
 }
 
-// Export a singleton instance
 export const proctoringService = new ProctoringService();
 export default proctoringService;
