@@ -1,4 +1,7 @@
 import apiClient from './apiClient';
+import { unwrapData } from '@/lib/apiHelpers';
+
+type ChallengeProgressStatus = 'completed' | 'pending' | 'in_progress' | 'graded' | 'not_started';
 
 export interface DashboardData {
   total_score: number;
@@ -6,10 +9,11 @@ export interface DashboardData {
   category_scores: {
     [category: string]: number;
   };
+  monthly_progress?: number;
   challenge_progress: Array<{
     challenge_id: string;
-    status: 'completed' | 'in_progress' | 'pending';
-    score: number;
+    status: ChallengeProgressStatus;
+    score: number | null;
   }>;
 }
 
@@ -33,35 +37,35 @@ export interface UserProfile {
 export interface Submission {
   submission_id: string;
   challenge_id: string;
-  score: number;
+  score: number | null;
   status: 'pending' | 'graded' | 'failed';
   submitted_at: string;
 }
 
 class DashboardService {
   async getDashboardData(): Promise<DashboardData> {
-    const response = await apiClient.get<DashboardData>('/dashboard/me');
-    return response.data;
+    const response = await apiClient.get('/dashboard/me');
+    return unwrapData<DashboardData>(response);
   }
 
   async getUserProfile(): Promise<UserProfile> {
-    const response = await apiClient.get<UserProfile>('/users/me');
-    return response.data;
+    const response = await apiClient.get('/users/me');
+    return unwrapData<UserProfile>(response);
   }
 
   async getWorkExperience(): Promise<WorkExperience[]> {
-    const response = await apiClient.get<WorkExperience[]>('/users/me/work-experience');
-    return response.data;
+    const response = await apiClient.get('/users/me/work-experience');
+    return unwrapData<WorkExperience[]>(response);
   }
 
   async getUserSubmissions(): Promise<Submission[]> {
-    const response = await apiClient.get<Submission[]>('/submissions/user/me');
-    return response.data;
+    const response = await apiClient.get('/submissions');
+    return unwrapData<Submission[]>(response);
   }
 
   async updateProfile(profileData: Partial<{ name: string; email: string }>): Promise<UserProfile> {
-    const response = await apiClient.put<UserProfile>('/users/me', profileData);
-    return response.data;
+    const response = await apiClient.put('/users/me', profileData);
+    return unwrapData<UserProfile>(response);
   }
 }
 
