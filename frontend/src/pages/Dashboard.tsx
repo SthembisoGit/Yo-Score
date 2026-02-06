@@ -11,7 +11,10 @@ import { Progress } from '@/components/ui/progress';
 
 import { useAuth } from '@/context/AuthContext';
 import { useChallenges } from '@/context/ChallengeContext';
-import { dashboardService } from '@/services/dashboardService';
+import {
+  dashboardService,
+  type DashboardData as ServiceDashboardData
+} from '@/services/dashboardService';
 
 const CATEGORY_COLORS = [
   'blue',
@@ -24,23 +27,13 @@ const CATEGORY_COLORS = [
   'rose',
 ] as const;
 
-type ChallengeProgress = {
-  challenge_id: string;
-  status: 'completed' | 'pending' | 'in_progress';
-  score: number;
-};
-
-type DashboardData = {
-  challenge_progress?: ChallengeProgress[];
-  monthly_progress?: number;
-};
-
 export default function Dashboard() {
   const { user } = useAuth();
   const { challenges } = useChallenges();
 
   const [isLoading, setIsLoading] = useState(false);
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+type DashboardViewData = ServiceDashboardData & { monthly_progress?: number };
+const [dashboardData, setDashboardData] = useState<DashboardViewData | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -77,16 +70,13 @@ export default function Dashboard() {
 
   const completedChallengesCount =
     dashboardData?.challenge_progress?.filter(
-      (c) => c.status === 'completed'
+      (c) => c.status === 'completed' || c.status === 'graded'
     ).length ?? 0;
 
   const recentChallenges = challenges.filter((c) => c.completed).slice(0, 3);
   const pendingChallenges = challenges.filter((c) => !c.completed).slice(0, 2);
 
-  const trustScorePercentage = Math.min(
-    Math.round((user.totalScore / 1000) * 100),
-    100
-  );
+  const trustScorePercentage = Math.min(Math.round(user.totalScore), 100);
 
   const monthlyProgress = dashboardData?.monthly_progress ?? 0;
   const categoryScores = user.categoryScores ?? [];
