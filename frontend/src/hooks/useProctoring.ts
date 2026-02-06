@@ -39,28 +39,24 @@ export const useProctoring = () => {
 
   const startSession = useCallback(async (challengeId: string, userId: string): Promise<string> => {
     try {
-      // Check health first
-      const isHealthy = await checkHealth();
-      if (!isHealthy) {
-        toast.error('Proctoring service is unavailable. Continuing without proctoring.');
-        return 'mock-session-' + Date.now();
-      }
-
+      // Try to start session via backend first (no health check block)
       const response = await proctoringService.startSession(challengeId);
       setCurrentSessionId(response.sessionId);
       setIsActive(true);
       setViolations([]);
-      
-      // Load settings
       await loadSettings();
-      
       return response.sessionId;
     } catch (error) {
-      console.error('Failed to start proctoring session:', error);
-      toast.error('Failed to start proctoring session');
-      throw error;
+      console.error('Failed to start proctoring session (backend):', error);
+      // Fallback: use mock session so UI still starts and camera/monitoring can run
+      const mockId = 'mock-session-' + Date.now();
+      setCurrentSessionId(mockId);
+      setIsActive(true);
+      setViolations([]);
+      toast.error('Proctoring backend unavailable. Session started locally — violations will be logged when connection is restored.');
+      return mockId;
     }
-  }, [checkHealth, loadSettings]);
+  }, [loadSettings]);
 
   const endSession = useCallback(async (sessionId: string, submissionId?: string) => {
     try {
