@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { unwrapData } from '@/lib/apiHelpers';
 
 export interface SubmissionResult {
   submission_id: string;
@@ -58,21 +59,20 @@ class SubmissionService {
         session_id: sessionId // Include session ID if available
       });
       
-      return response.data.data || response.data;
-    } catch (error: any) {
-      console.error('Submission error:', error);
+      return unwrapData<{ submission_id: string; status: string; message: string }>(response);
+    } catch (error: unknown) {
+      const err = error as { response?: { status?: number; data?: { message?: string } } };
       
       // Provide helpful error messages
-      if (error.response?.status === 404) {
+      if (err.response?.status === 404) {
         throw new Error('Submission endpoint not found. Please check if backend is running.');
       }
-      if (error.response?.status === 401) {
+      if (err.response?.status === 401) {
         throw new Error('Session expired. Please login again.');
       }
-      if (error.response?.data?.message) {
-        throw new Error(error.response.data.message);
+      if (err.response?.data?.message) {
+        throw new Error(err.response.data.message);
       }
-      
       throw new Error('Failed to submit challenge. Please try again.');
     }
   }
@@ -83,14 +83,12 @@ class SubmissionService {
   async getSubmissionResult(submissionId: string): Promise<SubmissionResult> {
     try {
       const response = await apiClient.get(`/submissions/${submissionId}`);
-      return response.data.data || response.data;
-    } catch (error: any) {
-      console.error('Failed to get submission result:', error);
-      
-      if (error.response?.status === 404) {
+      return unwrapData<SubmissionResult>(response);
+    } catch (error: unknown) {
+      const err = error as { response?: { status?: number } };
+      if (err.response?.status === 404) {
         throw new Error('Submission not found');
       }
-      
       throw new Error('Failed to load submission results');
     }
   }
@@ -114,11 +112,8 @@ class SubmissionService {
   async getSubmissionWithProctoring(submissionId: string): Promise<SubmissionWithProctoring> {
     try {
       const response = await apiClient.get(`/submissions/${submissionId}/detailed`);
-      return response.data.data || response.data;
-    } catch (error: any) {
-      console.error('Failed to get detailed submission:', error);
-      
-      // Return mock data if endpoint doesn't exist yet
+      return unwrapData<SubmissionWithProctoring>(response);
+    } catch {
       return {
         submission_id: submissionId,
         score: 0,
@@ -181,9 +176,8 @@ class SubmissionService {
   }> {
     try {
       const response = await apiClient.get('/submissions/stats');
-      return response.data.data || response.data;
-    } catch (error: any) {
-      console.error('Failed to get submission stats:', error);
+      return unwrapData(response);
+    } catch {
       return {
         total_submissions: 0,
         average_score: 0,
@@ -207,9 +201,8 @@ class SubmissionService {
         code: updatedCode
       });
       
-      return response.data.data || response.data;
-    } catch (error: any) {
-      console.error('Failed to resubmit:', error);
+      return unwrapData<{ submission_id: string; status: string }>(response);
+    } catch {
       throw new Error('Failed to resubmit challenge');
     }
   }
@@ -220,9 +213,9 @@ class SubmissionService {
   async getSubmissionCode(submissionId: string): Promise<string> {
     try {
       const response = await apiClient.get(`/submissions/${submissionId}/code`);
-      return response.data.data?.code || response.data.code || '';
-    } catch (error: any) {
-      console.error('Failed to get submission code:', error);
+      const data = unwrapData<{ code?: string }>(response);
+      return data?.code ?? '// Code not available';
+    } catch {
       return '// Code not available';
     }
   }
@@ -248,9 +241,8 @@ class SubmissionService {
         submission_id_2: submissionId2
       });
       
-      return response.data.data || response.data;
-    } catch (error: any) {
-      console.error('Failed to compare submissions:', error);
+      return unwrapData(response);
+    } catch {
       return {
         similarities: 0,
         differences: [],
