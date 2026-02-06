@@ -23,6 +23,8 @@ export default function ChallengeDetail() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [violations, setViolations] = useState<any[]>([]);
+  const [violationCount, setViolationCount] = useState(0);
+  const [isStartingProctoring, setIsStartingProctoring] = useState(false);
 
   const { startSession, endSession, logViolation, isActive } = useProctoring();
 
@@ -47,28 +49,34 @@ export default function ChallengeDetail() {
   };
 
   const handleProctoringConfirm = async () => {
+    if (!id || !user?.id) {
+      toast.error('Missing challenge or user information. Please ensure you are logged in.');
+      return;
+    }
+
+    setIsStartingProctoring(true);
+    setShowProctoringModal(false);
+
     try {
-      setShowProctoringModal(false);
-      
-      if (!id || !user?.id) {
-        toast.error('Missing challenge or user information');
-        return;
-      }
-      
-      // Start proctoring session
       const newSessionId = await startSession(id, user.id);
       setSessionId(newSessionId);
       setSessionStarted(true);
-      
       toast.success('Proctoring session started. Camera and microphone are now active.');
     } catch (error) {
       toast.error('Failed to start proctoring session');
       console.error(error);
+      setShowProctoringModal(true); // Re-open modal so user can try again
+    } finally {
+      setIsStartingProctoring(false);
     }
   };
 
   const handleViolationDetected = (type: string, data: any) => {
-    setViolations(prev => [...prev, { type, timestamp: new Date(), data }]);
+    setViolations(prev => {
+      const newViolations = [...prev, { type, timestamp: new Date(), data }];
+      setViolationCount(newViolations.length);
+      return newViolations;
+    });
     
     // Log to backend
     if (sessionId) {
@@ -193,6 +201,7 @@ export default function ChallengeDetail() {
               challengeId={id!}
               sessionId={sessionId}
               onViolation={handleViolationDetected}
+              violationCount={violationCount}
             />
           </>
         )}
@@ -202,6 +211,7 @@ export default function ChallengeDetail() {
         isOpen={showProctoringModal}
         onClose={() => setShowProctoringModal(false)}
         onConfirm={handleProctoringConfirm}
+        isLoading={isStartingProctoring}
       />
     </div>
   );
