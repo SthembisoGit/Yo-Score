@@ -130,10 +130,10 @@ export function ChallengeProvider({ children }: { children: ReactNode }) {
   const getAssignedChallenge = useCallback(async (): Promise<Challenge> => {
     try {
       const completedSubmissions = await fetchCompletedSubmissions();
-      const backendChallenge = await challengeService.getAssignedChallenge();
+      const backendChallenge = await challengeService.getNextChallenge();
       return mapBackendChallenge(backendChallenge, completedSubmissions);
     } catch (err) {
-      console.error('Failed to get assigned challenge:', err);
+      console.error('Failed to get next challenge:', err);
       throw err;
     }
   }, []);
