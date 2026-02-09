@@ -1,18 +1,21 @@
 import { useState, useCallback, useEffect } from 'react';
-import { proctoringService } from '@/services/proctoring.service';
+import { proctoringService, type ProctoringViolation } from '@/services/proctoring.service';
 import { toast } from 'react-hot-toast';
+
+interface ProctoringSettings {
+  requireCamera: boolean;
+  requireMicrophone: boolean;
+  strictMode: boolean;
+  allowedViolationsBeforeWarning: number;
+  autoPauseOnViolation: boolean;
+}
 
 export const useProctoring = () => {
   const [isActive, setIsActive] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [violations, setViolations] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>(null);
+  const [violations, setViolations] = useState<ProctoringViolation[]>([]);
+  const [settings, setSettings] = useState<ProctoringSettings | null>(null);
   const [healthStatus, setHealthStatus] = useState<'healthy' | 'unhealthy' | 'checking'>('checking');
-
-  // Check service health on mount
-  useEffect(() => {
-    checkHealth();
-  }, []);
 
   const checkHealth = useCallback(async () => {
     setHealthStatus('checking');
@@ -20,26 +23,29 @@ export const useProctoring = () => {
       const health = await proctoringService.healthCheck();
       setHealthStatus(health.status);
       return health.status === 'healthy';
-    } catch (error) {
+    } catch {
       setHealthStatus('unhealthy');
       return false;
     }
   }, []);
 
+  useEffect(() => {
+    void checkHealth();
+  }, [checkHealth]);
+
   const loadSettings = useCallback(async () => {
     try {
-      const settings = await proctoringService.getSettings();
-      setSettings(settings);
-      return settings;
+      const loaded = await proctoringService.getSettings();
+      setSettings(loaded);
+      return loaded;
     } catch (error) {
       console.error('Failed to load proctoring settings:', error);
       return null;
     }
   }, []);
 
-  const startSession = useCallback(async (challengeId: string, userId: string): Promise<string> => {
+  const startSession = useCallback(async (challengeId: string, _userId: string): Promise<string> => {
     try {
-      // Try to start session via backend first (no health check block)
       const response = await proctoringService.startSession(challengeId);
       setCurrentSessionId(response.sessionId);
       setIsActive(true);
@@ -47,24 +53,14 @@ export const useProctoring = () => {
       await loadSettings();
       return response.sessionId;
     } catch (error) {
-      console.error('Failed to start proctoring session (backend):', error);
-      // Fallback: use mock session so UI still starts and camera/monitoring can run
-      const mockId = 'mock-session-' + Date.now();
-      setCurrentSessionId(mockId);
-      setIsActive(true);
-      setViolations([]);
-      toast.error('Proctoring backend unavailable. Session started locally — violations will be logged when connection is restored.');
-      return mockId;
+      console.error('Failed to start proctoring session:', error);
+      throw new Error('Proctoring service is unavailable. Please try again.');
     }
   }, [loadSettings]);
 
   const endSession = useCallback(async (sessionId: string, submissionId?: string) => {
     try {
       await proctoringService.endSession(sessionId, submissionId);
-      setIsActive(false);
-      setCurrentSessionId(null);
-      
-      // Show session summary if there were violations
       if (violations.length > 0) {
         toast(`Session ended with ${violations.length} proctoring alerts`, {
           duration: 5000
@@ -72,7 +68,7 @@ export const useProctoring = () => {
       }
     } catch (error) {
       console.error('Failed to end proctoring session:', error);
-      // Still reset state even if backend fails
+    } finally {
       setIsActive(false);
       setCurrentSessionId(null);
     }
@@ -81,40 +77,35 @@ export const useProctoring = () => {
   const logViolation = useCallback(async (sessionId: string, type: string, description?: string) => {
     try {
       const violation = await proctoringService.logViolation(sessionId, type, description);
-      
-      // Update local state
-      setViolations(prev => [...prev, violation]);
-      
-      // Check if we should warn the user based on settings
-      if (settings && violations.length >= settings.allowedViolationsBeforeWarning - 1) {
-        toast(`Multiple proctoring violations detected. Your trust score may be affected.`, {
+      setViolations((previous) => [...previous, violation]);
+
+      if (
+        settings &&
+        violations.length >= settings.allowedViolationsBeforeWarning - 1
+      ) {
+        toast('Multiple proctoring violations detected. Your trust score may be affected.', {
           duration: 6000,
-          icon: '⚠️'
+          icon: '!'
         });
       }
-      
+
       return violation;
     } catch (error) {
       console.error('Failed to log violation:', error);
-      const mockViolation = {
+      const fallback: ProctoringViolation = {
         type,
         severity: 'medium',
         description: description || `Violation: ${type}`,
         penalty: 5,
         timestamp: new Date().toISOString()
       };
-      setViolations(prev => [...prev, mockViolation]);
-      return mockViolation;
+      setViolations((previous) => [...previous, fallback]);
+      return fallback;
     }
   }, [settings, violations.length]);
 
   const getSessionDetails = useCallback(async (sessionId: string) => {
-    try {
-      return await proctoringService.getSessionDetails(sessionId);
-    } catch (error) {
-      console.error('Failed to get session details:', error);
-      throw error;
-    }
+    return proctoringService.getSessionDetails(sessionId);
   }, []);
 
   const getViolationSummary = useCallback(async (userId: string) => {
@@ -126,10 +117,16 @@ export const useProctoring = () => {
     }
   }, []);
 
-  const updateSettings = useCallback(async (newSettings: any) => {
+  const updateSettings = useCallback(async (newSettings: Partial<ProctoringSettings>) => {
     try {
       await proctoringService.updateSettings(newSettings);
-      setSettings(prev => ({ ...prev, ...newSettings }));
+      setSettings((previous) => ({ ...(previous || {
+        requireCamera: true,
+        requireMicrophone: true,
+        strictMode: false,
+        allowedViolationsBeforeWarning: 3,
+        autoPauseOnViolation: false
+      }), ...newSettings }));
       toast.success('Proctoring settings updated');
     } catch (error) {
       console.error('Failed to update settings:', error);
@@ -143,14 +140,11 @@ export const useProctoring = () => {
   }, []);
 
   return {
-    // State
     isActive,
     currentSessionId,
     violations,
     settings,
     healthStatus,
-    
-    // Actions
     startSession,
     endSession,
     logViolation,
@@ -160,11 +154,9 @@ export const useProctoring = () => {
     clearViolations,
     checkHealth,
     loadSettings,
-    
-    // Utilities
     hasViolations: violations.length > 0,
     violationCount: violations.length,
     totalPenalty: violations.reduce((sum, violation) => sum + (violation.penalty || 0), 0),
-    severeViolations: violations.filter(v => v.severity === 'high').length
+    severeViolations: violations.filter((violation) => violation.severity === 'high').length
   };
 };

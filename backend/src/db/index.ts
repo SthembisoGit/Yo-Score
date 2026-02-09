@@ -1,9 +1,12 @@
 import { Pool } from 'pg';
 import { config } from '../config';
 
+const isLocalDatabase =
+  config.DATABASE_URL.includes('localhost') || config.DATABASE_URL.includes('127.0.0.1');
+
 const pool = new Pool({
   connectionString: config.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl: isLocalDatabase ? undefined : { rejectUnauthorized: false },
 });
 
 pool.on('error', (err) => {

@@ -1,7 +1,3 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 @import "@fontsource/fira-code/400.css";
 @import "@fontsource/fira-code/500.css";
 @import "@fontsource/fira-code/600.css";
@@ -10,6 +6,10 @@
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
 @import "@fontsource/inter/700.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* Yo-Score Design System */
 

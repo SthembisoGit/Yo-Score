@@ -26,6 +26,13 @@ export interface WorkExperience {
   added_at: string;
 }
 
+export interface AddWorkExperienceInput {
+  company_name: string;
+  role: string;
+  duration_months: number;
+  verified?: boolean;
+}
+
 export interface UserProfile {
   user_id: string;
   name: string;
@@ -56,6 +63,11 @@ class DashboardService {
   async getWorkExperience(): Promise<WorkExperience[]> {
     const response = await apiClient.get('/users/me/work-experience');
     return unwrapData<WorkExperience[]>(response);
+  }
+
+  async addWorkExperience(input: AddWorkExperienceInput): Promise<WorkExperience> {
+    const response = await apiClient.post('/users/me/work-experience', input);
+    return unwrapData<WorkExperience>(response);
   }
 
   async getUserSubmissions(): Promise<Submission[]> {

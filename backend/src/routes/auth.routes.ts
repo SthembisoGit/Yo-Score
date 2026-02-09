@@ -7,7 +7,7 @@ declare global {
   namespace Express {
     interface Request {
       user?: {
-        user_id: string;
+        id: string;
         name: string;
         email: string;
         role: string;
@@ -45,7 +45,7 @@ router.get('/validate', authenticate, async (req, res) => {
     res.json({
       valid: true,
       user: {
-        user_id: req.user.user_id,
+        user_id: req.user.id,
         name: req.user.name,
         email: req.user.email,
         role: req.user.role

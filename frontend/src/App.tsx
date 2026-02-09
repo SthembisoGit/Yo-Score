@@ -14,6 +14,7 @@ import Challenges from "./pages/Challenges";
 import ChallengeDetail from "./pages/ChallengeDetail";
 import WorkExperience from "./pages/WorkExperience";
 import Profile from "./pages/Profile";
+import SubmissionResult from "./pages/SubmissionResult";
 import NotFound from "./pages/NotFound";
 import ConnectionTest from "./components/ConnectionTest";
 
@@ -37,6 +38,7 @@ const App = () => (
               <Route path="/challenges/:id" element={<ChallengeDetail />} />
               <Route path="/work-experience" element={<WorkExperience />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/submissions/:id" element={<SubmissionResult />} />
 
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

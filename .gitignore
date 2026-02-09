@@ -5,6 +5,8 @@ Thumbs.db
 # Environment files
 .env
 .env.*
+!.env.example
+!**/.env.example
 
 # JS dependencies and build output
 node_modules/

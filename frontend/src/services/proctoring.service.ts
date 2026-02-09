@@ -37,6 +37,28 @@ export interface ProctoringSessionDetails {
   duration: string;
 }
 
+export interface FaceMonitorResult {
+  face_count: number;
+  gaze_direction?: {
+    looking_away?: boolean;
+    direction?: string;
+    confidence?: number;
+  };
+  eyes_closed: boolean;
+  face_coverage: number;
+  confidence: number;
+  has_face: boolean;
+}
+
+export interface AudioMonitorResult {
+  has_speech: boolean;
+  speech_confidence: number;
+  voice_count: number;
+  noise_level: number;
+  suspicious_keywords: string[];
+  transcript: string;
+}
+
 class ProctoringService {
   /**
    * Start a new proctoring session
@@ -200,7 +222,7 @@ class ProctoringService {
   /**
    * Upload frame for ML analysis
    */
-  async analyzeFrame(sessionId: string, frame: Blob): Promise<any> {
+  async analyzeFrame(sessionId: string, frame: Blob): Promise<FaceMonitorResult | null> {
     try {
       const arrayBuffer = await frame.arrayBuffer();
       const response = await apiClient.post(
@@ -212,7 +234,23 @@ class ProctoringService {
           },
         }
       );
-      return unwrapData(response);
+
+      const payload = unwrapData<Record<string, unknown>>(response);
+      const wrappedResult =
+        ((payload.result as Record<string, unknown> | undefined) ||
+          (payload.results as Record<string, unknown> | undefined) ||
+          payload);
+
+      return {
+        face_count: Number(wrappedResult.face_count ?? wrappedResult.faceCount ?? 0),
+        gaze_direction:
+          (wrappedResult.gaze_direction as FaceMonitorResult['gaze_direction']) ||
+          (wrappedResult.gazeDirection as FaceMonitorResult['gaze_direction']),
+        eyes_closed: Boolean(wrappedResult.eyes_closed ?? wrappedResult.eyesClosed ?? false),
+        face_coverage: Number(wrappedResult.face_coverage ?? wrappedResult.faceCoverage ?? 0),
+        confidence: Number(wrappedResult.confidence ?? 0),
+        has_face: Boolean(wrappedResult.has_face ?? wrappedResult.hasFace ?? false),
+      };
     } catch (error) {
       console.error('Frame analysis failed:', error);
       return null;
@@ -222,7 +260,7 @@ class ProctoringService {
   /**
    * Upload audio for ML analysis
    */
-  async analyzeAudio(sessionId: string, audio: Blob, durationMs: number): Promise<any> {
+  async analyzeAudio(sessionId: string, audio: Blob, durationMs: number): Promise<AudioMonitorResult | null> {
     try {
       const arrayBuffer = await audio.arrayBuffer();
       const response = await apiClient.post(
@@ -234,7 +272,23 @@ class ProctoringService {
           },
         }
       );
-      return unwrapData(response);
+
+      const payload = unwrapData<Record<string, unknown>>(response);
+      const wrappedResult =
+        ((payload.result as Record<string, unknown> | undefined) ||
+          (payload.results as Record<string, unknown> | undefined) ||
+          payload);
+
+      return {
+        has_speech: Boolean(wrappedResult.has_speech ?? wrappedResult.hasSpeech ?? false),
+        speech_confidence: Number(wrappedResult.speech_confidence ?? wrappedResult.speechConfidence ?? 0),
+        voice_count: Number(wrappedResult.voice_count ?? wrappedResult.voiceCount ?? 0),
+        noise_level: Number(wrappedResult.noise_level ?? wrappedResult.noiseLevel ?? 0),
+        suspicious_keywords: Array.isArray(wrappedResult.suspicious_keywords)
+          ? (wrappedResult.suspicious_keywords as string[])
+          : [],
+        transcript: String(wrappedResult.transcript ?? ''),
+      };
     } catch (error) {
       console.error('Audio analysis failed:', error);
       return null;
