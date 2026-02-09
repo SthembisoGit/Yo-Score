@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { config } from './config';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
@@ -7,16 +8,22 @@ import challengeRoutes from './routes/challenge.routes';
 import submissionRoutes from './routes/submission.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import proctoringRoutes from './routes/proctoring.routes';
+import { getCorsConfig } from './utils/corsConfig';
 
 
 const app = express();
 
-app.use(cors({
-  origin: config.FRONTEND_URL,
-  credentials: true
-}));
+app.disable('x-powered-by');
+app.use(
+  helmet({
+    // API only; no browser-rendered HTML from this service.
+    contentSecurityPolicy: false,
+  }),
+);
+app.use(cors(getCorsConfig()));
 
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 app.get('/', (_, res) => {
   res.json({
@@ -53,6 +60,7 @@ app.use('*', (req, res) => {
 app.listen(config.PORT, () => {
   console.log(`Server running on port ${config.PORT}`);
   console.log(`Environment: ${config.NODE_ENV}`);
+  console.log(`Frontend origin: ${config.FRONTEND_URL}`);
 });
 
 export default app;
