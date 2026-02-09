@@ -1,0 +1,26 @@
+# OS/editor
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+
+# JS dependencies and build output
+node_modules/
+dist/
+build/
+coverage/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Project-specific local runtime artifacts
+ml-service/venv/
+ml-service/__pycache__/
