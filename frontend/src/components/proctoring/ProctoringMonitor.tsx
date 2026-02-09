@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Camera, Mic, AlertTriangle, Shield, X, Minimize2, Maximize2 } from 'lucide-react';
+import { Camera, Mic, AlertTriangle, Shield, Minimize2 } from 'lucide-react';
 import { proctoringService } from '@/services/proctoring.service';
 import { toast } from 'react-hot-toast';
 
@@ -7,7 +7,7 @@ interface Props {
   sessionId: string;
   userId: string;
   challengeId: string;
-  onViolation: (type: string, data: any) => void;
+  onViolation: (type: string, data: unknown) => void;
 }
 
 interface ViolationAlert {
@@ -31,7 +31,6 @@ const ProctoringMonitor: React.FC<Props> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   
-  const [isActive, setIsActive] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [micReady, setMicReady] = useState(false);
   const [violationCount, setViolationCount] = useState(0);
@@ -46,7 +45,7 @@ const ProctoringMonitor: React.FC<Props> = ({
   const inactivityTimerRef = useRef<NodeJS.Timeout>();
   const violationCheckIntervalRef = useRef<NodeJS.Timeout>();
   const cameraOffCheckRef = useRef<NodeJS.Timeout>();
-  const lastCameraCheckRef = useRef<number>(Date.now());
+  const eventCleanupRef = useRef<(() => void) | null>(null);
   const consecutiveCameraOffRef = useRef<number>(0);
   const lastAudioChunkTimeRef = useRef<number>(Date.now());
 
@@ -95,20 +94,19 @@ const ProctoringMonitor: React.FC<Props> = ({
 
       setCameraReady(true);
       setMicReady(true);
-      setIsActive(true);
 
       // Start monitoring intervals
       setupMonitoringIntervals();
-      setupEventListeners();
+      eventCleanupRef.current = setupEventListeners();
       startViolationStatusPolling();
 
       toast.success('Proctoring session active. Camera and microphone are monitoring.', {
         duration: 3000,
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to start proctoring:', error);
-      const message = error.message || 'Camera or microphone access denied';
+      const message = error instanceof Error ? error.message : 'Camera or microphone access denied';
       showViolationAlert('camera_off', 'Camera or microphone access denied. Please enable permissions.', 'high');
       onViolation('camera_off', {
         error: 'Could not access camera/microphone',
@@ -119,7 +117,15 @@ const ProctoringMonitor: React.FC<Props> = ({
 
   const setupAudioRecording = (stream: MediaStream) => {
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioContextClass =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+      if (!audioContextClass) {
+        throw new Error('AudioContext is not supported in this browser');
+      }
+
+      const audioContext = new audioContextClass();
       audioContextRef.current = audioContext;
 
       const audioTracks = stream.getAudioTracks();
@@ -320,7 +326,6 @@ const ProctoringMonitor: React.FC<Props> = ({
 
     const video = videoRef.current;
     const stream = mediaStreamRef.current;
-    const now = Date.now();
 
     // Aggressive camera check - multiple conditions
     const videoTrack = stream?.getVideoTracks()[0];
@@ -343,42 +348,8 @@ const ProctoringMonitor: React.FC<Props> = ({
       !audioTrack.enabled ||
       audioTrack.muted;
 
-    // Prevent tracks from being stopped
-    if (videoTrack && videoTrack.readyState === 'live') {
-      // Override stop method to prevent disabling
-      const originalStop = videoTrack.stop.bind(videoTrack);
-      videoTrack.stop = () => {
-        logViolation('camera_off', 'Attempted to stop camera track');
-        showViolationAlert(
-          'camera_off',
-          'Camera cannot be turned off during proctored session. Your score is being affected.',
-          'high'
-        );
-        // Don't actually stop - re-enable instead
-        if (!videoTrack.enabled) {
-          videoTrack.enabled = true;
-        }
-      };
-    }
-
-    if (audioTrack && audioTrack.readyState === 'live') {
-      const originalStop = audioTrack.stop.bind(audioTrack);
-      audioTrack.stop = () => {
-        logViolation('camera_off', 'Attempted to stop microphone track');
-        showViolationAlert(
-          'camera_off',
-          'Microphone cannot be turned off during proctored session. Your score is being affected.',
-          'high'
-        );
-        if (!audioTrack.enabled) {
-          audioTrack.enabled = true;
-        }
-      };
-    }
-
     if (cameraOff) {
       consecutiveCameraOffRef.current++;
-      lastCameraCheckRef.current = now;
 
       if (consecutiveCameraOffRef.current >= 1) {
         logViolation('camera_off', 'Camera appears to be turned off or disconnected');
@@ -437,7 +408,7 @@ const ProctoringMonitor: React.FC<Props> = ({
             if (result.face_count === 0) {
               logViolation('no_face', 'No face detected in frame');
               showViolationAlert('no_face', 'No face detected. Please ensure your face is visible to the camera.', 'medium');
-            } else             if (result.face_count > 1) {
+            } else if (result.face_count > 1) {
               logViolation('multiple_faces', `Multiple faces detected (${result.face_count})`);
               showViolationAlert(
                 'multiple_faces', 
@@ -512,7 +483,8 @@ const ProctoringMonitor: React.FC<Props> = ({
       description,
       timestamp: new Date().toISOString(),
       sessionId,
-      userId
+      userId,
+      challengeId
     };
 
     onViolation(type, violationData);
@@ -538,7 +510,7 @@ const ProctoringMonitor: React.FC<Props> = ({
     // Show toast notification
     const toastOptions = {
       duration: severity === 'high' ? 8000 : 5000,
-      icon: '⚠️',
+      icon: '!',
       className: severity === 'high' ? 'border-l-4 border-red-500' : severity === 'medium' ? 'border-l-4 border-amber-500' : 'border-l-4 border-blue-500'
     };
 
@@ -566,6 +538,10 @@ const ProctoringMonitor: React.FC<Props> = ({
     if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
     if (violationCheckIntervalRef.current) clearInterval(violationCheckIntervalRef.current);
     if (cameraOffCheckRef.current) clearInterval(cameraOffCheckRef.current);
+    if (eventCleanupRef.current) {
+      eventCleanupRef.current();
+      eventCleanupRef.current = null;
+    }
 
     // Stop media recorder
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -574,7 +550,7 @@ const ProctoringMonitor: React.FC<Props> = ({
 
     // Stop audio context
     if (audioContextRef.current) {
-      audioContextRef.current.close();
+      audioContextRef.current.close().catch(() => undefined);
     }
 
     // Stop media stream (only when session truly ends)
@@ -583,7 +559,6 @@ const ProctoringMonitor: React.FC<Props> = ({
       mediaStreamRef.current = null;
     }
 
-    setIsActive(false);
   };
 
   const handleDragStart = (e: React.MouseEvent) => {
@@ -761,12 +736,12 @@ const ProctoringMonitor: React.FC<Props> = ({
 
               {/* Monitoring Info */}
               <div className="text-xs text-muted-foreground space-y-1">
-                <p>• Tab switching monitored</p>
-                <p>• Inactivity detection active</p>
-                <p>• Copy/paste blocked</p>
-                <p>• ML analysis active</p>
+                <p>- Tab switching monitored</p>
+                <p>- Inactivity detection active</p>
+                <p>- Copy/paste blocked</p>
+                <p>- ML analysis active</p>
                 <p className="text-amber-600 dark:text-amber-400 font-medium mt-2">
-                  ⚠️ Violations affect your trust score
+                  Alert: Violations affect your trust score
                 </p>
               </div>
             </div>

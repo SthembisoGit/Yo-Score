@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
@@ -45,8 +45,10 @@ class ObjectAnalysisRequest(AnalysisRequest):
 
 @app.post("/api/analyze/face")
 async def analyze_face(
-    request: FaceAnalysisRequest,
-    image: UploadFile = File(...)
+    image: UploadFile = File(...),
+    session_id: str = Query(...),
+    timestamp: str = Query(...),
+    analysis_type: str = Query("face")
 ):
     """Analyze face for focus, attention, and cheating detection"""
     try:
@@ -103,9 +105,9 @@ async def analyze_face(
         
         return {
             'success': True,
-            'session_id': request.session_id,
-            'timestamp': request.timestamp,
-            'analysis_type': 'face',
+            'session_id': session_id,
+            'timestamp': timestamp,
+            'analysis_type': analysis_type,
             'results': results,
             'violations': violations,
             'violation_count': len(violations)
@@ -116,8 +118,11 @@ async def analyze_face(
 
 @app.post("/api/analyze/audio")
 async def analyze_audio(
-    request: AudioAnalysisRequest,
-    audio: UploadFile = File(...)
+    audio: UploadFile = File(...),
+    session_id: str = Query(...),
+    timestamp: str = Query(...),
+    duration_ms: int = Query(10000),
+    analysis_type: str = Query("audio")
 ):
     """Analyze audio for speech, external help, and unusual sounds"""
     try:
@@ -133,7 +138,7 @@ async def analyze_audio(
             tmp_path = tmp.name
         
         # Analyze audio
-        results = await audio_analyzer.analyze_audio(tmp_path, request.duration_ms)
+        results = await audio_analyzer.analyze_audio(tmp_path, duration_ms)
         
         # Clean up
         os.unlink(tmp_path)
@@ -176,9 +181,9 @@ async def analyze_audio(
         
         return {
             'success': True,
-            'session_id': request.session_id,
-            'timestamp': request.timestamp,
-            'analysis_type': 'audio',
+            'session_id': session_id,
+            'timestamp': timestamp,
+            'analysis_type': analysis_type,
             'results': results,
             'violations': violations,
             'violation_count': len(violations)
@@ -189,8 +194,10 @@ async def analyze_audio(
 
 @app.post("/api/analyze/object")
 async def analyze_object(
-    request: ObjectAnalysisRequest,
-    image: UploadFile = File(...)
+    image: UploadFile = File(...),
+    session_id: str = Query(...),
+    timestamp: str = Query(...),
+    analysis_type: str = Query("object")
 ):
     """Detect forbidden objects (phones, books, second monitor)"""
     try:
@@ -231,9 +238,9 @@ async def analyze_object(
         
         return {
             'success': True,
-            'session_id': request.session_id,
-            'timestamp': request.timestamp,
-            'analysis_type': 'object',
+            'session_id': session_id,
+            'timestamp': timestamp,
+            'analysis_type': analysis_type,
             'results': results,
             'violations': violations,
             'violation_count': len(violations)

@@ -1,147 +1,178 @@
-import { useState } from 'react';
-import { Plus, Briefcase, Calendar, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Plus, Briefcase, Calendar } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
+import { Link } from 'react-router-dom';
+import {
+  dashboardService,
+  type WorkExperience as WorkExperienceRecord,
+} from '@/services/dashboardService';
+import { toast } from 'react-hot-toast';
 
-interface WorkExperienceItem {
-  id: string;
-  company: string;
+interface ExperienceFormData {
+  company_name: string;
   role: string;
-  startDate: string;
-  endDate: string;
-  description: string;
+  duration_months: string;
 }
 
-// Mock data
-const mockExperiences: WorkExperienceItem[] = [
-  {
-    id: '1',
-    company: 'Tech Startup Inc',
-    role: 'Frontend Developer',
-    startDate: '2022-06',
-    endDate: '2024-01',
-    description: 'Built responsive web applications using React and TypeScript.',
-  },
-  {
-    id: '2',
-    company: 'Digital Agency',
-    role: 'Junior Developer',
-    startDate: '2021-01',
-    endDate: '2022-05',
-    description: 'Developed client websites and maintained existing projects.',
-  },
-];
+const calculateTotalMonths = (experiences: WorkExperienceRecord[]) =>
+  experiences.reduce((total, experience) => total + experience.duration_months, 0);
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const response = (error as { response?: { data?: { message?: unknown } } }).response;
+    if (typeof response?.data?.message === 'string' && response.data.message.trim()) {
+      return response.data.message;
+    }
+  }
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
+};
 
 export default function WorkExperience() {
   const { user, updateUser } = useAuth();
-  const [experiences, setExperiences] = useState<WorkExperienceItem[]>(mockExperiences);
+  const [experiences, setExperiences] = useState<WorkExperienceRecord[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({
-    company: '',
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [formData, setFormData] = useState<ExperienceFormData>({
+    company_name: '',
     role: '',
-    startDate: '',
-    endDate: '',
-    description: '',
+    duration_months: '',
   });
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const loadExperiences = useCallback(async () => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setLoadError(null);
+
+    try {
+      const rows = await dashboardService.getWorkExperience();
+      setExperiences(rows);
+      updateUser({ workExperienceMonths: calculateTotalMonths(rows) });
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, 'Failed to load work experience.');
+      setLoadError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [updateUser, user]);
+
+  useEffect(() => {
+    void loadExperiences();
+  }, [loadExperiences]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData((previous) => ({ ...previous, [e.target.name]: e.target.value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newExperience: WorkExperienceItem = {
-      id: Date.now().toString(),
-      ...formData,
-    };
-    setExperiences([newExperience, ...experiences]);
-    setFormData({ company: '', role: '', startDate: '', endDate: '', description: '' });
-    setShowForm(false);
 
-    // Update user work experience months (simplified calculation)
-    if (user) {
-      const totalMonths = calculateTotalMonths([newExperience, ...experiences]);
-      updateUser({ workExperienceMonths: totalMonths });
+    const durationMonths = Number(formData.duration_months);
+    if (!Number.isFinite(durationMonths) || durationMonths <= 0) {
+      toast.error('Duration must be greater than 0 months.');
+      return;
     }
-  };
 
-  const handleDelete = (id: string) => {
-    const updated = experiences.filter((exp) => exp.id !== id);
-    setExperiences(updated);
-    if (user) {
+    setIsSaving(true);
+    try {
+      const created = await dashboardService.addWorkExperience({
+        company_name: formData.company_name.trim(),
+        role: formData.role.trim(),
+        duration_months: durationMonths,
+      });
+
+      const updated = [created, ...experiences];
+      setExperiences(updated);
       updateUser({ workExperienceMonths: calculateTotalMonths(updated) });
+      setFormData({ company_name: '', role: '', duration_months: '' });
+      setShowForm(false);
+      toast.success('Work experience added');
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, 'Failed to save work experience.');
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const calculateTotalMonths = (exps: WorkExperienceItem[]) => {
-    return exps.reduce((total, exp) => {
-      const start = new Date(exp.startDate);
-      const end = exp.endDate ? new Date(exp.endDate) : new Date();
-      const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
-      return total + Math.max(0, months);
-    }, 0);
-  };
+  const totalMonths = calculateTotalMonths(experiences);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-  };
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="flex items-center justify-center h-[60vh]">
+          <div className="text-center">
+            <p className="text-muted-foreground mb-4">Please log in to manage work experience</p>
+            <Link to="/login">
+              <Button>Login</Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted">
       <Navbar />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold mb-2">Work Experience</h1>
             <p className="text-muted-foreground">
-              Add your work history to contribute to your trust score
+              Add verified experience that contributes to your trust score
             </p>
           </div>
-          <Button onClick={() => setShowForm(!showForm)} className="gap-2">
+          <Button onClick={() => setShowForm(!showForm)} className="gap-2" disabled={isLoading}>
             <Plus className="h-4 w-4" />
             Add Experience
           </Button>
         </div>
 
-        {/* Score Contribution Card */}
         <div className="bg-primary text-primary-foreground rounded-lg p-6 mb-8">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-primary-foreground/80 text-sm mb-1">Experience Score Contribution</p>
               <p className="text-3xl font-bold font-mono">
-                {Math.min(20, Math.floor(calculateTotalMonths(experiences) / 1.2))}/20
+                {Math.min(20, Math.floor(totalMonths / 1.2))}/20
               </p>
             </div>
             <div className="text-right">
               <p className="text-primary-foreground/80 text-sm mb-1">Total Experience</p>
-              <p className="text-2xl font-bold font-mono">
-                {calculateTotalMonths(experiences)} months
-              </p>
+              <p className="text-2xl font-bold font-mono">{totalMonths} months</p>
             </div>
           </div>
         </div>
 
-        {/* Add Form */}
         {showForm && (
           <div className="bg-card border border-border rounded-lg p-6 mb-8">
             <h2 className="text-xl font-semibold mb-4">Add Work Experience</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="company">Company Name</Label>
+                  <Label htmlFor="company_name">Company Name</Label>
                   <Input
-                    id="company"
-                    name="company"
-                    value={formData.company}
+                    id="company_name"
+                    name="company_name"
+                    value={formData.company_name}
                     onChange={handleInputChange}
                     placeholder="Company name"
                     required
+                    disabled={isSaving}
                   />
                 </div>
                 <div className="space-y-2">
@@ -153,64 +184,50 @@ export default function WorkExperience() {
                     onChange={handleInputChange}
                     placeholder="Your role"
                     required
-                  />
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="startDate">Start Date</Label>
-                  <Input
-                    id="startDate"
-                    name="startDate"
-                    type="month"
-                    value={formData.startDate}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="endDate">End Date</Label>
-                  <Input
-                    id="endDate"
-                    name="endDate"
-                    type="month"
-                    value={formData.endDate}
-                    onChange={handleInputChange}
-                    placeholder="Leave empty if current"
+                    disabled={isSaving}
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={formData.description}
+                <Label htmlFor="duration_months">Duration (months)</Label>
+                <Input
+                  id="duration_months"
+                  name="duration_months"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={formData.duration_months}
                   onChange={handleInputChange}
-                  placeholder="Brief description of your work"
-                  className="flex min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  placeholder="e.g. 12"
                   required
+                  disabled={isSaving}
                 />
               </div>
 
               <div className="flex gap-3 justify-end">
-                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
+                <Button type="button" variant="outline" onClick={() => setShowForm(false)} disabled={isSaving}>
                   Cancel
                 </Button>
-                <Button type="submit">Save Experience</Button>
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving ? 'Saving...' : 'Save Experience'}
+                </Button>
               </div>
             </form>
           </div>
         )}
 
-        {/* Experience List */}
+        {loadError && (
+          <div className="mb-6 rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
+            {loadError}
+          </div>
+        )}
+
         <div className="space-y-4">
-          {experiences.length > 0 ? (
-            experiences.map((exp) => (
+          {!isLoading && experiences.length > 0 ? (
+            experiences.map((experience) => (
               <div
-                key={exp.id}
+                key={experience.experience_id}
                 className="bg-card border border-border rounded-lg p-6 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start justify-between gap-4">
@@ -219,28 +236,29 @@ export default function WorkExperience() {
                       <Briefcase className="h-6 w-6 text-muted-foreground" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-lg">{exp.role}</h3>
-                      <p className="text-muted-foreground">{exp.company}</p>
+                      <h3 className="font-semibold text-lg">{experience.role}</h3>
+                      <p className="text-muted-foreground">{experience.company_name}</p>
                       <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
                         <Calendar className="h-4 w-4" />
-                        <span>
-                          {formatDate(exp.startDate)} - {exp.endDate ? formatDate(exp.endDate) : 'Present'}
-                        </span>
+                        <span>{experience.duration_months} months</span>
                       </div>
-                      <p className="mt-3 text-sm text-muted-foreground">{exp.description}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleDelete(exp.id)}
-                    className="p-2 text-muted-foreground hover:text-destructive transition-colors"
-                    aria-label="Delete experience"
+                  <span
+                    className={`text-xs rounded-full px-2 py-1 ${
+                      experience.verified
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
                   >
-                    <Trash2 className="h-5 w-5" />
-                  </button>
+                    {experience.verified ? 'Verified' : 'Unverified'}
+                  </span>
                 </div>
               </div>
             ))
-          ) : (
+          ) : null}
+
+          {!isLoading && experiences.length === 0 ? (
             <div className="text-center py-12 bg-card border border-border rounded-lg">
               <Briefcase className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <p className="text-muted-foreground mb-4">No work experience added yet</p>
@@ -249,7 +267,7 @@ export default function WorkExperience() {
                 Add Your First Experience
               </Button>
             </div>
-          )}
+          ) : null}
         </div>
       </main>
     </div>

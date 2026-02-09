@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ChevronRight, Loader2, AlertCircle, FileText } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
@@ -8,9 +8,16 @@ import { ChallengeOverview } from '@/components/challenge-detail/ChallengeOvervi
 import { ChallengeSession } from '@/components/challenge-detail/ChallengeSession';
 import { useChallengeData } from '@/hooks/useChallengeData';
 import { useAuth } from '@/context/AuthContext';
+import type { ProgrammingLanguage } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
 import ProctoringMonitor from '@/components/proctoring/ProctoringMonitor';
 import { useProctoring } from '@/hooks/useProctoring';
+
+interface ViolationEvent {
+  type: string;
+  timestamp: Date;
+  data: unknown;
+}
 
 export default function ChallengeDetail() {
   const { id } = useParams<{ id: string }>();
@@ -22,25 +29,25 @@ export default function ChallengeDetail() {
   const [sessionStarted, setSessionStarted] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [violations, setViolations] = useState<any[]>([]);
+  const [violations, setViolations] = useState<ViolationEvent[]>([]);
   const [violationCount, setViolationCount] = useState(0);
   const [isStartingProctoring, setIsStartingProctoring] = useState(false);
 
-  const { startSession, endSession, logViolation, isActive } = useProctoring();
+  const { startSession, logViolation } = useProctoring();
 
   // Initialize language from user preference
-  useState(() => {
+  useEffect(() => {
     if (user?.preferredLanguage) {
       setSelectedLanguage(user.preferredLanguage);
     } else if (availableLanguages.length > 0) {
       setSelectedLanguage(availableLanguages[0]);
     }
-  });
+  }, [availableLanguages, user?.preferredLanguage]);
 
   const handleLanguageChange = (language: string) => {
     setSelectedLanguage(language);
     if (user) {
-      setPreferredLanguage(language as any);
+      setPreferredLanguage(language as ProgrammingLanguage);
     }
   };
 
@@ -71,7 +78,7 @@ export default function ChallengeDetail() {
     }
   };
 
-  const handleViolationDetected = (type: string, data: any) => {
+  const handleViolationDetected = (type: string, data: unknown) => {
     setViolations(prev => {
       const newViolations = [...prev, { type, timestamp: new Date(), data }];
       setViolationCount(newViolations.length);
@@ -80,13 +87,17 @@ export default function ChallengeDetail() {
     
     // Log to backend
     if (sessionId) {
-      logViolation(sessionId, type, data.description || `Violation: ${type}`);
+      const description =
+        typeof data === 'object' && data !== null && 'description' in data
+          ? String((data as { description?: unknown }).description || '')
+          : '';
+      logViolation(sessionId, type, description || `Violation: ${type}`);
     }
     
     // Show warning
     toast(`Proctoring alert: ${type}`, {
       duration: 5000,
-      icon: '⚠️'
+      icon: '!'
     });
   };
 

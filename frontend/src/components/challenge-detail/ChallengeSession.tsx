@@ -8,9 +8,9 @@ import { DescriptionPanel } from './DescriptionPanel';
 import { ReferenceDocsPanel } from './ReferenceDocsPanel';
 import { LanguageSelector } from './LanguageSelector';
 import { challengeService } from '@/services/challengeService';
-import { submissionService } from '@/services/submissionService';
 import { proctoringService } from '@/services/proctoring.service';
 import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 interface ChallengeSessionProps {
   challenge: any;
@@ -35,6 +35,7 @@ export const ChallengeSession = ({
   onViolation,
   violationCount: propViolationCount = 0
 }: ChallengeSessionProps) => {
+  const navigate = useNavigate();
   const [showDocs, setShowDocs] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
@@ -114,56 +115,51 @@ int main() {
   };
 
   const handleSubmit = async () => {
-  if (!selectedLanguage) {
-    setSubmissionError('Please select a programming language before submitting.');
-    return;
-  }
-
-  if (!code.trim() || code.trim().startsWith('// Write your solution here')) {
-    setSubmissionError('Please write your solution before submitting.');
-    return;
-  }
-
-  setIsSubmitting(true);
-  setSubmissionError(null);
-
-  try {
-    // Submit with proctoring session ID
-    const submission = await challengeService.submitChallenge(
-      challengeId, 
-      code, 
-      sessionId || undefined
-    );
-    
-    // End proctoring session after successful submission
-    if (sessionId && proctoringReady) {
-      try {
-        await proctoringService.endSession(sessionId, submission.submission_id);
-        toast.success('Proctoring session completed');
-        setIsSessionEnded(true);
-      } catch (error) {
-        console.error('Failed to end proctoring session:', error);
-      }
+    if (!selectedLanguage) {
+      setSubmissionError('Please select a programming language before submitting.');
+      return;
     }
 
-    // Show success and navigate
-    toast.success('Challenge submitted successfully!', {
-      duration: 3000,
-    });
+    if (!code.trim() || code.trim().startsWith('// Write your solution here')) {
+      setSubmissionError('Please write your solution before submitting.');
+      return;
+    }
 
-    // Navigate to submission results
-    setTimeout(() => {
-      window.location.href = `/submissions/${submission.submission_id}`;
-    }, 1500);
+    setIsSubmitting(true);
+    setSubmissionError(null);
 
-  } catch (err: any) {
-    const errorMessage = err.message || 'Failed to submit challenge.';
-    setSubmissionError(errorMessage);
-    toast.error(errorMessage);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+    try {
+      const submission = await challengeService.submitChallenge(
+        challengeId,
+        code,
+        sessionId || undefined
+      );
+
+      if (sessionId && proctoringReady) {
+        try {
+          await proctoringService.endSession(sessionId, submission.submission_id);
+          toast.success('Proctoring session completed');
+          setIsSessionEnded(true);
+        } catch (error) {
+          console.error('Failed to end proctoring session:', error);
+        }
+      }
+
+      toast.success('Challenge submitted successfully!', {
+        duration: 3000,
+      });
+
+      setTimeout(() => {
+        navigate(`/submissions/${submission.submission_id}`);
+      }, 1200);
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to submit challenge.';
+      setSubmissionError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleEndSessionEarly = async () => {
     if (!sessionId || !proctoringReady || isSessionEnded) return;

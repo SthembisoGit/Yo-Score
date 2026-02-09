@@ -50,9 +50,11 @@ export class SubmissionService {
 
   async getSubmissionById(submissionId: string, userId: string) {
     const result = await query(
-      `SELECT s.id, s.user_id, s.challenge_id, s.code, s.score, s.status, s.submitted_at,
+      `SELECT s.id, s.user_id, s.challenge_id, s.session_id, s.code, s.score, s.status, s.submitted_at,
+              c.title AS challenge_title,
               ts.total_score, ts.trust_level
        FROM submissions s
+       JOIN challenges c ON s.challenge_id = c.id
        LEFT JOIN trust_scores ts ON s.user_id = ts.user_id
        WHERE s.id = $1 AND s.user_id = $2`,
       [submissionId, userId]
@@ -80,6 +82,10 @@ export class SubmissionService {
 
     return {
       submission_id: submission.id,
+      challenge_id: submission.challenge_id,
+      challenge_title: submission.challenge_title,
+      status: submission.status,
+      submitted_at: submission.submitted_at,
       score: submission.score,
       trust_level: submission.trust_level,
       violations: violations

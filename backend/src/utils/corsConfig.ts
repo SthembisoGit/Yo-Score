@@ -6,15 +6,18 @@ import { CorsOptions } from 'cors';
  * Ensures secure cross-origin requests between frontend and backend
  */
 export const getCorsConfig = (): CorsOptions => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8081';
-  
-  let allowedOrigin: string;
-  try {
-    const url = new URL(frontendUrl);
-    allowedOrigin = url.origin;
-  } catch {
-    allowedOrigin = frontendUrl;
-  }
+  const rawFrontendUrls = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const allowedOrigins = rawFrontendUrls
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => {
+      try {
+        return new URL(value).origin;
+      } catch {
+        return value;
+      }
+    });
 
   return {
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
@@ -24,15 +27,15 @@ export const getCorsConfig = (): CorsOptions => {
         return;
       }
 
-      // Allow requests from the configured frontend origin
-      if (origin === allowedOrigin) {
+      // Allow requests from configured frontend origins
+      if (allowedOrigins.includes(origin)) {
         callback(null, true);
         return;
       }
 
       // In development, allow localhost with different ports for testing
       if (process.env.NODE_ENV === 'development') {
-        if (origin.includes('localhost') && allowedOrigin.includes('localhost')) {
+        if (origin.includes('localhost') && allowedOrigins.some((value) => value.includes('localhost'))) {
           callback(null, true);
           return;
         }
