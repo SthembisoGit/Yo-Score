@@ -1,18 +1,21 @@
 import apiClient from './apiClient';
 import { unwrapData } from '@/lib/apiHelpers';
 
+export interface SubmissionViolation {
+  type: string;
+  penalty: number;
+  timestamp: string;
+}
+
 export interface SubmissionResult {
   submission_id: string;
-  score: number;
-  trust_level: 'Low' | 'Medium' | 'High';
-  violations: Array<{
-    type: string;
-    penalty: number;
-    timestamp: string;
-  }>;
+  challenge_id: string;
+  challenge_title: string;
   status: 'pending' | 'graded' | 'failed';
   submitted_at: string;
-  challenge_title?: string;
+  score: number;
+  trust_level: 'Low' | 'Medium' | 'High';
+  violations: SubmissionViolation[];
 }
 
 export interface UserSubmission {
@@ -24,235 +27,52 @@ export interface UserSubmission {
   submitted_at: string;
 }
 
-export interface SubmissionWithProctoring {
-  submission_id: string;
-  session_id?: string;
-  score: number;
-  trust_level: 'Low' | 'Medium' | 'High';
-  proctoring_score: number;
-  violations: Array<{
-    type: string;
-    severity: 'low' | 'medium' | 'high';
-    description: string;
-    penalty: number;
-    timestamp: string;
-  }>;
-  code_preview: string;
-  submitted_at: string;
-  evaluated_at: string | null;
-  feedback?: string;
-}
-
 class SubmissionService {
-  /**
-   * Submit a challenge with optional proctoring session
-   */
   async submitChallenge(
-    challengeId: string, 
-    code: string, 
+    challengeId: string,
+    code: string,
     sessionId?: string
   ): Promise<{ submission_id: string; status: string; message: string }> {
-    try {
-      const response = await apiClient.post('/submissions', {
-        challenge_id: challengeId,
-        code,
-        session_id: sessionId // Include session ID if available
-      });
-      
-      return unwrapData<{ submission_id: string; status: string; message: string }>(response);
-    } catch (error: unknown) {
-      const err = error as { response?: { status?: number; data?: { message?: string } } };
-      
-      // Provide helpful error messages
-      if (err.response?.status === 404) {
-        throw new Error('Submission endpoint not found. Please check if backend is running.');
-      }
-      if (err.response?.status === 401) {
-        throw new Error('Session expired. Please login again.');
-      }
-      if (err.response?.data?.message) {
-        throw new Error(err.response.data.message);
-      }
-      throw new Error('Failed to submit challenge. Please try again.');
-    }
-  }
-
-  /**
-   * Get submission results
-   */
-  async getSubmissionResult(submissionId: string): Promise<SubmissionResult> {
-    try {
-      const response = await apiClient.get(`/submissions/${submissionId}`);
-      return unwrapData<SubmissionResult>(response);
-    } catch (error: unknown) {
-      const err = error as { response?: { status?: number } };
-      if (err.response?.status === 404) {
-        throw new Error('Submission not found');
-      }
-      throw new Error('Failed to load submission results');
-    }
-  }
-
-  /**
-   * Get all submissions for the current user
-   */
-  async getUserSubmissions(limit: number = 20): Promise<UserSubmission[]> {
-    try {
-      const response = await apiClient.get(`/submissions?limit=${limit}`);
-      return response.data.data || response.data;
-    } catch (error: any) {
-      console.error('Failed to get user submissions:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Get submission with detailed proctoring info
-   */
-  async getSubmissionWithProctoring(submissionId: string): Promise<SubmissionWithProctoring> {
-    try {
-      const response = await apiClient.get(`/submissions/${submissionId}/detailed`);
-      return unwrapData<SubmissionWithProctoring>(response);
-    } catch {
-      return {
-        submission_id: submissionId,
-        score: 0,
-        trust_level: 'Medium',
-        proctoring_score: 100,
-        violations: [],
-        code_preview: '// Code preview not available',
-        submitted_at: new Date().toISOString(),
-        evaluated_at: null
-      };
-    }
-  }
-
-  /**
-   * Poll for submission status (for real-time updates)
-   */
-  async pollSubmissionStatus(
-    submissionId: string, 
-    interval: number = 2000, 
-    maxAttempts: number = 30
-  ): Promise<SubmissionResult> {
-    return new Promise((resolve, reject) => {
-      let attempts = 0;
-      
-      const poll = async () => {
-        attempts++;
-        
-        try {
-          const result = await this.getSubmissionResult(submissionId);
-          
-          if (result.status !== 'pending') {
-            resolve(result);
-            return;
-          }
-          
-          if (attempts >= maxAttempts) {
-            reject(new Error('Submission evaluation timeout'));
-            return;
-          }
-          
-          setTimeout(poll, interval);
-        } catch (error) {
-          reject(error);
-        }
-      };
-      
-      poll();
-    });
-  }
-
-  /**
-   * Get submission statistics for dashboard
-   */
-  async getSubmissionStats(): Promise<{
-    total_submissions: number;
-    average_score: number;
-    best_score: number;
-    completed_challenges: number;
-    by_category: Record<string, number>;
-  }> {
-    try {
-      const response = await apiClient.get('/submissions/stats');
-      return unwrapData(response);
-    } catch {
-      return {
-        total_submissions: 0,
-        average_score: 0,
-        best_score: 0,
-        completed_challenges: 0,
-        by_category: {}
-      };
-    }
-  }
-
-  /**
-   * Resubmit a previous submission
-   */
-  async resubmitChallenge(
-    originalSubmissionId: string, 
-    updatedCode: string
-  ): Promise<{ submission_id: string; status: string }> {
-    try {
-      const response = await apiClient.post('/submissions/resubmit', {
-        original_submission_id: originalSubmissionId,
-        code: updatedCode
-      });
-      
-      return unwrapData<{ submission_id: string; status: string }>(response);
-    } catch {
-      throw new Error('Failed to resubmit challenge');
-    }
-  }
-
-  /**
-   * Get code from a submission
-   */
-  async getSubmissionCode(submissionId: string): Promise<string> {
-    try {
-      const response = await apiClient.get(`/submissions/${submissionId}/code`);
-      const data = unwrapData<{ code?: string }>(response);
-      return data?.code ?? '// Code not available';
-    } catch {
-      return '// Code not available';
-    }
-  }
-
-  /**
-   * Compare two submissions
-   */
-  async compareSubmissions(
-    submissionId1: string, 
-    submissionId2: string
-  ): Promise<{
-    similarities: number;
-    differences: string[];
-    score_comparison: {
-      submission1: number;
-      submission2: number;
-      difference: number;
+    const payload: Record<string, string> = {
+      challenge_id: challengeId,
+      code
     };
-  }> {
-    try {
-      const response = await apiClient.post('/submissions/compare', {
-        submission_id_1: submissionId1,
-        submission_id_2: submissionId2
-      });
-      
-      return unwrapData(response);
-    } catch {
-      return {
-        similarities: 0,
-        differences: [],
-        score_comparison: {
-          submission1: 0,
-          submission2: 0,
-          difference: 0
-        }
-      };
+
+    if (sessionId) {
+      payload.session_id = sessionId;
     }
+
+    const response = await apiClient.post('/submissions', payload);
+    return unwrapData<{ submission_id: string; status: string; message: string }>(response);
+  }
+
+  async getSubmissionResult(submissionId: string): Promise<SubmissionResult> {
+    const response = await apiClient.get(`/submissions/${submissionId}`);
+    return unwrapData<SubmissionResult>(response);
+  }
+
+  async getUserSubmissions(): Promise<UserSubmission[]> {
+    const response = await apiClient.get('/submissions');
+    return unwrapData<UserSubmission[]>(response);
+  }
+
+  async pollSubmissionStatus(
+    submissionId: string,
+    interval = 2000,
+    maxAttempts = 30
+  ): Promise<SubmissionResult> {
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      const result = await this.getSubmissionResult(submissionId);
+      if (result.status !== 'pending') {
+        return result;
+      }
+      attempts += 1;
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+
+    throw new Error('Submission evaluation timeout');
   }
 }
 
