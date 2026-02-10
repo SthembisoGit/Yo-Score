@@ -2,13 +2,16 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { AlertTriangle, CheckCircle, Clock, XCircle } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
-import { submissionService, type SubmissionResult as SubmissionResultData } from '@/services/submissionService';
+import {
+  submissionService,
+  type SubmissionResult as SubmissionResultData,
+} from '@/services/submissionService';
 import { Button } from '@/components/ui/button';
 
 const trustLevelClass: Record<'Low' | 'Medium' | 'High', string> = {
   Low: 'text-red-600',
   Medium: 'text-amber-600',
-  High: 'text-green-600'
+  High: 'text-green-600',
 };
 
 export default function SubmissionResult() {
@@ -71,6 +74,18 @@ export default function SubmissionResult() {
     );
   }
 
+  const scoreBreakdown = submission.score_breakdown;
+  const components = scoreBreakdown?.components ?? {
+    skill: 0,
+    behavior: 0,
+    work_experience: 0,
+  };
+  const totalPenalty =
+    scoreBreakdown?.penalty ??
+    submission.penalties?.total ??
+    submission.violations.reduce((sum, violation) => sum + Number(violation.penalty ?? 0), 0);
+  const violationCount = submission.penalties?.violation_count ?? submission.violations.length;
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -78,9 +93,7 @@ export default function SubmissionResult() {
       <div className="max-w-5xl mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Submission Results</h1>
-          <p className="text-muted-foreground">
-            {submission.challenge_title}
-          </p>
+          <p className="text-muted-foreground">{submission.challenge_title}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -96,6 +109,43 @@ export default function SubmissionResult() {
                   {submission.trust_level}
                 </div>
               </div>
+              {typeof submission.total_score === 'number' && (
+                <p className="text-sm text-muted-foreground mt-3">
+                  Overall trust score:{' '}
+                  <span className="font-medium text-foreground">{submission.total_score}</span>
+                </p>
+              )}
+            </div>
+
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h3 className="text-lg font-semibold mb-4">Score Breakdown</h3>
+              {scoreBreakdown ? (
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Skill component</span>
+                    <span className="font-medium">{components.skill}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Behavior component</span>
+                    <span className="font-medium">{components.behavior}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Work experience component</span>
+                    <span className="font-medium">{components.work_experience}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-border pt-3">
+                    <span className="text-muted-foreground">Penalty applied</span>
+                    <span className="font-medium">-{totalPenalty}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Scoring version: {scoreBreakdown.scoring_version}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Detailed breakdown is unavailable for this submission.
+                </p>
+              )}
             </div>
 
             <div className="bg-card border border-border rounded-xl p-6">
@@ -109,7 +159,10 @@ export default function SubmissionResult() {
               ) : (
                 <div className="space-y-3">
                   {submission.violations.map((violation, index) => (
-                    <div key={`${violation.type}-${index}`} className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+                    <div
+                      key={`${violation.type}-${index}`}
+                      className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800"
+                    >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-amber-600" />
@@ -124,6 +177,17 @@ export default function SubmissionResult() {
                   ))}
                 </div>
               )}
+
+              <div className="mt-4 pt-4 border-t border-border text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Violation count</span>
+                  <span className="font-medium">{violationCount}</span>
+                </div>
+                <div className="flex justify-between mt-2">
+                  <span className="text-muted-foreground">Total penalty</span>
+                  <span className="font-medium">-{totalPenalty}</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -143,6 +207,12 @@ export default function SubmissionResult() {
                   <span className="text-muted-foreground">Submission ID</span>
                   <span className="font-mono text-xs">{submission.submission_id.slice(0, 8)}...</span>
                 </div>
+                {submission.score_breakdown?.scoring_version && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Scoring version</span>
+                    <span className="font-medium">{submission.score_breakdown.scoring_version}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -151,7 +221,9 @@ export default function SubmissionResult() {
                 <Button className="w-full">Take Another Challenge</Button>
               </Link>
               <Link to={`/challenges/${submission.challenge_id}`} className="block">
-                <Button variant="outline" className="w-full">Retry This Challenge</Button>
+                <Button variant="outline" className="w-full">
+                  Retry This Challenge
+                </Button>
               </Link>
             </div>
           </div>

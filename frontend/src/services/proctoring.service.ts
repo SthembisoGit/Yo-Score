@@ -6,7 +6,7 @@ export interface ProctoringSession {
   userId: string;
   challengeId: string;
   startTime: string;
-  status: 'active' | 'completed';
+  status: 'active' | 'paused' | 'completed';
 }
 
 export interface ProctoringViolation {
@@ -39,6 +39,12 @@ export interface ProctoringSessionDetails {
 
 export interface FaceMonitorResult {
   face_count: number;
+  face_box?: {
+    x_center?: number;
+    y_center?: number;
+    width?: number;
+    height?: number;
+  };
   gaze_direction?: {
     looking_away?: boolean;
     direction?: string;
@@ -57,6 +63,21 @@ export interface AudioMonitorResult {
   noise_level: number;
   suspicious_keywords: string[];
   transcript: string;
+}
+
+export interface SessionHeartbeatPayload {
+  cameraReady: boolean;
+  microphoneReady: boolean;
+  audioReady: boolean;
+  isPaused?: boolean;
+  windowFocused?: boolean;
+  timestamp?: string;
+}
+
+export interface SessionHeartbeatResponse {
+  status: 'active' | 'paused' | 'completed';
+  pauseReason: string | null;
+  heartbeatAt: string;
 }
 
 class ProctoringService {
@@ -85,6 +106,34 @@ class ProctoringService {
     } catch {
       // Do not block submission if proctoring end fails
     }
+  }
+
+  async pauseSession(sessionId: string, reason: string): Promise<{
+    status: 'active' | 'paused' | 'completed';
+    pauseReason: string | null;
+    pausedAt: string | null;
+  }> {
+    const response = await apiClient.post('/proctoring/session/pause', { sessionId, reason });
+    return unwrapData(response);
+  }
+
+  async resumeSession(sessionId: string): Promise<{
+    status: 'active' | 'paused' | 'completed';
+    pauseReason: string | null;
+  }> {
+    const response = await apiClient.post('/proctoring/session/resume', { sessionId });
+    return unwrapData(response);
+  }
+
+  async sendHeartbeat(
+    sessionId: string,
+    payload: SessionHeartbeatPayload,
+  ): Promise<SessionHeartbeatResponse> {
+    const response = await apiClient.post('/proctoring/session/heartbeat', {
+      sessionId,
+      ...payload,
+    });
+    return unwrapData<SessionHeartbeatResponse>(response);
   }
 
   /**
@@ -243,6 +292,9 @@ class ProctoringService {
 
       return {
         face_count: Number(wrappedResult.face_count ?? wrappedResult.faceCount ?? 0),
+        face_box:
+          (wrappedResult.face_box as FaceMonitorResult['face_box']) ||
+          (wrappedResult.faceBox as FaceMonitorResult['face_box']),
         gaze_direction:
           (wrappedResult.gaze_direction as FaceMonitorResult['gaze_direction']) ||
           (wrappedResult.gazeDirection as FaceMonitorResult['gaze_direction']),
@@ -300,6 +352,11 @@ class ProctoringService {
    */
   async getSessionStatus(sessionId: string): Promise<{
     isActive: boolean;
+    isPaused: boolean;
+    status: 'active' | 'paused' | 'completed';
+    pauseReason: string | null;
+    heartbeatAt: string | null;
+    isHeartbeatStale: boolean;
     violationsSinceLastCheck: number;
     currentScore: number;
   }> {
@@ -309,6 +366,11 @@ class ProctoringService {
     } catch {
       return {
         isActive: true,
+        isPaused: false,
+        status: 'active',
+        pauseReason: null,
+        heartbeatAt: null,
+        isHeartbeatStale: false,
         violationsSinceLastCheck: 0,
         currentScore: 100
       };
