@@ -75,6 +75,117 @@ export class ProctoringController {
     }
   }
 
+  async pauseSession(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { sessionId, reason } = req.body as { sessionId?: string; reason?: string };
+
+      if (!sessionId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Session ID is required',
+        });
+      }
+
+      const paused = await this.proctoringService.pauseSession(
+        sessionId,
+        req.user.id,
+        reason || 'Session paused by proctoring policy',
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: 'Proctoring session paused',
+        data: paused,
+      });
+    } catch (error: any) {
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to pause proctoring session',
+        error: error.message,
+      });
+    }
+  }
+
+  async resumeSession(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { sessionId } = req.body as { sessionId?: string };
+
+      if (!sessionId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Session ID is required',
+        });
+      }
+
+      const resumed = await this.proctoringService.resumeSession(sessionId, req.user.id);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Proctoring session resumed',
+        data: resumed,
+      });
+    } catch (error: any) {
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to resume proctoring session',
+        error: error.message,
+      });
+    }
+  }
+
+  async heartbeat(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { sessionId, cameraReady, microphoneReady, audioReady, isPaused, windowFocused, timestamp } = req.body as {
+        sessionId?: string;
+        cameraReady?: boolean;
+        microphoneReady?: boolean;
+        audioReady?: boolean;
+        isPaused?: boolean;
+        windowFocused?: boolean;
+        timestamp?: string;
+      };
+
+      if (!sessionId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Session ID is required',
+        });
+      }
+
+      if (
+        typeof cameraReady !== 'boolean' ||
+        typeof microphoneReady !== 'boolean' ||
+        typeof audioReady !== 'boolean'
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: 'cameraReady, microphoneReady, and audioReady are required',
+        });
+      }
+
+      const heartbeat = await this.proctoringService.recordHeartbeat(sessionId, req.user.id, {
+        cameraReady,
+        microphoneReady,
+        audioReady,
+        isPaused,
+        windowFocused,
+        timestamp,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Heartbeat recorded',
+        data: heartbeat,
+      });
+    } catch (error: any) {
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to record heartbeat',
+        error: error.message,
+      });
+    }
+  }
+
   async logViolation(req: AuthenticatedRequest, res: Response) {
     try {
       const { sessionId, type, description, evidence } = req.body;

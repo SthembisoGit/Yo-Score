@@ -8,6 +8,8 @@ interface ProctoringModalProps {
   isLoading?: boolean;
 }
 
+type DeviceKey = 'camera' | 'microphone' | 'audio';
+
 interface DeviceReadiness {
   camera: boolean;
   microphone: boolean;
@@ -29,7 +31,7 @@ export const ProctoringModal = ({
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [isCheckingDevices, setIsCheckingDevices] = useState(false);
+  const [checkingDevice, setCheckingDevice] = useState<DeviceKey | 'all' | null>(null);
   const [deviceError, setDeviceError] = useState<string | null>(null);
   const [deviceReadiness, setDeviceReadiness] =
     useState<DeviceReadiness>(defaultDeviceReadiness);
@@ -37,74 +39,97 @@ export const ProctoringModal = ({
   const allDevicesReady =
     deviceReadiness.camera && deviceReadiness.microphone && deviceReadiness.audio;
 
-  const checkDeviceReadiness = useCallback(async () => {
-    setIsCheckingDevices(true);
+  const checkAudioSupport = useCallback(async (): Promise<boolean> => {
+    const audioContextClass =
+      window.AudioContext ||
+      (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+    if (!audioContextClass) {
+      setDeviceReadiness((prev) => ({ ...prev, audio: false }));
+      setDeviceError('Your browser does not support audio checks.');
+      return false;
+    }
+
+    const context = new audioContextClass();
+    try {
+      await context.resume().catch(() => undefined);
+      setDeviceReadiness((prev) => ({ ...prev, audio: true }));
+      return true;
+    } catch {
+      setDeviceReadiness((prev) => ({ ...prev, audio: false }));
+      setDeviceError('Audio support is blocked. Allow audio and try again.');
+      return false;
+    } finally {
+      await context.close().catch(() => undefined);
+    }
+  }, []);
+
+  const requestDevicePermission = useCallback(async (device: 'camera' | 'microphone') => {
+    setCheckingDevice(device);
     setDeviceError(null);
-    setDeviceReadiness(defaultDeviceReadiness);
 
     let stream: MediaStream | null = null;
-
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error('Your browser does not support camera/microphone checks.');
+        throw new Error('Your browser does not support camera/microphone permissions.');
       }
 
       stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
+        video: device === 'camera',
+        audio: device === 'microphone',
       });
 
-      const videoTrack = stream.getVideoTracks()[0];
-      const audioTrack = stream.getAudioTracks()[0];
-      const audioContextSupported = Boolean(
-        window.AudioContext ||
-          (window as Window & { webkitAudioContext?: typeof AudioContext })
-            .webkitAudioContext,
-      );
+      const track =
+        device === 'camera' ? stream.getVideoTracks()[0] : stream.getAudioTracks()[0];
+      const ready =
+        Boolean(track) &&
+        track.readyState === 'live' &&
+        track.enabled &&
+        !track.muted;
 
-      const readiness: DeviceReadiness = {
-        camera:
-          Boolean(videoTrack) &&
-          videoTrack.readyState === 'live' &&
-          videoTrack.enabled,
-        microphone:
-          Boolean(audioTrack) &&
-          audioTrack.readyState === 'live' &&
-          audioTrack.enabled,
-        audio: audioContextSupported,
-      };
+      setDeviceReadiness((prev) => ({ ...prev, [device]: ready }));
 
-      setDeviceReadiness(readiness);
-
-      if (!readiness.camera || !readiness.microphone || !readiness.audio) {
+      if (!ready) {
         setDeviceError(
-          'Camera, microphone, and audio support are required. Enable permissions and re-check.',
+          device === 'camera'
+            ? 'Camera was not enabled. Please allow camera permission.'
+            : 'Microphone was not enabled. Please allow microphone permission.',
         );
       }
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : 'Unable to access camera/microphone. Check browser permissions.';
+          : `Unable to access ${device}. Check browser permissions.`;
       setDeviceError(message);
-      setDeviceReadiness(defaultDeviceReadiness);
+      setDeviceReadiness((prev) => ({ ...prev, [device]: false }));
     } finally {
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
       }
-      setIsCheckingDevices(false);
+      setCheckingDevice(null);
     }
   }, []);
 
+  const recheckAllDevices = useCallback(async () => {
+    setCheckingDevice('all');
+    setDeviceError(null);
+    await requestDevicePermission('camera');
+    await requestDevicePermission('microphone');
+    await checkAudioSupport();
+    setCheckingDevice(null);
+  }, [checkAudioSupport, requestDevicePermission]);
+
   useEffect(() => {
-    if (isOpen) {
-      setPosition({
-        x: (window.innerWidth - 448) / 2,
-        y: (window.innerHeight - 560) / 2,
-      });
-      void checkDeviceReadiness();
-    }
-  }, [isOpen, checkDeviceReadiness]);
+    if (!isOpen) return;
+    setPosition({
+      x: (window.innerWidth - 448) / 2,
+      y: (window.innerHeight - 580) / 2,
+    });
+    setDeviceReadiness(defaultDeviceReadiness);
+    setDeviceError(null);
+    void checkAudioSupport();
+  }, [isOpen, checkAudioSupport]);
 
   const handleDragStart = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) return;
@@ -120,7 +145,7 @@ export const ProctoringModal = ({
       if (!isDragging) return;
       setPosition({
         x: Math.max(0, Math.min(e.clientX - dragStart.x, window.innerWidth - 448)),
-        y: Math.max(0, Math.min(e.clientY - dragStart.y, window.innerHeight - 560)),
+        y: Math.max(0, Math.min(e.clientY - dragStart.y, window.innerHeight - 580)),
       });
     },
     [isDragging, dragStart],
@@ -147,6 +172,8 @@ export const ProctoringModal = ({
       ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
       : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
 
+  const isBusy = isLoading || checkingDevice !== null;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div
@@ -166,7 +193,7 @@ export const ProctoringModal = ({
           <div className="flex-1">
             <h3 className="font-semibold text-lg">Proctoring Required</h3>
             <p className="text-sm text-muted-foreground">
-              Camera, mic, and audio are mandatory
+              Enable camera, microphone, and audio before starting
             </p>
           </div>
         </div>
@@ -174,39 +201,72 @@ export const ProctoringModal = ({
         <div className="space-y-4 mb-6">
           <div className="p-3 bg-muted rounded-lg">
             <p className="text-sm">
-              You cannot start this challenge until all required devices are ready.
+              Use the buttons below to turn on each required device.
             </p>
           </div>
 
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Camera className="h-4 w-4" />
                 <span className="text-sm font-medium">Camera</span>
               </div>
-              <span className={`text-xs px-2 py-1 rounded-full ${statusClass(deviceReadiness.camera)}`}>
-                {deviceReadiness.camera ? 'Ready' : 'Not ready'}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs px-2 py-1 rounded-full ${statusClass(deviceReadiness.camera)}`}>
+                  {deviceReadiness.camera ? 'Ready' : 'Not ready'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void requestDevicePermission('camera')}
+                  disabled={isBusy}
+                  className="px-3 py-1.5 rounded-md border border-border hover:bg-muted text-xs font-medium disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {checkingDevice === 'camera' ? 'Enabling...' : 'Turn on'}
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Mic className="h-4 w-4" />
                 <span className="text-sm font-medium">Microphone</span>
               </div>
-              <span className={`text-xs px-2 py-1 rounded-full ${statusClass(deviceReadiness.microphone)}`}>
-                {deviceReadiness.microphone ? 'Ready' : 'Not ready'}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs px-2 py-1 rounded-full ${statusClass(deviceReadiness.microphone)}`}>
+                  {deviceReadiness.microphone ? 'Ready' : 'Not ready'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void requestDevicePermission('microphone')}
+                  disabled={isBusy}
+                  className="px-3 py-1.5 rounded-md border border-border hover:bg-muted text-xs font-medium disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {checkingDevice === 'microphone' ? 'Enabling...' : 'Turn on'}
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4" />
                 <span className="text-sm font-medium">Audio Support</span>
               </div>
-              <span className={`text-xs px-2 py-1 rounded-full ${statusClass(deviceReadiness.audio)}`}>
-                {deviceReadiness.audio ? 'Ready' : 'Not ready'}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs px-2 py-1 rounded-full ${statusClass(deviceReadiness.audio)}`}>
+                  {deviceReadiness.audio ? 'Ready' : 'Not ready'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCheckingDevice('audio');
+                    void checkAudioSupport().finally(() => setCheckingDevice(null));
+                  }}
+                  disabled={isBusy}
+                  className="px-3 py-1.5 rounded-md border border-border hover:bg-muted text-xs font-medium disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {checkingDevice === 'audio' ? 'Checking...' : 'Enable'}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -218,7 +278,7 @@ export const ProctoringModal = ({
 
           <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
             <p className="text-sm text-amber-800 dark:text-amber-300">
-              Keep camera and microphone on during the whole session. Violations affect your trust score.
+              If camera, microphone, or audio is turned off during the challenge, the session will pause.
             </p>
           </div>
         </div>
@@ -234,16 +294,16 @@ export const ProctoringModal = ({
           </button>
           <button
             type="button"
-            onClick={() => void checkDeviceReadiness()}
-            disabled={isLoading || isCheckingDevices}
+            onClick={() => void recheckAllDevices()}
+            disabled={isBusy}
             className="px-4 py-2.5 rounded-lg border border-border hover:bg-muted transition-colors text-sm font-medium disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {isCheckingDevices ? 'Checking...' : 'Re-check'}
+            {checkingDevice === 'all' ? 'Checking...' : 'Re-check'}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            disabled={isLoading || isCheckingDevices || !allDevicesReady}
+            disabled={isBusy || !allDevicesReady}
             className="flex-1 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-70 disabled:cursor-not-allowed"
             title={allDevicesReady ? 'Start session' : 'Enable camera, mic, and audio first'}
           >

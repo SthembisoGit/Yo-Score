@@ -1,6 +1,7 @@
 import { query } from '../db';
 import axios from 'axios';
 import { config } from '../config';
+import { getViolationPenalty, normalizeViolationType } from '../constants/violationPenalties';
 
 export interface ProctoringViolation {
   type: string;
@@ -48,6 +49,15 @@ export interface ProctoringSettings {
   strictMode: boolean;
   allowedViolationsBeforeWarning: number;
   autoPauseOnViolation: boolean;
+}
+
+export interface SessionHeartbeatPayload {
+  cameraReady: boolean;
+  microphoneReady: boolean;
+  audioReady: boolean;
+  isPaused?: boolean;
+  windowFocused?: boolean;
+  timestamp?: string;
 }
 
 export class ProctoringService {
@@ -154,35 +164,239 @@ export class ProctoringService {
       description: 'Suspicious conversation detected',
       penalty: 12,
     },
+    heartbeat_timeout: {
+      type: 'heartbeat_timeout',
+      severity: 'high',
+      description: 'Proctoring heartbeat timeout',
+      penalty: 8,
+    },
   };
 
   private readonly mlServiceUrl: string;
+  private schemaEnsured = false;
+  private readonly heartbeatTimeoutSeconds = 15;
 
   constructor() {
     this.mlServiceUrl = config.ML_SERVICE_URL || 'http://localhost:5000';
   }
 
+  private async ensureSessionSchemaExtensions(): Promise<void> {
+    if (this.schemaEnsured) return;
+
+    await query(
+      `ALTER TABLE proctoring_sessions
+         ADD COLUMN IF NOT EXISTS paused_at TIMESTAMP,
+         ADD COLUMN IF NOT EXISTS pause_reason TEXT,
+         ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMP,
+         ADD COLUMN IF NOT EXISTS pause_count INTEGER DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS total_paused_seconds INTEGER DEFAULT 0`,
+    );
+
+    this.schemaEnsured = true;
+  }
+
   // Session Management
   async startSession(userId: string, challengeId: string): Promise<string> {
-    const result = await query(
-      `INSERT INTO proctoring_sessions (user_id, challenge_id, start_time, status)
-       VALUES ($1, $2, NOW(), 'active')
-       RETURNING id`,
-      [userId, challengeId],
-    );
+    await this.ensureSessionSchemaExtensions();
+
+    let result;
+    try {
+      result = await query(
+        `INSERT INTO proctoring_sessions
+           (user_id, challenge_id, start_time, status, heartbeat_at, paused_at, pause_reason, pause_count, total_paused_seconds)
+         VALUES ($1, $2, NOW(), 'active', NOW(), NULL, NULL, 0, 0)
+         RETURNING id`,
+        [userId, challengeId],
+      );
+    } catch {
+      // Fallback for older schemas that haven't applied extension columns yet.
+      result = await query(
+        `INSERT INTO proctoring_sessions (user_id, challenge_id, start_time, status)
+         VALUES ($1, $2, NOW(), 'active')
+         RETURNING id`,
+        [userId, challengeId],
+      );
+    }
 
     return result.rows[0].id;
   }
 
   async endSession(sessionId: string, submissionId?: string): Promise<void> {
+    await this.ensureSessionSchemaExtensions();
     await query(
       `UPDATE proctoring_sessions 
        SET end_time = NOW(), 
-           status = 'completed',
-           submission_id = $2
-       WHERE id = $1`,
+            status = 'completed',
+            paused_at = NULL,
+            pause_reason = NULL,
+            submission_id = $2
+        WHERE id = $1`,
       [sessionId, submissionId ?? null],
     );
+  }
+
+  async pauseSession(
+    sessionId: string,
+    userId: string,
+    reason: string,
+  ): Promise<{
+    status: 'active' | 'paused' | 'completed';
+    pauseReason: string | null;
+    pausedAt: string | null;
+  }> {
+    await this.ensureSessionSchemaExtensions();
+
+    const sessionResult = await query(
+      `SELECT status, paused_at
+       FROM proctoring_sessions
+       WHERE id = $1 AND user_id = $2`,
+      [sessionId, userId],
+    );
+
+    if (sessionResult.rows.length === 0) {
+      throw new Error('Session not found');
+    }
+
+    const current = sessionResult.rows[0];
+    if (current.status === 'completed') {
+      throw new Error('Completed sessions cannot be paused');
+    }
+
+    const updated = await query(
+      `UPDATE proctoring_sessions
+       SET status = 'paused',
+           paused_at = COALESCE(paused_at, NOW()),
+           pause_reason = $3,
+           pause_count = COALESCE(pause_count, 0) + CASE WHEN status = 'paused' THEN 0 ELSE 1 END,
+           heartbeat_at = NOW()
+       WHERE id = $1 AND user_id = $2
+       RETURNING status, pause_reason, paused_at`,
+      [sessionId, userId, reason],
+    );
+
+    return {
+      status: updated.rows[0].status,
+      pauseReason: updated.rows[0].pause_reason ?? null,
+      pausedAt: updated.rows[0].paused_at
+        ? new Date(updated.rows[0].paused_at).toISOString()
+        : null,
+    };
+  }
+
+  async resumeSession(
+    sessionId: string,
+    userId: string,
+  ): Promise<{
+    status: 'active' | 'paused' | 'completed';
+    pauseReason: string | null;
+  }> {
+    await this.ensureSessionSchemaExtensions();
+
+    const sessionResult = await query(
+      `SELECT status, paused_at
+       FROM proctoring_sessions
+       WHERE id = $1 AND user_id = $2`,
+      [sessionId, userId],
+    );
+
+    if (sessionResult.rows.length === 0) {
+      throw new Error('Session not found');
+    }
+
+    const current = sessionResult.rows[0];
+    if (current.status === 'completed') {
+      throw new Error('Completed sessions cannot be resumed');
+    }
+
+    const pausedAtValue = current.paused_at ? new Date(current.paused_at) : null;
+    const pausedDurationSeconds = pausedAtValue
+      ? Math.max(0, Math.floor((Date.now() - pausedAtValue.getTime()) / 1000))
+      : 0;
+
+    const updated = await query(
+      `UPDATE proctoring_sessions
+       SET status = 'active',
+           pause_reason = NULL,
+           paused_at = NULL,
+           heartbeat_at = NOW(),
+           total_paused_seconds = COALESCE(total_paused_seconds, 0) + $3
+       WHERE id = $1 AND user_id = $2
+       RETURNING status, pause_reason`,
+      [sessionId, userId, pausedDurationSeconds],
+    );
+
+    return {
+      status: updated.rows[0].status,
+      pauseReason: updated.rows[0].pause_reason ?? null,
+    };
+  }
+
+  async recordHeartbeat(
+    sessionId: string,
+    userId: string,
+    payload: SessionHeartbeatPayload,
+  ): Promise<{
+    status: 'active' | 'paused' | 'completed';
+    pauseReason: string | null;
+    heartbeatAt: string;
+  }> {
+    await this.ensureSessionSchemaExtensions();
+
+    const sessionResult = await query(
+      `SELECT status, pause_reason
+       FROM proctoring_sessions
+       WHERE id = $1 AND user_id = $2`,
+      [sessionId, userId],
+    );
+
+    if (sessionResult.rows.length === 0) {
+      throw new Error('Session not found');
+    }
+
+    const currentStatus = sessionResult.rows[0].status as 'active' | 'paused' | 'completed';
+
+    if (currentStatus === 'completed') {
+      return {
+        status: 'completed',
+        pauseReason: sessionResult.rows[0].pause_reason ?? null,
+        heartbeatAt: new Date().toISOString(),
+      };
+    }
+
+    const missingRequiredDevice =
+      payload.cameraReady === false ||
+      payload.microphoneReady === false ||
+      payload.audioReady === false;
+
+    if (missingRequiredDevice) {
+      const reasonParts: string[] = [];
+      if (!payload.cameraReady) reasonParts.push('camera');
+      if (!payload.microphoneReady) reasonParts.push('microphone');
+      if (!payload.audioReady) reasonParts.push('audio');
+      const reason = `Required proctoring device unavailable: ${reasonParts.join(', ')}`;
+      const paused = await this.pauseSession(sessionId, userId, reason);
+      return {
+        status: paused.status,
+        pauseReason: paused.pauseReason,
+        heartbeatAt: new Date().toISOString(),
+      };
+    }
+
+    const updated = await query(
+      `UPDATE proctoring_sessions
+       SET heartbeat_at = NOW()
+       WHERE id = $1 AND user_id = $2
+       RETURNING status, pause_reason, heartbeat_at`,
+      [sessionId, userId],
+    );
+
+    return {
+      status: updated.rows[0].status,
+      pauseReason: updated.rows[0].pause_reason ?? null,
+      heartbeatAt: updated.rows[0].heartbeat_at
+        ? new Date(updated.rows[0].heartbeat_at).toISOString()
+        : new Date().toISOString(),
+    };
   }
 
   // Basic Violation Logging
@@ -193,16 +407,19 @@ export class ProctoringService {
     description?: string,
     evidence?: unknown,
   ): Promise<ProctoringViolation> {
-    const base = this.violationWeights[violationType] ?? {
-      type: violationType,
+    const normalizedType = normalizeViolationType(violationType);
+    const base = this.violationWeights[normalizedType] ?? {
+      type: normalizedType,
       severity: 'medium' as const,
-      description: description || `Violation: ${violationType}`,
-      penalty: 5,
+      description: description || `Violation: ${normalizedType}`,
+      penalty: getViolationPenalty(normalizedType),
     };
 
     const violation: ProctoringViolation = {
       ...base,
+      type: normalizedType,
       description: description ?? base.description,
+      penalty: getViolationPenalty(normalizedType),
     };
 
     await query(
@@ -328,18 +545,7 @@ export class ProctoringService {
       };
     } catch (error) {
       console.error('Face analysis failed:', error);
-
-      // Return neutral result on error (no false positives)
-      return {
-        result: {
-          faceCount: 0,
-          eyesClosed: false,
-          faceCoverage: 0,
-          confidence: 0,
-          hasFace: false,
-        },
-        violations: [],
-      };
+      throw new Error('Face analysis temporarily unavailable');
     }
   }
 
@@ -774,18 +980,63 @@ export class ProctoringService {
 
   async getSessionStatus(sessionId: string): Promise<{
     isActive: boolean;
+    isPaused: boolean;
+    status: 'active' | 'paused' | 'completed';
+    pauseReason: string | null;
+    heartbeatAt: string | null;
+    isHeartbeatStale: boolean;
     violationsSinceLastCheck: number;
     currentScore: number;
   }> {
+    await this.ensureSessionSchemaExtensions();
+
     const sessionResult = await query(
-      `SELECT status FROM proctoring_sessions WHERE id = $1`,
+      `SELECT id, user_id, status, pause_reason, heartbeat_at
+       FROM proctoring_sessions
+       WHERE id = $1`,
       [sessionId],
     );
 
-    const isActive =
-      sessionResult.rows.length > 0
-        ? sessionResult.rows[0].status === 'active'
-        : false;
+    if (sessionResult.rows.length === 0) {
+      return {
+        isActive: false,
+        isPaused: false,
+        status: 'completed',
+        pauseReason: null,
+        heartbeatAt: null,
+        isHeartbeatStale: false,
+        violationsSinceLastCheck: 0,
+        currentScore: 0,
+      };
+    }
+
+    const session = sessionResult.rows[0];
+    let status = session.status as 'active' | 'paused' | 'completed';
+    let pauseReason: string | null = session.pause_reason ?? null;
+
+    const heartbeatAtDate = session.heartbeat_at ? new Date(session.heartbeat_at) : null;
+    const heartbeatAgeSeconds = heartbeatAtDate
+      ? (Date.now() - heartbeatAtDate.getTime()) / 1000
+      : Number.POSITIVE_INFINITY;
+    let isHeartbeatStale =
+      status === 'active' && heartbeatAgeSeconds > this.heartbeatTimeoutSeconds;
+
+    if (isHeartbeatStale) {
+      const paused = await this.pauseSession(
+        sessionId,
+        session.user_id,
+        'Heartbeat timeout: proctoring heartbeat lost',
+      );
+      await this.logViolation(
+        sessionId,
+        session.user_id,
+        'heartbeat_timeout',
+        'Heartbeat timeout detected - session auto-paused',
+      );
+      status = paused.status;
+      pauseReason = paused.pauseReason;
+      isHeartbeatStale = false;
+    }
 
     const violationsResult = await query(
       `SELECT COUNT(*) as count FROM proctoring_logs WHERE session_id = $1`,
@@ -795,7 +1046,12 @@ export class ProctoringService {
     const currentScore = await this.calculateProctoringScore(sessionId);
 
     return {
-      isActive,
+      isActive: status === 'active',
+      isPaused: status === 'paused',
+      status,
+      pauseReason,
+      heartbeatAt: heartbeatAtDate ? heartbeatAtDate.toISOString() : null,
+      isHeartbeatStale,
       violationsSinceLastCheck: parseInt(violationsResult.rows[0]?.count ?? 0, 10),
       currentScore,
     };
