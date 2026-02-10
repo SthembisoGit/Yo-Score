@@ -22,8 +22,14 @@ export interface Submission {
   id: string;
   user_id: string;
   challenge_id: string;
+  session_id?: string | null;
   code: string;
   score: number | null;
+  component_skill?: number | null;
+  component_behavior?: number | null;
+  component_work_experience?: number | null;
+  component_penalty?: number | null;
+  scoring_version?: string | null;
   status: string;
   submitted_at: Date;
 }
