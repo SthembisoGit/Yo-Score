@@ -14,6 +14,9 @@ router.get('/health', proctoringController.health.bind(proctoringController));
 // Session lifecycle
 router.post('/session/start', proctoringController.startSession.bind(proctoringController));
 router.post('/session/end', proctoringController.endSession.bind(proctoringController));
+router.post('/session/pause', proctoringController.pauseSession.bind(proctoringController));
+router.post('/session/resume', proctoringController.resumeSession.bind(proctoringController));
+router.post('/session/heartbeat', proctoringController.heartbeat.bind(proctoringController));
 router.get(
   '/session/:sessionId',
   proctoringController.getSessionDetails.bind(proctoringController),
