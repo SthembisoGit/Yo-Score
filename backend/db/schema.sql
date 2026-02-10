@@ -29,7 +29,12 @@ CREATE TABLE IF NOT EXISTS proctoring_sessions (
     end_time TIMESTAMP,
     total_violations INTEGER DEFAULT 0,
     total_penalty INTEGER DEFAULT 0,
-    status VARCHAR(20) DEFAULT 'active'
+    status VARCHAR(20) DEFAULT 'active',
+    paused_at TIMESTAMP,
+    pause_reason TEXT,
+    heartbeat_at TIMESTAMP,
+    pause_count INTEGER DEFAULT 0,
+    total_paused_seconds INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS submissions (
@@ -39,6 +44,11 @@ CREATE TABLE IF NOT EXISTS submissions (
     session_id UUID REFERENCES proctoring_sessions(id) ON DELETE SET NULL,
     code TEXT NOT NULL,
     score INTEGER,
+    component_skill INTEGER,
+    component_behavior INTEGER,
+    component_work_experience INTEGER,
+    component_penalty INTEGER DEFAULT 0,
+    scoring_version VARCHAR(20),
     status VARCHAR(50) DEFAULT 'pending',
     submitted_at TIMESTAMP DEFAULT NOW()
 );
@@ -97,8 +107,38 @@ CREATE TABLE IF NOT EXISTS reference_docs (
 ALTER TABLE submissions
     ADD COLUMN IF NOT EXISTS session_id UUID REFERENCES proctoring_sessions(id) ON DELETE SET NULL;
 
+ALTER TABLE submissions
+    ADD COLUMN IF NOT EXISTS component_skill INTEGER;
+
+ALTER TABLE submissions
+    ADD COLUMN IF NOT EXISTS component_behavior INTEGER;
+
+ALTER TABLE submissions
+    ADD COLUMN IF NOT EXISTS component_work_experience INTEGER;
+
+ALTER TABLE submissions
+    ADD COLUMN IF NOT EXISTS component_penalty INTEGER DEFAULT 0;
+
+ALTER TABLE submissions
+    ADD COLUMN IF NOT EXISTS scoring_version VARCHAR(20);
+
 ALTER TABLE proctoring_sessions
     ADD COLUMN IF NOT EXISTS submission_id UUID REFERENCES submissions(id) ON DELETE SET NULL;
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS paused_at TIMESTAMP;
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS pause_reason TEXT;
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMP;
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS pause_count INTEGER DEFAULT 0;
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS total_paused_seconds INTEGER DEFAULT 0;
 
 ALTER TABLE proctoring_logs
     ADD COLUMN IF NOT EXISTS session_id UUID REFERENCES proctoring_sessions(id) ON DELETE CASCADE;
