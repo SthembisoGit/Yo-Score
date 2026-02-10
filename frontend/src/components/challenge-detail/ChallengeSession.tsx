@@ -22,6 +22,8 @@ interface ChallengeSessionProps {
   sessionId?: string | null;
   onViolation?: (type: string, data: any) => void;
   violationCount?: number;
+  isSessionPaused?: boolean;
+  pauseReason?: string;
 }
 
 export const ChallengeSession = ({
@@ -33,7 +35,9 @@ export const ChallengeSession = ({
   challengeId,
   sessionId,
   onViolation,
-  violationCount: propViolationCount = 0
+  violationCount: propViolationCount = 0,
+  isSessionPaused = false,
+  pauseReason = ''
 }: ChallengeSessionProps) => {
   const navigate = useNavigate();
   const [showDocs, setShowDocs] = useState(false);
@@ -115,6 +119,11 @@ int main() {
   };
 
   const handleSubmit = async () => {
+    if (isSessionPaused) {
+      setSubmissionError('Session is paused. Re-enable camera, microphone, and audio to continue.');
+      return;
+    }
+
     if (!selectedLanguage) {
       setSubmissionError('Please select a programming language before submitting.');
       return;
@@ -313,6 +322,15 @@ int main() {
             </AlertDescription>
           </Alert>
         )}
+
+        {isSessionPaused && (
+          <Alert variant="default" className="bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
+            <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+            <AlertDescription className="text-red-800 dark:text-red-300">
+              Session paused by proctoring. {pauseReason || 'Restore required devices from the proctoring modal to continue.'}
+            </AlertDescription>
+          </Alert>
+        )}
         
         <div className="bg-card border border-border rounded-xl overflow-hidden flex-1 shadow-sm">
           <CodeEditor 
@@ -320,7 +338,7 @@ int main() {
             value={code}
             onChange={handleCodeChange}
             className="h-full"
-            readOnly={isSubmitting || isSessionEnded}
+            readOnly={isSubmitting || isSessionEnded || isSessionPaused}
           />
         </div>
         
@@ -342,7 +360,7 @@ int main() {
             <Button 
               variant="outline"
               onClick={handleEndSessionEarly}
-              disabled={!sessionId || isSessionEnded || isSubmitting}
+              disabled={!sessionId || isSessionEnded || isSubmitting || isSessionPaused}
               className="px-4"
             >
               End Session
@@ -350,7 +368,7 @@ int main() {
             
             <Button 
               onClick={handleSubmit}
-              disabled={isSubmitting || !selectedLanguage || isSessionEnded}
+              disabled={isSubmitting || !selectedLanguage || isSessionEnded || isSessionPaused}
               className="px-8"
               size="lg"
             >

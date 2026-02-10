@@ -19,6 +19,16 @@ interface ViolationEvent {
   data: unknown;
 }
 
+interface PauseStatePayload {
+  isPaused: boolean;
+  reason: string;
+  missingDevices: {
+    camera: boolean;
+    microphone: boolean;
+    audio: boolean;
+  };
+}
+
 export default function ChallengeDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -32,8 +42,10 @@ export default function ChallengeDetail() {
   const [violations, setViolations] = useState<ViolationEvent[]>([]);
   const [violationCount, setViolationCount] = useState(0);
   const [isStartingProctoring, setIsStartingProctoring] = useState(false);
+  const [isSessionPaused, setIsSessionPaused] = useState(false);
+  const [pauseReason, setPauseReason] = useState('');
 
-  const { startSession, logViolation } = useProctoring();
+  const { startSession } = useProctoring();
 
   // Initialize language from user preference
   useEffect(() => {
@@ -84,21 +96,11 @@ export default function ChallengeDetail() {
       setViolationCount(newViolations.length);
       return newViolations;
     });
-    
-    // Log to backend
-    if (sessionId) {
-      const description =
-        typeof data === 'object' && data !== null && 'description' in data
-          ? String((data as { description?: unknown }).description || '')
-          : '';
-      logViolation(sessionId, type, description || `Violation: ${type}`);
-    }
-    
-    // Show warning
-    toast(`Proctoring alert: ${type}`, {
-      duration: 5000,
-      icon: '!'
-    });
+  };
+
+  const handlePauseStateChange = (state: PauseStatePayload) => {
+    setIsSessionPaused(state.isPaused);
+    setPauseReason(state.reason);
   };
 
   // Loading state
@@ -200,6 +202,7 @@ export default function ChallengeDetail() {
                 userId={user.id}
                 challengeId={id!}
                 onViolation={handleViolationDetected}
+                onPauseStateChange={handlePauseStateChange}
               />
             )}
             
@@ -213,6 +216,8 @@ export default function ChallengeDetail() {
               sessionId={sessionId}
               onViolation={handleViolationDetected}
               violationCount={violationCount}
+              isSessionPaused={isSessionPaused}
+              pauseReason={pauseReason}
             />
           </>
         )}
