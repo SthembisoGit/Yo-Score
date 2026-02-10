@@ -12,6 +12,7 @@ class FaceAnalysis:
     eyes_closed: bool = False
     face_coverage: float = 0.0  # 0-1, percentage of face covered
     confidence: float = 0.0
+    face_box: Optional[Dict[str, float]] = None
     landmarks: Optional[List] = None
 
 class FaceDetector:
@@ -21,12 +22,12 @@ class FaceDetector:
         self.face_mesh = self.mp_face_mesh.FaceMesh(
             max_num_faces=2,
             refine_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
+            min_detection_confidence=0.45,
+            min_tracking_confidence=0.45
         )
         self.face_detection = self.mp_face_detection.FaceDetection(
-            model_selection=1,  # 0 for short-range, 1 for full-range
-            min_detection_confidence=0.5
+            model_selection=0,  # 0 is better for normal webcam distance
+            min_detection_confidence=0.45
         )
         
     def is_ready(self) -> bool:
@@ -55,29 +56,31 @@ class FaceDetector:
         
         if face_results.detections:
             results.face_count = len(face_results.detections)
-            
-            # Analyze each face
-            for detection in face_results.detections:
-                bbox = detection.location_data.relative_bounding_box
-                confidence = detection.score[0]
-                
-                # Face mesh for detailed analysis
-                mesh_results = self.face_mesh.process(img_rgb)
-                
-                if mesh_results.multi_face_landmarks:
-                    for face_landmarks in mesh_results.multi_face_landmarks:
-                        # Analyze gaze direction
-                        gaze = self._analyze_gaze_direction(face_landmarks, img.shape)
-                        results.gaze_direction = gaze
-                        
-                        # Check if eyes are closed
-                        results.eyes_closed = self._check_eyes_closed(face_landmarks)
-                        
-                        # Calculate face coverage (simplified)
-                        results.face_coverage = self._calculate_face_coverage(face_landmarks, bbox)
-                        
-                        results.confidence = confidence
-                        results.landmarks = [(lm.x, lm.y, lm.z) for lm in face_landmarks.landmark[:10]]
+            best_detection = max(face_results.detections, key=lambda d: float(d.score[0]))
+            best_bbox = best_detection.location_data.relative_bounding_box
+            results.confidence = float(best_detection.score[0])
+            results.face_box = {
+                "x_center": float(best_bbox.xmin + (best_bbox.width / 2)),
+                "y_center": float(best_bbox.ymin + (best_bbox.height / 2)),
+                "width": float(best_bbox.width),
+                "height": float(best_bbox.height),
+            }
+
+            # Run face mesh once per frame for richer landmarks.
+            mesh_results = self.face_mesh.process(img_rgb)
+            if mesh_results.multi_face_landmarks:
+                face_landmarks = mesh_results.multi_face_landmarks[0]
+
+                # Analyze gaze direction
+                results.gaze_direction = self._analyze_gaze_direction(face_landmarks, img.shape)
+
+                # Check if eyes are closed
+                results.eyes_closed = self._check_eyes_closed(face_landmarks)
+
+                # Calculate face coverage (simplified)
+                results.face_coverage = self._calculate_face_coverage(face_landmarks, best_bbox)
+
+                results.landmarks = [(lm.x, lm.y, lm.z) for lm in face_landmarks.landmark[:10]]
         
         return self._to_dict(results)
     
@@ -241,6 +244,7 @@ class FaceDetector:
     def _to_dict(self, analysis: FaceAnalysis) -> Dict[str, Any]:
         return {
             "face_count": analysis.face_count,
+            "face_box": analysis.face_box,
             "gaze_direction": analysis.gaze_direction,
             "eyes_closed": analysis.eyes_closed,
             "face_coverage": float(analysis.face_coverage),
