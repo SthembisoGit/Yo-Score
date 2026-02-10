@@ -21,7 +21,7 @@ export class SubmissionController {
         });
       }
 
-      const { challenge_id, code } = req.body;
+      const { challenge_id, code, session_id } = req.body;
 
       console.log('Extracted challenge_id:', challenge_id);
       console.log('Extracted code:', code ? 'Present' : 'Missing');
@@ -36,7 +36,8 @@ export class SubmissionController {
 
       const result = await submissionService.createSubmission(req.user.id, {
         challenge_id,
-        code
+        code,
+        session_id
       });
 
       return res.status(201).json({

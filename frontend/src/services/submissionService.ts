@@ -7,6 +7,21 @@ export interface SubmissionViolation {
   timestamp: string;
 }
 
+export interface SubmissionScoreBreakdown {
+  components: {
+    skill: number;
+    behavior: number;
+    work_experience: number;
+  };
+  penalty: number;
+  scoring_version: string;
+}
+
+export interface SubmissionPenaltySummary {
+  total: number;
+  violation_count: number;
+}
+
 export interface SubmissionResult {
   submission_id: string;
   challenge_id: string;
@@ -14,7 +29,10 @@ export interface SubmissionResult {
   status: 'pending' | 'graded' | 'failed';
   submitted_at: string;
   score: number;
+  total_score?: number | null;
   trust_level: 'Low' | 'Medium' | 'High';
+  score_breakdown?: SubmissionScoreBreakdown;
+  penalties?: SubmissionPenaltySummary;
   violations: SubmissionViolation[];
 }
 
