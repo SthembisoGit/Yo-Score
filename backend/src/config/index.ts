@@ -15,6 +15,7 @@ const envSchema = z.object({
   ML_SERVICE_URL: z.string().default('http://localhost:5000'),
   ML_SERVICE_TIMEOUT: z.coerce.number().default(10000),
   ENABLE_JUDGE: z.string().default('false'),
+  RUN_JUDGE_IN_API: z.string().default('false'),
   REDIS_URL: z.string().optional(),
   STRICT_REAL_SCORING: z.string().default('true'),
   ADMIN_PANEL_ENABLED: z.string().default('true'),
@@ -34,5 +35,6 @@ if (!parseResult.success) {
 
 export const config: EnvConfig = parseResult.data;
 export const enableJudge = config.ENABLE_JUDGE.toLowerCase() === 'true';
+export const runJudgeInApi = config.RUN_JUDGE_IN_API.toLowerCase() === 'true';
 export const strictRealScoring = config.STRICT_REAL_SCORING.toLowerCase() === 'true';
 export const adminPanelEnabled = config.ADMIN_PANEL_ENABLED.toLowerCase() === 'true';

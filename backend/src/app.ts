@@ -9,6 +9,7 @@ import submissionRoutes from './routes/submission.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import proctoringRoutes from './routes/proctoring.routes';
 import adminRoutes from './routes/admin.routes';
+import { enableJudge, runJudgeInApi } from './config';
 import { getCorsConfig } from './utils/corsConfig';
 import { captureException, initSentry } from './observability/sentry';
 
@@ -93,6 +94,17 @@ if (config.NODE_ENV !== 'test') {
     console.log(`Environment: ${config.NODE_ENV}`);
     console.log(`Frontend origin: ${config.FRONTEND_URL}`);
   });
+
+  if (enableJudge && runJudgeInApi) {
+    import('./worker')
+      .then(() => {
+        console.log('Judge worker running inside API process.');
+      })
+      .catch((error) => {
+        captureException(error, { service: 'api', component: 'in-process-judge-worker' });
+        console.error('Failed to start in-process judge worker:', error);
+      });
+  }
 }
 
 export default app;
