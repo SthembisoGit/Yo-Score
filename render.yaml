@@ -1,0 +1,86 @@
+services:
+  - type: web
+    name: yoscore-backend
+    env: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ENABLE_JUDGE
+        value: "true"
+      - key: STRICT_REAL_SCORING
+        value: "true"
+      - key: ADMIN_PANEL_ENABLED
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: ML_SERVICE_URL
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: production
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.1"
+
+  - type: worker
+    name: yoscore-judge-worker
+    env: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run worker
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ENABLE_JUDGE
+        value: "true"
+      - key: STRICT_REAL_SCORING
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENVIRONMENT
+        value: production
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.1"
+
+  - type: web
+    name: yoscore-ml-service
+    env: python
+    rootDir: ml-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+
+  - type: static
+    name: yoscore-frontend
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_SENTRY_DSN
+        sync: false
+      - key: VITE_SENTRY_TRACES_SAMPLE_RATE
+        value: "0.1"
