@@ -14,6 +14,13 @@ const envSchema = z.object({
   BCRYPT_SALT_ROUNDS: z.coerce.number().default(12),
   ML_SERVICE_URL: z.string().default('http://localhost:5000'),
   ML_SERVICE_TIMEOUT: z.coerce.number().default(10000),
+  ENABLE_JUDGE: z.string().default('false'),
+  REDIS_URL: z.string().optional(),
+  STRICT_REAL_SCORING: z.string().default('true'),
+  ADMIN_PANEL_ENABLED: z.string().default('true'),
+  SENTRY_DSN: z.string().optional(),
+  SENTRY_ENVIRONMENT: z.string().optional(),
+  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().optional(),
 });
 
 type EnvConfig = z.infer<typeof envSchema>;
@@ -26,3 +33,6 @@ if (!parseResult.success) {
 }
 
 export const config: EnvConfig = parseResult.data;
+export const enableJudge = config.ENABLE_JUDGE.toLowerCase() === 'true';
+export const strictRealScoring = config.STRICT_REAL_SCORING.toLowerCase() === 'true';
+export const adminPanelEnabled = config.ADMIN_PANEL_ENABLED.toLowerCase() === 'true';

@@ -33,12 +33,16 @@ export class ProctoringController {
         });
       }
 
-      const sessionId = await this.proctoringService.startSession(req.user.id, challengeId);
+      const session = await this.proctoringService.startSession(req.user.id, challengeId);
 
       return res.status(201).json({
         success: true,
         message: 'Proctoring session started',
-        data: { sessionId },
+        data: {
+          sessionId: session.sessionId,
+          deadline_at: session.deadlineAt,
+          duration_seconds: session.durationSeconds,
+        },
       });
     } catch (error: any) {
       return res.status(500).json({

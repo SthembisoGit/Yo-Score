@@ -1,62 +1,20 @@
 import { query } from '../db';
 import { getViolationPenalty } from '../constants/violationPenalties';
 
-const SKILL_MAX = 70;
-const BEHAVIOR_MAX = 30;
+const CHALLENGE_MAX = 60;
+const BEHAVIOR_MAX = 20;
 const WORK_EXPERIENCE_MAX = 20;
 const TOTAL_MAX = 100;
-const SCORING_VERSION = 'v2.0';
+const SCORING_VERSION = 'v3.0';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function computeSkillScore(code: string): number {
-  if (!code || typeof code !== 'string') return 0;
-  const trimmed = code.trim();
-  if (!trimmed.length) return 0;
-
-  const placeholderPattern =
-    /write your solution here|write your code here|todo|implement me|placeholder/i;
-  if (placeholderPattern.test(trimmed) && trimmed.split(/\n/).length <= 6) {
-    return 8;
-  }
-
-  const hasFunctionLike =
-    /\bfunction\b|=>|\bdef\b|\bclass\b|\bpublic\s+static\b|\bprivate\s+\w+\s+\w+\s*\(/i.test(
-      trimmed,
-    );
-  const hasReturn = /\breturn\b/i.test(trimmed);
-  const hasBranching = /\bif\b|\belse\b|\bswitch\b|\bcase\b|\bmatch\b|\btry\b|\bcatch\b/i.test(
-    trimmed,
-  );
-  const hasLoop = /\bfor\b|\bwhile\b|\bforeach\b|\bmap\s*\(/i.test(trimmed);
-  const hasDataStructure =
-    /\barray\b|\blist\b|\bdict\b|\bmap\b|\bset\b|\bvector\b|\bobject\b|\bhash\b/i.test(
-      trimmed,
-    );
-  const hasErrorHandling = /\btry\b|\bcatch\b|\bexcept\b|\bfinally\b/i.test(trimmed);
-
-  const lines = trimmed.split(/\n/).filter((line) => line.trim().length > 0);
-  const lineCount = lines.length;
-  const avgLineLength =
-    lines.reduce((sum, line) => sum + line.length, 0) / Math.max(lines.length, 1);
-
-  let score = 10;
-  if (lineCount >= 4) score += 10;
-  if (hasFunctionLike) score += 12;
-  if (hasReturn) score += 8;
-  if (hasBranching) score += 10;
-  if (hasLoop) score += 8;
-  if (hasDataStructure) score += 6;
-  if (hasErrorHandling) score += 4;
-  if (lineCount >= 8 && lineCount <= 220) score += 6;
-  if (avgLineLength >= 15 && avgLineLength <= 120) score += 6;
-
-  if (lineCount > 350) score -= 8;
-  if (avgLineLength > 180) score -= 6;
-
-  return clamp(Math.round(score), 0, SKILL_MAX);
+function trustLevelFromScore(total: number): 'Low' | 'Medium' | 'High' {
+  if (total >= 80) return 'High';
+  if (total >= 55) return 'Medium';
+  return 'Low';
 }
 
 interface BehaviorPenaltyBreakdown {
@@ -119,22 +77,18 @@ async function computeBehaviorScore(
         totalPausedSeconds += Math.max(0, elapsed);
       }
 
-      pauseCountPenalty = Math.min(10, pauseCount * 2);
-      pauseDurationPenalty = Math.min(12, Math.floor(totalPausedSeconds / 20));
+      pauseCountPenalty = Math.min(8, pauseCount * 2);
+      pauseDurationPenalty = Math.min(8, Math.floor(totalPausedSeconds / 30));
 
       if (row.heartbeat_at && row.status === 'active') {
-        const heartbeatAgeSeconds =
-          (Date.now() - new Date(row.heartbeat_at).getTime()) / 1000;
+        const heartbeatAgeSeconds = (Date.now() - new Date(row.heartbeat_at).getTime()) / 1000;
         if (heartbeatAgeSeconds > 20) {
-          heartbeatPenalty = Math.min(
-            8,
-            Math.floor((heartbeatAgeSeconds - 20) / 10) + 1,
-          );
+          heartbeatPenalty = Math.min(6, Math.floor((heartbeatAgeSeconds - 20) / 10) + 1);
         }
       }
     }
   } catch {
-    // Keep behavior scoring resilient even if optional pause columns are not available yet.
+    // Keep behavior scoring resilient if pause columns are unavailable.
   }
 
   const totalPenalty =
@@ -155,25 +109,37 @@ async function computeBehaviorScore(
 }
 
 async function computeWorkExperienceScore(userId: string): Promise<number> {
-  const result = await query(
-    `SELECT COALESCE(SUM(duration_months), 0) as total FROM work_experience WHERE user_id = $1`,
-    [userId],
-  );
-  const totalMonths = Number(result.rows[0]?.total ?? 0);
+  let totalMonths = 0;
+  try {
+    const result = await query(
+      `SELECT COALESCE(SUM(duration_months), 0) as total
+       FROM work_experience
+       WHERE user_id = $1
+         AND verification_status IN ('pending', 'verified')
+         AND COALESCE(risk_score, 0) <= 60`,
+      [userId],
+    );
+    totalMonths = Number(result.rows[0]?.total ?? 0);
+  } catch {
+    const fallback = await query(
+      `SELECT COALESCE(SUM(duration_months), 0) as total
+       FROM work_experience
+       WHERE user_id = $1`,
+      [userId],
+    );
+    totalMonths = Number(fallback.rows[0]?.total ?? 0);
+  }
   return clamp(Math.floor(totalMonths), 0, WORK_EXPERIENCE_MAX);
 }
 
-function trustLevelFromScore(total: number): 'Low' | 'Medium' | 'High' {
-  if (total >= 80) return 'High';
-  if (total >= 55) return 'Medium';
-  return 'Low';
-}
-
 export interface SubmissionScoreResult {
-  score: number;
-  trust_level: 'Low' | 'Medium' | 'High';
+  submissionScore: number;
+  trustScore: number;
+  trustLevel: 'Low' | 'Medium' | 'High';
   components: {
-    skill: number;
+    correctness: number;
+    efficiency: number;
+    style: number;
     challenge: number;
     behavior: number;
     workExperience: number;
@@ -186,7 +152,7 @@ export interface SubmissionScoreResult {
     total: number;
     violationCount: number;
   };
-  scoring_version: string;
+  scoringVersion: string;
 }
 
 export class ScoringService {
@@ -207,25 +173,97 @@ export class ScoringService {
     this.schemaEnsured = true;
   }
 
-  async computeSubmissionScore(
+  computeSubmissionScoreFromComponents(args: {
+    correctness: number;
+    efficiency: number;
+    style: number;
+    behavior: number;
+    workExperience: number;
+  }): { submissionScore: number; trustScore: number; trustLevel: 'Low' | 'Medium' | 'High' } {
+    const correctness = clamp(args.correctness, 0, 40);
+    const efficiency = clamp(args.efficiency, 0, 15);
+    const style = clamp(args.style, 0, 5);
+    const challenge = clamp(correctness + efficiency + style, 0, CHALLENGE_MAX);
+    const behavior = clamp(args.behavior, 0, BEHAVIOR_MAX);
+    const workExperience = clamp(args.workExperience, 0, WORK_EXPERIENCE_MAX);
+
+    const submissionScore = clamp(Math.round(challenge + behavior), 0, 80);
+    const trustScore = clamp(Math.round(submissionScore * 0.8 + workExperience), 0, TOTAL_MAX);
+    const trustLevel = trustLevelFromScore(trustScore);
+    return { submissionScore, trustScore, trustLevel };
+  }
+
+  async finalizeSubmissionScore(
+    submissionId: string,
     userId: string,
-    code: string,
     sessionId: string | null,
+    components: { correctness: number; efficiency: number; style: number },
   ): Promise<SubmissionScoreResult> {
-    const skill = computeSkillScore(code);
+    await this.ensureScoringSchemaExtensions();
+
     const behaviorResult = await computeBehaviorScore(sessionId);
     const workExperience = await computeWorkExperienceScore(userId);
 
-    const submissionScore = clamp(Math.round(skill + behaviorResult.score), 0, TOTAL_MAX);
-    const total = clamp(Math.round(submissionScore * 0.8 + workExperience), 0, TOTAL_MAX);
-    const trust_level = trustLevelFromScore(total);
+    const normalized = {
+      correctness: clamp(components.correctness, 0, 40),
+      efficiency: clamp(components.efficiency, 0, 15),
+      style: clamp(components.style, 0, 5),
+    };
+
+    const challenge = clamp(
+      normalized.correctness + normalized.efficiency + normalized.style,
+      0,
+      CHALLENGE_MAX,
+    );
+
+    const { submissionScore, trustScore, trustLevel } = this.computeSubmissionScoreFromComponents({
+      correctness: normalized.correctness,
+      efficiency: normalized.efficiency,
+      style: normalized.style,
+      behavior: behaviorResult.score,
+      workExperience,
+    });
+
+    await query(
+      `UPDATE submissions
+       SET score = $2,
+           status = 'graded',
+           judge_status = 'completed',
+           component_correctness = $3,
+           component_efficiency = $4,
+           component_style = $5,
+           component_skill = $6,
+           component_behavior = $7,
+           component_work_experience = $8,
+           component_penalty = $9,
+           scoring_version = $10,
+           judge_error = NULL
+       WHERE id = $1`,
+      [
+        submissionId,
+        submissionScore,
+        normalized.correctness,
+        normalized.efficiency,
+        normalized.style,
+        challenge,
+        behaviorResult.score,
+        workExperience,
+        behaviorResult.penalties.totalPenalty,
+        SCORING_VERSION,
+      ],
+    );
+
+    await this.recomputeTrustScore(userId);
 
     return {
-      score: submissionScore,
-      trust_level,
+      submissionScore,
+      trustScore,
+      trustLevel,
       components: {
-        skill,
-        challenge: skill,
+        correctness: normalized.correctness,
+        efficiency: normalized.efficiency,
+        style: normalized.style,
+        challenge,
         behavior: behaviorResult.score,
         workExperience,
       },
@@ -237,24 +275,41 @@ export class ScoringService {
         total: behaviorResult.penalties.totalPenalty,
         violationCount: behaviorResult.penalties.violationCount,
       },
-      scoring_version: SCORING_VERSION,
+      scoringVersion: SCORING_VERSION,
     };
   }
 
   async recomputeTrustScore(
     userId: string,
   ): Promise<{ total_score: number; trust_level: string }> {
-    const [subsResult, workResult] = await Promise.all([
-      query(
-        `SELECT AVG(score)::numeric as avg_score FROM submissions
-         WHERE user_id = $1 AND status = 'graded' AND score IS NOT NULL`,
-        [userId],
-      ),
-      query(
-        `SELECT COALESCE(SUM(duration_months), 0) as total FROM work_experience WHERE user_id = $1`,
-        [userId],
-      ),
-    ]);
+    const subsResultPromise = query(
+      `SELECT AVG(score)::numeric as avg_score
+       FROM submissions
+       WHERE user_id = $1 AND status = 'graded' AND score IS NOT NULL`,
+      [userId],
+    );
+
+    const workResultPromise = (async () => {
+      try {
+        return await query(
+          `SELECT COALESCE(SUM(duration_months), 0) as total
+           FROM work_experience
+           WHERE user_id = $1
+             AND verification_status IN ('pending', 'verified')
+             AND COALESCE(risk_score, 0) <= 60`,
+          [userId],
+        );
+      } catch {
+        return query(
+          `SELECT COALESCE(SUM(duration_months), 0) as total
+           FROM work_experience
+           WHERE user_id = $1`,
+          [userId],
+        );
+      }
+    })();
+
+    const [subsResult, workResult] = await Promise.all([subsResultPromise, workResultPromise]);
 
     const avgSubmission = Number(subsResult.rows[0]?.avg_score ?? 0);
     const workMonths = Number(workResult.rows[0]?.total ?? 0);
@@ -280,7 +335,7 @@ export class ScoringService {
     await this.ensureScoringSchemaExtensions();
 
     const rowsResult = await query(
-      `SELECT id, user_id, code, session_id
+      `SELECT id, user_id, session_id, component_correctness, component_efficiency, component_style
        FROM submissions
        WHERE status = 'graded'
        ORDER BY submitted_at DESC
@@ -296,31 +351,14 @@ export class ScoringService {
     for (const row of rowsResult.rows) {
       processed += 1;
       try {
-        const result = await this.computeSubmissionScore(
-          row.user_id,
-          row.code,
-          row.session_id ?? null,
-        );
-
-        await query(
-          `UPDATE submissions
-           SET score = $2,
-               component_skill = $3,
-               component_behavior = $4,
-               component_work_experience = $5,
-               component_penalty = $6,
-               scoring_version = $7
-           WHERE id = $1`,
-          [
-            row.id,
-            result.score,
-            result.components.skill,
-            result.components.behavior,
-            result.components.workExperience,
-            result.penalties.total,
-            result.scoring_version,
-          ],
-        );
+        const correctness = Number(row.component_correctness ?? 0);
+        const efficiency = Number(row.component_efficiency ?? 0);
+        const style = Number(row.component_style ?? 0);
+        await this.finalizeSubmissionScore(row.id, row.user_id, row.session_id ?? null, {
+          correctness,
+          efficiency,
+          style,
+        });
         users.add(row.user_id);
         updated += 1;
       } catch {
@@ -333,3 +371,5 @@ export class ScoringService {
     return { processed, updated, failed };
   }
 }
+
+export const scoringService = new ScoringService();

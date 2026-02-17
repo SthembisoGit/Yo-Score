@@ -14,6 +14,9 @@ export interface Challenge {
   description: string;
   category: string;
   difficulty: string;
+  target_seniority?: 'graduate' | 'junior' | 'mid' | 'senior';
+  duration_minutes?: number;
+  publish_status?: 'draft' | 'published' | 'archived';
   created_at: Date;
   updated_at: Date;
 }
@@ -23,8 +26,15 @@ export interface Submission {
   user_id: string;
   challenge_id: string;
   session_id?: string | null;
+  language?: 'javascript' | 'python';
   code: string;
   score: number | null;
+  judge_status?: 'queued' | 'running' | 'completed' | 'failed';
+  judge_error?: string | null;
+  judge_run_id?: string | null;
+  component_correctness?: number | null;
+  component_efficiency?: number | null;
+  component_style?: number | null;
   component_skill?: number | null;
   component_behavior?: number | null;
   component_work_experience?: number | null;
@@ -57,6 +67,9 @@ export interface WorkExperience {
   role: string;
   duration_months: number;
   verified: boolean;
+  evidence_links?: string[];
+  verification_status?: 'pending' | 'verified' | 'flagged' | 'rejected';
+  risk_score?: number;
   added_at: Date;
 }
 
