@@ -10,6 +10,7 @@ async function runMigration() {
   });
 
   const client = await pool.connect();
+  let lastCommand = '';
 
   try {
     console.log('Connecting to database...');
@@ -23,8 +24,6 @@ async function runMigration() {
 
     console.log('Executing schema creation...');
 
-    await client.query('BEGIN');
-
     const commands = sql
       .split(';')
       .map(cmd => cmd.trim())
@@ -32,11 +31,16 @@ async function runMigration() {
 
     for (const command of commands) {
       if (command) {
+        lastCommand = command;
         try {
           await client.query(command + ';');
         } catch (error) {
-          if (error.message.includes('already exists') || 
-              error.message.includes('duplicate')) {
+          const message = error && error.message ? String(error.message) : 'Unknown migration error';
+          if (
+            message.includes('already exists') ||
+            message.includes('duplicate') ||
+            message.includes('does not exist')
+          ) {
             console.log(`Skipped: ${command.split(' ')[2] || 'command'} already exists`);
           } else {
             throw error;
@@ -44,8 +48,6 @@ async function runMigration() {
         }
       }
     }
-
-    await client.query('COMMIT');
     console.log('Migration completed');
 
     const tables = await client.query(`
@@ -61,8 +63,11 @@ async function runMigration() {
     });
 
   } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Migration failed:', error.message);
+    const message = error && error.message ? String(error.message) : 'Unknown migration failure';
+    console.error('Migration failed:', message);
+    if (lastCommand) {
+      console.error('Failed command:', lastCommand.slice(0, 220));
+    }
     process.exit(1);
   } finally {
     client.release();
