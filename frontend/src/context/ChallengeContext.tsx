@@ -95,6 +95,11 @@ export function ChallengeProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   const fetchCompletedSubmissions = async (): Promise<any[]> => {
+    const token = localStorage.getItem('yoScore_auth_token');
+    if (!token) {
+      return [];
+    }
+
     try {
       const submissions = await dashboardService.getUserSubmissions();
       return submissions.filter(sub => sub.status === 'graded');

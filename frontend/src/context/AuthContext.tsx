@@ -145,24 +145,60 @@ const login = useCallback(async (email: string, password: string) => {
     const response = await authService.login({ email, password });
 
     localStorage.setItem('yoScore_auth_token', response.token);
-    
-    // Fetch dashboard data after successful login
-    const dashboardData = await dashboardService.getDashboardData();
-    const userProfile = await dashboardService.getUserProfile();
-    const workExperience = await dashboardService.getWorkExperience();
-    
-    // Calculate total work experience months
+
+    // Build a safe baseline user from login response first.
+    const baselineUser: User = {
+      id: response.user.user_id,
+      name: response.user.name,
+      email: response.user.email ?? '',
+      role: response.user.role,
+      totalScore: 0,
+      trustLevel: 'Low',
+      categoryScores: [],
+      workExperienceMonths: 0,
+    };
+
+    // Set baseline immediately so login success is not blocked by secondary requests.
+    setUser(baselineUser);
+
+    const [dashboardResult, profileResult, workResult] = await Promise.allSettled([
+      dashboardService.getDashboardData(),
+      dashboardService.getUserProfile(),
+      dashboardService.getWorkExperience(),
+    ]);
+
+    const dashboardData =
+      dashboardResult.status === 'fulfilled'
+        ? dashboardResult.value
+        : {
+            total_score: 0,
+            trust_level: 'Low' as const,
+            category_scores: {},
+          };
+
+    const userProfile =
+      profileResult.status === 'fulfilled'
+        ? profileResult.value
+        : {
+            user_id: baselineUser.id,
+            name: baselineUser.name,
+            email: baselineUser.email,
+            role: baselineUser.role,
+            created_at: new Date().toISOString(),
+          };
+
+    const workExperience = workResult.status === 'fulfilled' ? workResult.value : [];
+
     const totalWorkExperienceMonths = workExperience.reduce(
-      (total, exp) => total + exp.duration_months, 
-      0
-    );
-    
-    // Convert category_scores object to array
-    const categoryScoresArray = Object.entries(dashboardData.category_scores || {}).map(
-      ([category, score]) => ({ category: category as any, score: score as number })
+      (total, exp) => total + exp.duration_months,
+      0,
     );
 
-    const userData: User = {
+    const categoryScoresArray = Object.entries(dashboardData.category_scores || {}).map(
+      ([category, score]) => ({ category: category as any, score: score as number }),
+    );
+
+    setUser({
       id: userProfile.user_id,
       name: userProfile.name,
       email: userProfile.email,
@@ -172,10 +208,8 @@ const login = useCallback(async (email: string, password: string) => {
       categoryScores: categoryScoresArray,
       workExperienceMonths: totalWorkExperienceMonths,
       seniorityBand: dashboardData.seniority_band,
-      createdAt: userProfile.created_at
-    };
-    
-    setUser(userData);
+      createdAt: userProfile.created_at,
+    });
   } catch (error) {
     console.error('Login failed:', error);
     throw error;
