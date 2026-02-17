@@ -14,7 +14,7 @@ export class WorkExperienceController {
         });
       }
 
-      const { company_name, role, duration_months, verified } = req.body;
+      const { company_name, role, duration_months, evidence_links } = req.body;
 
       if (!company_name || !role || !duration_months) {
         return res.status(400).json({
@@ -23,9 +23,22 @@ export class WorkExperienceController {
         });
       }
 
+      const months = Number(duration_months);
+      if (!Number.isFinite(months) || months <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'duration_months must be a positive number',
+        });
+      }
+
       const experience = await workExperienceService.addWorkExperience(
         req.user.id,
-        { company_name, role, duration_months, verified }
+        {
+          company_name: String(company_name).trim(),
+          role: String(role).trim(),
+          duration_months: months,
+          evidence_links: Array.isArray(evidence_links) ? evidence_links : [],
+        },
       );
 
       return res.status(201).json({

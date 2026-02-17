@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import express from 'express';
 import { ProctoringController } from '../controllers/proctoring.controller';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate, authorize } from '../middleware/auth.middleware';
 
 const router = Router();
 const proctoringController = new ProctoringController();
@@ -49,7 +49,7 @@ router.get(
 
 // Settings
 router.get('/settings', proctoringController.getSettings.bind(proctoringController));
-router.put('/settings', proctoringController.updateSettings.bind(proctoringController));
+router.put('/settings', authorize('admin'), proctoringController.updateSettings.bind(proctoringController));
 
 // ML Analysis endpoints (require raw body parsing for binary data)
 router.post(

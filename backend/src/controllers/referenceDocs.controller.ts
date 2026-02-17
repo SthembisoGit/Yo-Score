@@ -1,7 +1,5 @@
 import { Request, Response } from 'express';
 import { ReferenceDocsService } from '../services/referenceDocs.service';
-import { authenticate, authorize } from '../middleware/auth.middleware';
-
 const referenceDocsService = new ReferenceDocsService();
 
 export class ReferenceDocsController {
@@ -37,30 +35,10 @@ export class ReferenceDocsController {
 
   async createDoc(req: Request, res: Response) {
     try {
-      console.log('=== CREATE DOC DEBUG ===');
-      console.log('Request params:', req.params);
-      console.log('Request body:', req.body);
-      console.log('Body type:', typeof req.body);
-      console.log('Body keys:', Object.keys(req.body || {}));
-      console.log('Headers:', req.headers['content-type']);
-      console.log('challenge_id from params:', req.params.challenge_id);
-      console.log('title from body:', req.body?.title);
-      console.log('content from body:', req.body?.content ? 'Present' : 'Missing');
-      console.log('========================');
-
       const { challenge_id } = req.params;
       const { title, content } = req.body;
 
-      console.log('After destructuring:');
-      console.log('challenge_id:', challenge_id);
-      console.log('title:', title);
-      console.log('content:', content);
-
       if (!challenge_id || !title || !content) {
-        console.log('Validation failed - missing:');
-        console.log('challenge_id:', !challenge_id ? 'MISSING' : 'OK');
-        console.log('title:', !title ? 'MISSING' : 'OK');
-        console.log('content:', !content ? 'MISSING' : 'OK');
         return res.status(400).json({
           success: false,
           message: 'Challenge ID, title, and content are required'
@@ -76,7 +54,6 @@ export class ReferenceDocsController {
       });
 
     } catch (error) {
-      console.error('Create doc error:', error);
       const message = error instanceof Error ? error.message : 'Failed to create reference doc';
       
       return res.status(400).json({

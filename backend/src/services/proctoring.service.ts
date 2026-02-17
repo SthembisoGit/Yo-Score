@@ -46,6 +46,7 @@ export interface ObjectAnalysisResult {
 export interface ProctoringSettings {
   requireCamera: boolean;
   requireMicrophone: boolean;
+  requireAudio: boolean;
   strictMode: boolean;
   allowedViolationsBeforeWarning: number;
   autoPauseOnViolation: boolean;
@@ -58,6 +59,12 @@ export interface SessionHeartbeatPayload {
   isPaused?: boolean;
   windowFocused?: boolean;
   timestamp?: string;
+}
+
+export interface ProctoringSessionStartResult {
+  sessionId: string;
+  deadlineAt: string;
+  durationSeconds: number;
 }
 
 export class ProctoringService {
@@ -185,6 +192,8 @@ export class ProctoringService {
 
     await query(
       `ALTER TABLE proctoring_sessions
+         ADD COLUMN IF NOT EXISTS deadline_at TIMESTAMP,
+         ADD COLUMN IF NOT EXISTS duration_seconds INTEGER,
          ADD COLUMN IF NOT EXISTS paused_at TIMESTAMP,
          ADD COLUMN IF NOT EXISTS pause_reason TEXT,
          ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMP,
@@ -196,17 +205,27 @@ export class ProctoringService {
   }
 
   // Session Management
-  async startSession(userId: string, challengeId: string): Promise<string> {
+  async startSession(userId: string, challengeId: string): Promise<ProctoringSessionStartResult> {
     await this.ensureSessionSchemaExtensions();
+
+    const challengeResult = await query(
+      `SELECT duration_minutes
+       FROM challenges
+       WHERE id = $1`,
+      [challengeId],
+    );
+    const durationMinutes = Number(challengeResult.rows[0]?.duration_minutes ?? 45);
+    const durationSeconds = Math.max(300, durationMinutes * 60);
+    const deadlineAt = new Date(Date.now() + durationSeconds * 1000);
 
     let result;
     try {
       result = await query(
         `INSERT INTO proctoring_sessions
-           (user_id, challenge_id, start_time, status, heartbeat_at, paused_at, pause_reason, pause_count, total_paused_seconds)
-         VALUES ($1, $2, NOW(), 'active', NOW(), NULL, NULL, 0, 0)
+           (user_id, challenge_id, start_time, status, heartbeat_at, deadline_at, duration_seconds, paused_at, pause_reason, pause_count, total_paused_seconds)
+         VALUES ($1, $2, NOW(), 'active', NOW(), $3, $4, NULL, NULL, 0, 0)
          RETURNING id`,
-        [userId, challengeId],
+        [userId, challengeId, deadlineAt.toISOString(), durationSeconds],
       );
     } catch {
       // Fallback for older schemas that haven't applied extension columns yet.
@@ -218,7 +237,11 @@ export class ProctoringService {
       );
     }
 
-    return result.rows[0].id;
+    return {
+      sessionId: result.rows[0].id,
+      deadlineAt: deadlineAt.toISOString(),
+      durationSeconds,
+    };
   }
 
   async endSession(sessionId: string, submissionId?: string): Promise<void> {
@@ -1061,6 +1084,7 @@ export class ProctoringService {
     return {
       requireCamera: true,
       requireMicrophone: true,
+      requireAudio: true,
       strictMode: false,
       allowedViolationsBeforeWarning: 3,
       autoPauseOnViolation: false,
@@ -1068,17 +1092,81 @@ export class ProctoringService {
   }
 
   async getSettingsForUser(_userId: string): Promise<ProctoringSettings> {
-    // For now, settings are global, not per-user.
-    return this.getDefaultSettings();
+    const base = this.getDefaultSettings();
+    const result = await query(
+      `SELECT require_camera, require_microphone, require_audio, strict_mode,
+              allowed_violations_before_warning, auto_pause_on_violation
+       FROM proctoring_settings
+       ORDER BY updated_at DESC
+       LIMIT 1`,
+    );
+
+    if (result.rows.length === 0) {
+      return base;
+    }
+
+    const row = result.rows[0];
+    return {
+      requireCamera: Boolean(row.require_camera),
+      requireMicrophone: Boolean(row.require_microphone),
+      requireAudio: Boolean(row.require_audio),
+      strictMode: Boolean(row.strict_mode),
+      allowedViolationsBeforeWarning: Number(
+        row.allowed_violations_before_warning ?? base.allowedViolationsBeforeWarning,
+      ),
+      autoPauseOnViolation: Boolean(row.auto_pause_on_violation),
+    };
   }
 
   async updateSettingsForUser(
-    _userId: string,
+    userId: string,
     _settings: Partial<ProctoringSettings>,
   ): Promise<ProctoringSettings> {
-    // No persistence yet: return effective settings by merging with defaults.
-    const base = this.getDefaultSettings();
-    return { ...base, ..._settings };
+    const current = await this.getSettingsForUser(userId);
+    const merged = { ...current, ..._settings };
+
+    const existingResult = await query(`SELECT id FROM proctoring_settings ORDER BY updated_at DESC LIMIT 1`);
+    if (existingResult.rows.length === 0) {
+      await query(
+        `INSERT INTO proctoring_settings
+           (require_camera, require_microphone, require_audio, strict_mode, allowed_violations_before_warning, auto_pause_on_violation, updated_by, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+        [
+          merged.requireCamera,
+          merged.requireMicrophone,
+          merged.requireAudio,
+          merged.strictMode,
+          merged.allowedViolationsBeforeWarning,
+          merged.autoPauseOnViolation,
+          userId,
+        ],
+      );
+    } else {
+      await query(
+        `UPDATE proctoring_settings
+         SET require_camera = $2,
+             require_microphone = $3,
+             require_audio = $4,
+             strict_mode = $5,
+             allowed_violations_before_warning = $6,
+             auto_pause_on_violation = $7,
+             updated_by = $8,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [
+          existingResult.rows[0].id,
+          merged.requireCamera,
+          merged.requireMicrophone,
+          merged.requireAudio,
+          merged.strictMode,
+          merged.allowedViolationsBeforeWarning,
+          merged.autoPauseOnViolation,
+          userId,
+        ],
+      );
+    }
+
+    return merged;
   }
 
   // Health Check
