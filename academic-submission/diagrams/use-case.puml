@@ -1,0 +1,43 @@
+@startuml
+left to right direction
+skinparam actorStyle awesome
+
+actor Developer
+actor Admin
+actor Recruiter
+
+rectangle YoScore {
+  usecase "Register / Login" as UC1
+  usecase "Select Category and Get Next Challenge" as UC2
+  usecase "Start Proctoring Session" as UC3
+  usecase "Request AI Coach Hint (max 3)" as UC11
+  usecase "Submit Challenge" as UC4
+  usecase "View Submission Result" as UC5
+  usecase "Manage Tests/Baselines" as UC6
+  usecase "Publish Challenge" as UC7
+  usecase "Monitor Judge Runs" as UC8
+  usecase "Manage User Roles" as UC9
+  usecase "Audit Flagged Experience" as UC12
+  usecase "View Trust Summary" as UC10
+}
+
+Developer --> UC1
+Developer --> UC2
+Developer --> UC3
+Developer --> UC11
+Developer --> UC4
+Developer --> UC5
+
+Admin --> UC1
+Admin --> UC6
+Admin --> UC7
+Admin --> UC8
+Admin --> UC9
+Admin --> UC12
+
+Recruiter --> UC10
+
+UC4 ..> UC3 : <<include>>
+UC4 ..> UC11 : <<extend>>
+UC7 ..> UC6 : <<include>>
+@enduml

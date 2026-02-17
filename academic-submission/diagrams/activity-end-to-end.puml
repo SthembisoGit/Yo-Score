@@ -1,0 +1,42 @@
+@startuml
+start
+:User logs in;
+:User selects category;
+:System assigns seniority matched challenge;
+:Open challenge page;
+:Start proctoring session;
+
+fork
+  :Capture proctoring heartbeats/events;
+  if (Violation/device failure?) then (yes)
+    :Pause session;
+    :User recovers device;
+    :Resume session;
+  endif
+fork again
+  :User writes solution code;
+  if (Need help?) then (yes)
+    :Request AI Coach hint;
+    :Policy checks and return concept guidance;
+  endif
+  :Autosave local draft every few seconds;
+  if (Offline?) then (yes)
+    :Continue timer locally;
+    if (Deadline reached offline?) then (yes)
+      :Lock editor;
+      :Queue pending reconnect auto-submit;
+    endif
+  endif
+  :Submit challenge;
+  :API stores submission as queued;
+  :Queue job to worker;
+  :Worker executes tests;
+  :Persist run + test outcomes;
+  :Compute score and trust update;
+  :Mark submission completed/failed;
+end fork
+
+:Frontend polls submission status;
+:Display final result and breakdown;
+stop
+@enduml

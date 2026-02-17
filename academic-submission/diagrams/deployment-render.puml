@@ -1,0 +1,40 @@
+@startuml
+node "Client Device" {
+  artifact "Browser"
+}
+
+cloud "Render" {
+  node "yoscore-frontend\nStatic Site" as FrontendSvc
+  node "yoscore-backend\nWeb Service" as BackendSvc
+  node "yoscore-judge-worker\nWorker Service" as WorkerSvc
+  node "yoscore-ml-service\nPython Service" as MLSvc
+}
+
+cloud "Supabase" {
+  database "PostgreSQL" as PG
+}
+
+cloud "Upstash" {
+  queue "Redis" as REDIS
+}
+
+cloud "Monitoring" {
+  artifact "Sentry"
+  artifact "UptimeRobot"
+}
+
+"Browser" --> FrontendSvc
+"Browser" --> BackendSvc
+FrontendSvc --> BackendSvc
+BackendSvc --> PG
+BackendSvc --> REDIS
+BackendSvc --> MLSvc
+WorkerSvc --> REDIS
+WorkerSvc --> PG
+BackendSvc --> "Sentry"
+WorkerSvc --> "Sentry"
+FrontendSvc --> "Sentry"
+"UptimeRobot" --> BackendSvc
+"UptimeRobot" --> MLSvc
+"UptimeRobot" --> FrontendSvc
+@enduml

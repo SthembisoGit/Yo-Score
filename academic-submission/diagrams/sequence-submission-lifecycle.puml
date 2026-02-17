@@ -1,0 +1,61 @@
+@startuml
+actor Developer
+participant "Frontend UI" as FE
+participant "Backend API" as API
+participant "AI Coach Service" as Coach
+participant "Judge Queue (Redis)" as Q
+participant "Judge Worker" as W
+participant "Judge Service" as J
+database "PostgreSQL" as DB
+
+Developer -> FE: Choose category
+FE -> API: GET /api/challenges/next?category=backend
+API -> DB: resolve seniority + find challenge
+API --> FE: assigned challenge (duration, seniority)
+
+Developer -> FE: Start proctoring session
+FE -> API: POST /api/proctoring/session/start
+API -> DB: insert session(deadline_at, duration_seconds)
+API --> FE: session_id + deadline_at
+
+opt Optional hint (max 3)
+  Developer -> FE: Request AI Coach hint
+  FE -> API: POST /api/challenges/:id/coach-hint
+  API -> Coach: generate constrained hint
+  Coach -> DB: insert ai_hint_events
+  Coach --> API: concept hint + tiny snippet
+  API --> FE: hint response + remaining_hints
+end
+
+Developer -> FE: Submit code (challenge_id, language, code, session_id)
+FE -> API: POST /api/submissions
+API -> DB: Insert submission (pending, queued)
+API -> Q: enqueue judge.run
+API --> FE: submission_id + judge_status=queued
+
+loop Poll
+  FE -> API: GET /api/submissions/:id
+  API -> DB: read submission status
+  API --> FE: queued/running/completed/failed
+end
+
+opt Offline case
+  FE -> FE: Timer continues offline
+  FE -> FE: Lock editor if timer expires
+  FE -> API: Auto-submit on reconnect (<=15 min grace)
+  API -> DB: validate deadline and grace
+end
+
+Q -> W: deliver job
+W -> DB: update judge_status=running
+W -> J: runTests(challenge, code, language)
+J -> DB: read test cases + baseline
+J --> W: run summary + test outcomes
+W -> DB: persist submission_runs + submission_run_tests
+W -> DB: finalize score + trust recompute
+W -> DB: update submission judge_status=completed
+
+FE -> API: GET /api/submissions/:id
+API -> DB: read final result
+API --> FE: score breakdown + tests summary
+@enduml
