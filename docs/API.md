@@ -1,302 +1,257 @@
-# YoScore - API Documentation
+# YoScore API (Phase 1, Current)
 
-## 1. Overview
-This document defines all **backend API endpoints** for YoScore MVP, including authentication, challenge management, submissions, scoring, proctoring, and dashboard functionality. All endpoints use **JSON** for request/response.
+## Base
+- Local: `http://localhost:3000`
+- API prefix: `/api/*`
 
-**Base URL (MVP example):** `https://api.yoscore.com/v1`
-
----
-
-## 2. Authentication
-
-### 2.1 Sign Up
-- **Endpoint:** `POST /auth/signup`
-- **Description:** Registers a new user.
-- **Request Body:**
-
+## Response Contract
+- Success:
 ```json
 {
-  "name": "John Doe",
-  "email": "john@example.com",
-  "password": "securePassword123",
-  "role": "developer"
+  "success": true,
+  "message": "Human readable message",
+  "data": {}
+}
+```
+- Error:
+```json
+{
+  "success": false,
+  "message": "Error message",
+  "error": "ERROR_CODE"
 }
 ```
 
-- **Response (Success 201):**
+## Auth
+### `POST /api/auth/signup`
+- Body: `name`, `email`, `password`, `role`
 
-```json
-{
-  "message": "User created successfully",
-  "user_id": "uuid"
-}
-```
+### `POST /api/auth/login`
+- Body: `email`, `password`
+- Returns token + user identity.
 
-### 2.2 Login
-- **Endpoint:** `POST /auth/login`
-- **Description:** Authenticates user and returns JWT token.
-- **Request Body:**
+### `POST /api/auth/logout`
+- Auth required.
 
-```json
-{
-  "email": "john@example.com",
-  "password": "securePassword123"
-}
-```
+### `POST /api/auth/rotate`
+- Requires bearer token.
+- Returns rotated token in `data.token`.
 
-- **Response (Success 200):**
+### `GET /api/auth/validate`
+- Auth required.
+- Returns `data.valid` and user profile when valid.
 
-```json
-{
-  "token": "jwt-token-string",
-  "user": {
-    "user_id": "uuid",
-    "name": "John Doe",
-    "role": "developer"
-  }
-}
-```
+## Users
+### `GET /api/users/me`
+- Auth required.
 
-### 2.3 Logout
-- **Endpoint:** `POST /auth/logout`
-- **Description:** Invalidates the JWT token.
-- **Headers:** `Authorization: Bearer <token>`
-- **Response (Success 200):**
+### `PUT /api/users/me`
+- Auth required.
+- Update profile fields.
 
-```json
-{
-  "message": "Logged out successfully"
-}
-```
+### `POST /api/users/me/work-experience`
+- Auth required.
+- Body: `company_name`, `role`, `duration_months`, optional `evidence_links` (string array).
+- Server computes:
+  - `verification_status` (`pending|verified|flagged|rejected`)
+  - `risk_score` (`0-100`)
+  - legacy `verified` is no longer user-controlled.
 
----
+### `GET /api/users/me/work-experience`
+- Auth required.
 
-## 3. Users
+## Dashboard
+### `GET /api/dashboard/me`
+- Auth required.
+- Returns trust score, trust level, seniority, experience summary, category aggregates, challenge progress, submission stats.
+- Added fields:
+  - `seniority_band` (`graduate|junior|mid|senior`)
+  - `work_experience_score` (`0-20`)
+  - `work_experience_summary` (`trusted_months`, `total_entries`, `flagged_entries`)
 
-### 3.1 Get Profile
-- **Endpoint:** `GET /users/me`
-- **Description:** Retrieves logged-in user profile.
-- **Headers:** `Authorization: Bearer <token>`
-- **Response (Success 200):**
+## Challenges
+### `GET /api/challenges`
+- Public.
+- Returns published challenges for developer flow.
 
-```json
-{
-  "user_id": "uuid",
-  "name": "John Doe",
-  "email": "john@example.com",
-  "role": "developer",
-  "created_at": "2026-01-22T14:00:00Z"
-}
-```
+### `GET /api/challenges/next`
+- Auth required.
+- Optional query: `category`.
+- Returns randomized next challenge for current user by:
+  - selected category,
+  - exact seniority band first,
+  - then lower-band fallback only.
 
-### 3.2 Update Profile
-- **Endpoint:** `PUT /users/me`
-- **Description:** Update profile details.
-- **Headers:** `Authorization: Bearer <token>`
-- **Request Body:**
+### `GET /api/challenges/:challenge_id`
+- Public.
 
-```json
-{
-  "name": "John Updated",
-  "email": "john.updated@example.com"
-}
-```
+### `GET /api/challenges/:challenge_id/docs`
+- Public.
 
-- **Response (Success 200):**
+### `POST /api/challenges`
+- Admin only.
+- Supports `target_seniority` and `duration_minutes`.
 
-```json
-{
-  "name": "John Updated",
-  "email": "john.updated@example.com"
-}
-```
+### `POST /api/challenges/:challenge_id/coach-hint`
+- Auth required.
+- Body: `session_id`, `language`, `code`, optional `hint_index`.
+- Policy:
+  - max 3 hints per session/challenge/user
+  - concept-first guidance
+  - small snippet examples only
+  - full-solution output blocked
+- Response fields:
+  - `hint_index`
+  - `remaining_hints`
+  - `hint`
+  - `snippet`
+  - `policy`
 
----
+### `POST /api/challenges/:challenge_id/docs`
+- Admin only.
 
-## 4. Challenges
+### `GET /api/challenges/:challenge_id/tests`
+- Admin only.
 
-### 4.1 List Challenges
-- **Endpoint:** `GET /challenges`
-- **Description:** Get list of all available challenges.
-- **Headers:** `Authorization: Bearer <token>`
-- **Response (Success 200):**
+### `POST /api/challenges/:challenge_id/tests`
+- Admin only.
 
-```json
-[
-  {
-    "challenge_id": "uuid",
-    "title": "Build Login Page",
-    "category": "frontend",
-    "difficulty": "medium"
-  }
-]
-```
+### `PUT /api/challenges/:challenge_id/tests/:test_id`
+- Admin only.
 
-### 4.2 Get Challenge Details
-- **Endpoint:** `GET /challenges/{challenge_id}`
-- **Description:** Get details of a specific challenge.
-- **Headers:** `Authorization: Bearer <token>`
-- **Response (Success 200):**
+### `DELETE /api/challenges/:challenge_id/tests/:test_id`
+- Admin only.
 
+### `GET /api/challenges/:challenge_id/baseline?language=javascript|python`
+- Admin only.
+
+### `PUT /api/challenges/:challenge_id/baseline`
+- Admin only.
+
+## Submissions (Async Judge Lifecycle)
+### `POST /api/submissions`
+- Auth required.
+- Body:
 ```json
 {
   "challenge_id": "uuid",
-  "title": "Build Login Page",
-  "description": "Create a responsive login page using React.",
-  "category": "frontend",
-  "difficulty": "medium",
-  "created_at": "2026-01-22T12:00:00Z"
+  "language": "javascript",
+  "code": "function solve(input) { return input; }",
+  "session_id": "optional-proctoring-session-id"
 }
 ```
-
----
-
-## 5. Submissions
-
-### 5.1 Submit Challenge
-- **Endpoint:** `POST /submissions`
-- **Description:** Submit code for a challenge.
-- **Headers:** `Authorization: Bearer <token>`
-- **Request Body:**
-
+- Time enforcement:
+  - if `session_id` has a challenge deadline, submission is accepted until deadline + 15 minutes reconnect grace.
+  - after grace window, API rejects with deadline exceeded error.
+- Returns queued submission:
 ```json
 {
-  "challenge_id": "uuid",
-  "code": "function login() { ... }"
-}
-```
-
-- **Response (Success 201):**
-
-```json
-{
-  "submission_id": "uuid",
-  "status": "pending",
-  "message": "Submission received"
-}
-```
-
-### 5.2 Get Submission Results
-- **Endpoint:** `GET /submissions/{submission_id}`
-- **Description:** Retrieve scoring result and proctoring logs.
-- **Headers:** `Authorization: Bearer <token>`
-- **Response (Success 200):**
-
-```json
-{
-  "submission_id": "uuid",
-  "score": 85,
-  "trust_level": "High",
-  "violations": [
-    {
-      "type": "screen_switch",
-      "penalty": 3,
-      "timestamp": "2026-01-22T14:05:00Z"
-    }
-  ]
-}
-```
-
-
----
-
-## 6. Work Experience
-
-### 6.1 Add Work Experience
-- **Endpoint:** `POST /users/me/work-experience`
-- **Description:** Add previous work experience contributing to trust score.
-- **Headers:** `Authorization: Bearer <token>`
-- **Request Body:**
-
-```json
-{
-  "company_name": "Tech Co",
-  "role": "Frontend Developer",
-  "duration_months": 12,
-  "verified": false
-}
-```
-
-- **Response (Success 201):**
-
-```json
-{
-  "experience_id": "uuid",
-  "message": "Work experience added successfully"
-}
-```
-
-### 6.2 Get Work Experience
-- **Endpoint:** `GET /users/me/work-experience`
-- **Description:** Get all work experiences for logged-in user.
-- **Headers:** `Authorization: Bearer <token>`
-- **Response (Success 200):**
-
-```json
-[
-  {
-    "experience_id": "uuid",
-    "company_name": "Tech Co",
-    "role": "Frontend Developer",
-    "duration_months": 12,
-    "verified": false
+  "success": true,
+  "message": "Submission received",
+  "data": {
+    "submission_id": "uuid",
+    "status": "pending",
+    "judge_status": "queued",
+    "message": "Submission received and queued for scoring"
   }
-]
-```
-
----
-
-## 7. Reference Docs
-
-### 7.1 Get Reference Docs for Challenge
-- **Endpoint:** `GET /challenges/{challenge_id}/docs`
-- **Description:** Fetch allowed documentation for a challenge.
-- **Headers:** `Authorization: Bearer <token>`
-- **Response (Success 200):**
-
-```json
-[
-  {
-    "doc_id": "uuid",
-    "title": "React Login Guide",
-    "content": "## Steps to create login form..."
-  }
-]
-```
-
----
-
-## 8. Dashboard
-
-### 8.1 Get User Scores
-- **Endpoint:** `GET /dashboard/me`
-- **Description:** Fetch scores, trust levels, and challenge progress for logged-in user.
-- **Headers:** `Authorization: Bearer <token>`
-- **Response (Success 200):**
-
-```json
-{
-  "total_score": 88,
-  "trust_level": "High",
-  "category_scores": {
-    "frontend": 90,
-    "backend": 85,
-    "security": 80
-  },
-  "challenge_progress": [
-    {
-      "challenge_id": "uuid",
-      "status": "completed",
-      "score": 90
-    }
-  ]
 }
 ```
 
----
+### `GET /api/submissions`
+- Auth required.
+- Returns current user submissions.
 
-## 9. Notes
-- All endpoints require JWT authorization unless explicitly public.
-- `POST /submissions` triggers scoring engine asynchronously.
-- Proctoring logs affect final trust score automatically.
-- Endpoints are RESTful, modular, and can be extended for future enhancements.
+### `GET /api/submissions/:submission_id`
+- Auth required.
+- Returns judge lifecycle, score breakdown, penalty info, run summary, tests summary, trust totals.
+
+### `GET /api/submissions/:submission_id/runs`
+- Auth required.
+- Returns historical judge runs for the submission.
+
+### `GET /api/submissions/:submission_id/runs/:run_id`
+- Auth required.
+- Returns run detail with per-test outcomes.
+
+## Proctoring
+All proctoring routes require auth.
+
+### Health
+- `GET /api/proctoring/health`
+
+### Session lifecycle
+- `POST /api/proctoring/session/start`
+- `POST /api/proctoring/session/end`
+- `POST /api/proctoring/session/pause`
+- `POST /api/proctoring/session/resume`
+- `POST /api/proctoring/session/heartbeat`
+- `GET /api/proctoring/session/:sessionId`
+- `GET /api/proctoring/session/:sessionId/analytics`
+- `GET /api/proctoring/session/:sessionId/status`
+- `POST /api/proctoring/session/start` response includes:
+  - `sessionId`
+  - `deadline_at`
+  - `duration_seconds`
+
+### Violations
+- `POST /api/proctoring/violation`
+- `POST /api/proctoring/violations/batch`
+
+### User/session views
+- `GET /api/proctoring/user/:userId/sessions`
+- `GET /api/proctoring/user/:userId/violations/summary`
+
+### Settings
+- `GET /api/proctoring/settings`
+- `PUT /api/proctoring/settings` (admin only)
+
+### ML analysis passthrough
+- `POST /api/proctoring/analyze-face` (binary image body)
+- `POST /api/proctoring/analyze-audio` (binary audio body)
+
+## Admin API
+Admin routes are under `/api/admin/*`.
+
+Requirements:
+- Authenticated user
+- `admin` role
+- `ADMIN_PANEL_ENABLED=true`
+
+### Dashboard
+- `GET /api/admin/dashboard`
+
+### Challenge operations
+- `GET /api/admin/challenges`
+- `POST /api/admin/challenges`
+- `PUT /api/admin/challenges/:challenge_id`
+- `PUT /api/admin/challenges/:challenge_id/publish`
+- `GET /api/admin/challenges/:challenge_id/readiness`
+
+### Judge content config
+- `GET /api/admin/challenges/:challenge_id/tests`
+- `POST /api/admin/challenges/:challenge_id/tests`
+- `PUT /api/admin/challenges/:challenge_id/tests/:test_id`
+- `DELETE /api/admin/challenges/:challenge_id/tests/:test_id`
+- `GET /api/admin/challenges/:challenge_id/baseline`
+- `PUT /api/admin/challenges/:challenge_id/baseline`
+- `GET /api/admin/challenges/:challenge_id/docs`
+- `POST /api/admin/challenges/:challenge_id/docs`
+
+### Judge operations
+- `GET /api/admin/judge/health`
+- `GET /api/admin/judge/runs`
+- `GET /api/admin/judge/runs/:run_id`
+- `POST /api/admin/judge/runs/:run_id/retry`
+
+### Proctoring oversight
+- `GET /api/admin/proctoring/sessions`
+- `GET /api/admin/proctoring/summary`
+- `GET /api/admin/proctoring/sessions/:session_id`
+- `GET /api/admin/proctoring/settings`
+- `PUT /api/admin/proctoring/settings`
+
+### Roles and audit
+- `GET /api/admin/users`
+- `PUT /api/admin/users/:user_id/role`
+- `GET /api/admin/audit-logs`
+- `GET /api/admin/work-experience/flagged`

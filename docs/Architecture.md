@@ -1,130 +1,66 @@
 # YoScore - System Architecture Document (SAD)
 
 ## 1. Overview
-This document describes the **system architecture** for YoScore MVP. It outlines the key components, their interactions, data flow, and technology choices to provide a clear blueprint for development.
+YoScore uses a 3-tier client-server architecture:
+- Presentation: React frontend
+- Process logic: Node/Express API + judge worker + proctoring integration
+- Data management: PostgreSQL + Redis queue state
 
-**Goal:** Ensure the system is modular, scalable, secure, and aligned with the MVP requirements.
+This revision adds Trust-Core behavior: seniority routing, constrained AI coach, and timer/offline continuity.
 
----
+## 2. Core Components
 
-## 2. High-Level Architecture
-YoScore MVP consists of **four main layers**:
+| Component | Responsibility |
+|---|---|
+| Frontend | Challenge UI, timer, offline autosave, AI Coach panel, dashboards |
+| Backend API | Auth, challenge assignment, submission lifecycle, scoring orchestration |
+| Judge Worker | Async execution of JS/Python submissions against test cases |
+| Proctoring Service | Session lifecycle, violations, heartbeat, ML analysis passthrough |
+| Database | Source of truth for users, challenges, submissions, runs, proctoring, work experience |
+| Redis/BullMQ | Queueing and retry behavior for judge jobs |
 
-1. **Frontend Layer**
-   - Web-based coding interface  
-   - Challenge selection & submission  
-   - Dashboard for developer scores and progress  
-   - Reference panel / allowed documentation  
+## 3. Trust-Core Additions
+- Challenge model now includes:
+  - `target_seniority`
+  - `duration_minutes`
+- Proctoring session model now includes:
+  - `deadline_at`
+  - `duration_seconds`
+- Work experience model now includes:
+  - `evidence_links`
+  - `verification_status`
+  - `risk_score`
+- AI Coach uses audited hint events:
+  - table `ai_hint_events`
+  - max 3 hints per challenge/session/user
 
-2. **Backend Layer**
-   - RESTful API for managing users, challenges, scoring, and proctoring  
-   - Authentication & session management  
-   - Challenge evaluation logic  
+## 4. Request/Data Flow
+1. User selects category and starts a challenge.
+2. Backend assigns randomized challenge by category + seniority.
+3. Proctoring session starts and returns `deadline_at`.
+4. User codes while frontend keeps countdown and local draft autosave.
+5. Submission is queued and judged asynchronously.
+6. Scoring service computes breakdown + trust updates.
+7. Dashboard surfaces score, seniority, and trusted experience summary.
 
-3. **AI / Scoring Engine**
-   - Calculates numeric scores based on:
-     - Solution correctness
-     - Efficiency
-     - Behavior metrics from proctoring  
-   - Assigns trust levels  
-   - Tracks scoring history  
+## 5. Offline and Deadline Flow
+1. Browser goes offline during active timed session.
+2. Timer continues in UI; code keeps autosaving locally.
+3. If timer expires offline, editor locks and pending auto-submit is staged.
+4. On reconnect, frontend auto-submits saved code.
+5. Backend accepts only within 15-minute grace after deadline.
 
-4. **Proctoring / Monitoring**
-   - Camera and activity monitoring  
-   - Browser focus lock  
-   - Prevents cheating and records violation events  
+## 6. Security and Integrity
+- JWT auth and role-based access control.
+- Sandbox execution for judged code.
+- Proctoring violations persisted with penalties.
+- AI Coach prevents full-solution output by policy.
+- Admin audit logs for sensitive operations.
 
----
-
-## 3. System Components
-
-| Component | Description | Tech/Stack (MVP) |
-|-----------|------------|-----------------|
-| Frontend UI | Challenge interface, dashboards, reference panel | React / TypeScript |
-| Backend API | User, challenge, scoring, proctoring endpoints | Node.js + Express |
-| Database | Stores users, challenges, scores, logs | PostgreSQL / SQLite (MVP) |
-| AI / Scoring Engine | Calculates scores & trust levels | Python / Node.js |
-| Proctoring Module | Camera + browser tracking | WebRTC + JS API |
-| Docs / Reference Panel | Curated documentation access | React component + Markdown |
-| Authentication | Login, JWT-based session management | Node.js + JWT |
-| Logging & Analytics | Store challenge activity, errors, violations | Backend + DB |
-
----
-
-## 4. Data Flow
-
-```text
-[Developer] 
-    ↓ submits solution / activity
-[Frontend UI] → sends request
-[Backend API] → validates → stores → triggers scoring
-[AI / Scoring Engine] → computes score & trust level
-[Proctoring Module] → monitors behavior, logs violations
-[Database] → stores all results & logs
-[Frontend UI] → dashboard displays results
-
-## 5. Module Interaction
-
-1. **Frontend → Backend**
-   - Sends API requests for login, challenge list, submissions  
-   - Receives challenge data, scoring results, trust scores
-
-2. **Backend → Scoring Engine**
-   - Receives submissions and behavior logs  
-   - Calculates final numeric score + trust level  
-   - Returns results to API layer
-
-3. **Backend → Database**
-   - Stores all persistent data: users, challenges, logs, scores  
-
-4. **Proctoring Module → Backend**
-   - Sends alerts for violations (camera, focus loss, etc.)  
-   - Backend adjusts scoring based on violations
-
-5. **Reference Panel**
-   - Frontend only reads allowed docs (no external calls)  
-
----
-
-## 6. Security Considerations
-
-- **Proctoring:** Enforce camera + browser lock during challenges  
-- **Authentication:** JWT tokens for session management  
-- **Data Privacy:** Store sensitive behavior logs securely, encrypted if necessary  
-- **Code Execution Safety:** Run submitted code in sandboxed environment  
-
----
-
-## 7. Technology Stack (MVP)
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React + TypeScript + Tailwind CSS |
-| Backend | Node.js + Express |
-| Database | PostgreSQL / SQLite (MVP) |
-| AI / Scoring | Python / Node.js scripts |
-| Proctoring | WebRTC + JS APIs |
-| Deployment | Docker (optional MVP) |
-
----
-
-## 8. High-Level Diagram (Conceptual)
-
-```text
-[Frontend UI] <---> [Backend API] <---> [Database]
-      |                     |
-      v                     v
- [Proctoring]          [Scoring Engine]
-
--	Frontend communicates with backend for all requests
--	Backend stores & retrieves data from the database
--	Backend integrates scoring engine for results calculation
--	Proctoring module provides behavior feedback to backend
-
-## 9. Notes for MVP
-
-- Each module should be **self-contained** for easier testing and incremental development  
-- Backend APIs should follow **RESTful design**  
-- Scoring engine is **rule-based** for MVP; can later integrate ML models  
-- Proctoring should be **lightweight but secure** for MVP  
-- Reference panel should be **read-only**, with no external internet allowed
+## 7. Deployment Shape
+- Frontend: Render static service
+- Backend API: Render web service
+- Judge worker: Render worker
+- ML service: Render web service
+- PostgreSQL: Supabase
+- Redis: Upstash

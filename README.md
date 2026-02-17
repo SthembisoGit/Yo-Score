@@ -1,361 +1,130 @@
-# Yo-Score
+# YoScore
 
-**Yo-Score** is a **Developer Trust and Skill Scoring Platform** designed to objectively evaluate developer skills, problem-solving ability, and trustworthiness in real-world coding scenarios. The platform provides a secure, monitored environment for developers to solve coding challenges while tracking performance, behavior, and professional experience to produce verifiable trust scores.
+YoScore is a 3-tier developer assessment platform focused on trusted coding evaluation in the AI era.
 
----
+## Trust-Core Positioning
+- AI is allowed, but must be used with understanding.
+- Challenge sessions use constrained AI coaching (concept guidance, no full solutions).
+- Real scoring is based on judged code execution plus proctoring behavior.
+- Challenge assignment is category plus seniority aware.
 
-## 📋 Table of Contents
+## Release 1 Scope (2-day target)
+- Coding-only assessments (JavaScript and Python).
+- Seniority routing (Graduate 0-6, Junior 7-24, Mid 25-60, Senior 61+ months).
+- Category-based randomized challenge assignment with lower-band fallback.
+- Proctored timed sessions with offline-safe autosave and reconnect auto-submit.
+- AI Coach (max 3 hints, concept-first, snippet-limited).
+- Work-experience evidence links with risk-based verification status.
+- Developer dashboard and admin operations dashboard.
 
-- [Vision & Purpose](#vision--purpose)
-- [Key Features](#key-features)
-- [Technology Stack](#technology-stack)
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-- [Architecture](#architecture)
-- [Scoring System](#scoring-system)
-- [Documentation](#documentation)
-- [License](#license)
+## 3-Tier Architecture
+- Presentation: `frontend/` (React + TypeScript + Vite)
+- Process logic: `backend/` API (Express + TypeScript), judge worker (BullMQ), `ml-service/` (FastAPI)
+- Data: PostgreSQL (Supabase) + Redis (Upstash)
 
----
+## Repository Layout
+- `frontend/` user and admin web application
+- `backend/` REST API, queue integration, judge orchestration, scoring
+- `ml-service/` ML proctoring analyzers
+- `docs/` product and technical documentation
+- `academic-submission/` academic package (Phases 1-5 + diagrams + SQL + tests)
 
-## 🎯 Vision & Purpose
+## Prerequisites
+- Node.js 20+
+- npm 10+
+- Python 3.11+
+- Docker Desktop (for sandbox code execution)
+- ffmpeg (required by `ml-service` audio pipeline)
+- PostgreSQL database (Supabase recommended)
+- Redis URL (Upstash recommended)
 
-### Problem Statement
-Traditional coding assessments fail to accurately reflect real-world developer skills. Developers often rely on external references, and current systems don't track behavior or secure coding practices, leading to incomplete evaluations and unverifiable trust scores.
+## Environment Setup
+1. Copy `backend/.env.example` to `backend/.env` and fill required values.
+2. Copy `frontend/.env.example` to `frontend/.env`.
+3. Install dependencies:
+   - `cd backend && npm install`
+   - `cd frontend && npm install`
+   - `cd ml-service && python -m venv venv && .\\venv\\Scripts\\activate && pip install -r requirements.txt`
+4. Ensure Docker Desktop is running.
 
-### Solution
-Yo-Score provides:
-- **Objective, trustworthy developer scoring** based on code performance and behavior
-- **Secure, monitored environment** with proctoring (camera monitoring, browser lock, activity tracking)
-- **Reference panel** with curated, allowed documentation
-- **Trust scores** combining challenge performance (60%), behavior compliance (20%), and work experience (20%)
-- **Scalable adoption** for individuals, organizations, and enterprises
+## Run Locally (all services)
+From repository root:
 
-### Target Users
-- Individual developers seeking to prove skills and build credibility
-- Tech companies and startups for reliable hiring assessments
-- Educational institutions and coding bootcamps for student evaluation
-
----
-
-## ✨ Key Features
-
-### 1. **Secure Challenge Environment**
-   - Developers solve real-world coding challenges in categories: Frontend, Backend, Security, etc.
-   - Automatic challenge assignment preventing repeats
-   - Difficulty levels: Easy, Medium, Hard
-
-### 2. **Comprehensive Proctoring System**
-   - Real-time camera monitoring and enforcement
-   - Audio analysis for speech and multiple voice detection
-   - Browser monitoring: tab switch detection, copy/paste prevention, developer tools blocking
-   - Inactivity detection (60+ seconds)
-   - Automatic violation logging with point penalties
-
-### 3. **Reference Panel**
-   - Curated, allowed documentation accessible only within the platform
-   - Read-only access, no external internet or download capabilities
-   - Challenges can provide specific reference materials
-
-### 4. **Trust Score Dashboard**
-   - Real-time score tracking across multiple challenges
-   - Progress visualization by category
-   - Historical score data
-   - Trust level classification: Low (0–49), Medium (50–74), High (75–100)
-
-### 5. **Work Experience Tracker**
-   - Developers input previous work experience, projects, or internships
-   - Contributes 20% to overall trust score
-   - Optional verification support
-
-### 6. **User Profiles & Authentication**
-   - Secure JWT-based authentication
-   - Role-based access control (Developer, Recruiter, Admin)
-   - Session management with token rotation
-
----
-
-## 🛠️ Technology Stack
-
-### Frontend
-- **Framework**: React + TypeScript
-- **Build Tool**: Vite
-- **UI Components**: Shadcn/ui + Radix UI
-- **Styling**: Tailwind CSS
-- **State Management**: React Context + TanStack Query
-- **Forms**: React Hook Form
-- **Testing**: Vitest
-
-### Backend
-- **Runtime**: Node.js + Express.js
-- **Language**: TypeScript
-- **Database**: PostgreSQL
-- **Authentication**: JWT + bcryptjs
-- **Validation**: Zod
-- **Security**: Helmet, CORS
-
-### ML Service
-- **Framework**: FastAPI + Uvicorn
-- **Language**: Python 3.11+
-- **Computer Vision**: OpenCV, MediaPipe (face/object detection)
-- **Audio Processing**: LibROSA, Speech Recognition
-- **Data Processing**: NumPy, scikit-learn
-
----
-
-## 📁 Project Structure
-
-```
-Yo-Score/
-├── frontend/                  # React + TypeScript web application
-│   ├── src/
-│   │   ├── components/       # Reusable UI components
-│   │   ├── pages/            # Application pages
-│   │   ├── services/         # API client services
-│   │   ├── context/          # React Context (auth, etc.)
-│   │   └── hooks/            # Custom React hooks
-│   └── package.json
-│
-├── backend/                   # Node.js/Express API server
-│   ├── src/
-│   │   ├── app.ts            # Express application setup
-│   │   ├── controllers/      # Route handlers
-│   │   ├── services/         # Business logic
-│   │   ├── routes/           # API route definitions
-│   │   ├── middleware/       # Auth, CORS, etc.
-│   │   ├── types/            # TypeScript interfaces
-│   │   └── config/           # Configuration
-│   ├── db/
-│   │   ├── index.ts          # Database connection
-│   │   └── schema.sql        # Database schema
-│   └── package.json
-│
-├── ml-service/               # Python ML service
-│   ├── app.py               # FastAPI application
-│   ├── face_detector.py     # MediaPipe face detection
-│   ├── audio_analyzer.py    # Audio/speech analysis
-│   ├── object_detector.py   # Object detection
-│   ├── requirements.txt     # Python dependencies
-│   └── SETUP.md             # Setup instructions
-│
-├── docs/                      # Comprehensive documentation
-│   ├── Vision.md             # Project vision and goals
-│   ├── PRD.md               # Product requirements
-│   ├── Architecture.md       # System architecture
-│   ├── Features.md          # Feature specifications
-│   ├── DataModel.md         # Database schema
-│   ├── Scoring.md           # Scoring algorithm
-│   ├── Security.md          # Security measures
-│   ├── Proctoring-Implementation.md # Proctoring details
-│   └── more...
-│
-└── LICENSE
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start-stack.ps1
 ```
 
----
+What this starts:
+- ML service on `http://127.0.0.1:5000`
+- Backend API on `http://127.0.0.1:3000`
+- Judge worker process
+- Frontend dev server on `http://127.0.0.1:5173`
 
-## 🚀 Getting Started
+Optional:
 
-### Prerequisites
-- Node.js 16+ (for frontend and backend)
-- Python 3.11 or 3.12 (for ML service)
-- PostgreSQL (or SQLite for development)
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start-stack.ps1 -NoFrontend
+```
 
-### Backend Setup
+## Core API Notes
+- `GET /api/challenges/next?category=...` -> seniority-aware assignment
+- `POST /api/proctoring/session/start` -> returns `deadline_at`, `duration_seconds`
+- `POST /api/submissions` -> async judge queue; deadline + 15-minute grace enforced
+- `POST /api/challenges/:challenge_id/coach-hint` -> constrained hinting (max 3)
+- `GET /api/admin/work-experience/flagged` -> risk-audit queue
 
-```bash
+Full API contract: `docs/API.md`
+
+## Scoring Model
+- `challenge_score = correctness(0-40) + efficiency(0-15) + style(0-5)`
+- `behavior_score = 20 - penalties` (clamped 0-20)
+- `submission_score = challenge_score + behavior_score` (0-80)
+- `trust_score = clamp(round(avg(graded submission_score) * 0.8 + work_experience_score), 0, 100)`
+
+Detailed scoring: `docs/Scoring.md`
+
+## Build and Test
+Backend:
+
+```powershell
 cd backend
-npm install
 npm run build
-npm run dev  # Development mode with hot reload
+npm run test:api
 ```
 
-**Environment Variables**: Create a `.env` file with:
-```
-DATABASE_URL=postgresql://user:password@localhost:5432/yoscore
-JWT_SECRET=your-secret-key
-PORT=3000
-```
+Frontend:
 
-### Frontend Setup
-
-```bash
+```powershell
 cd frontend
-npm install
-npm run dev  # Vite dev server at http://localhost:5173
+npm run build
+npm run test
 ```
 
-### ML Service Setup
+Optional e2e:
 
-```bash
-cd ml-service
-pip install -r requirements.txt
-python -m uvicorn app:app --host 0.0.0.0 --port 5000
-# Or simply: python app.py
-```
-
-> **Note**: Do not use `--reload` on Windows with Python 3.14 to avoid multiprocessing issues.
-
-### Database Migration
-
-```bash
-cd backend
-npm run migrate
-```
-
----
-
-## 🏗️ Architecture
-
-### High-Level System Design
-
-```
-┌─────────────────┐
-│   Frontend      │ (React + TypeScript)
-│   (Browser)     │
-└────────┬────────┘
-         │ HTTP/REST
-         ▼
-┌─────────────────┐
-│   Backend API   │ (Node.js + Express)
-│  - Auth         │
-│  - Challenges   │
-│  - Scoring      │
-│  - Proctoring   │
-└────┬────────┬───┘
-     │        │
-     │        └─────────────────┐
-     │                          │
-     ▼                          ▼
-┌──────────────┐        ┌───────────────┐
-│  PostgreSQL  │        │  ML Service   │ (Python FastAPI)
-│  Database    │        │  - Face Detect│
-│              │        │  - Audio      │
-│              │        │  - Objects    │
-└──────────────┘        └───────────────┘
-```
-
-### Key Components
-
-1. **Frontend Layer**: React web interface with real-time proctoring UI, code editor, and dashboard
-2. **Backend API**: RESTful endpoints for authentication, challenges, submissions, scoring, and proctoring logs
-3. **Scoring Engine**: Rule-based scoring combining code correctness, efficiency, behavior compliance, and work experience
-4. **Proctoring Module**: Real-time monitoring combining browser events, camera feed analysis, and audio analysis
-5. **ML Service**: FastAPI service for advanced monitoring (face detection, audio analysis, object detection)
-
----
-
-## 📊 Scoring System
-
-The trust score is calculated as a weighted combination of three components:
-
-| Component | Weight | Details |
-|-----------|--------|---------|
-| **Challenge Performance** | 60% | Correctness (0–40) + Efficiency (0–20) |
-| **Behavior/Proctoring** | 20% | Base 20 points minus penalties for violations |
-| **Work Experience** | 20% | Duration and relevance of past work (0–20) |
-
-**Score Range**: 0–100 points
-
-**Trust Levels**:
-- **Low**: 0–49
-- **Medium**: 50–74
-- **High**: 75–100
-
-### Proctoring Penalties
-
-| Violation Type | Penalty |
-|----------------|---------|
-| Camera off | 10 points |
-| Multiple faces detected | 15 points |
-| Multiple voices detected | 20 points |
-| Copy/paste detected | 12 points |
-| Developer tools opened | 10 points |
-| No face detected | 8 points |
-| Looking away from screen | 7 points |
-| Speech detected | 8 points |
-| Tab switch | 5 points |
-| Window blur (focus loss) | 3 points |
-| Eyes closed | 4 points |
-| Inactivity (60+ seconds) | 2 points |
-
-### Example Calculation
-
-```
-Challenge Performance:
-  - Correctness: 35/40
-  - Efficiency: 15/20
-  - Subtotal: 50/60
-
-Behavior Score:
-  - Base: 20
-  - Penalties: -8 (2 tab switches × 3 + 1 inactivity × 2)
-  - Subtotal: 12/20
-
-Work Experience:
-  - 12 months relevant exp: 12/20
-
-Total Trust Score: 50 + 12 + 12 = 74 (Medium Trust Level)
-```
-
----
-
-## 📚 Documentation
-
-Comprehensive documentation is available in the [docs/](docs/) folder:
-
-- **[Vision.md](docs/Vision.md)** - Project vision, goals, and success metrics
-- **[PRD.md](docs/PRD.md)** - Product requirements, user personas, use cases
-- **[Architecture.md](docs/Architecture.md)** - System architecture and design
-- **[Features.md](docs/Features.md)** - Feature specifications and module details
-- **[DataModel.md](docs/DataModel.md)** - Complete database schema
-- **[Scoring.md](docs/Scoring.md)** - Scoring algorithm and calculation
-- **[Proctoring-Implementation.md](docs/Proctoring-Implementation.md)** - Proctoring system details
-- **[Security.md](docs/Security.md)** - Security measures and best practices
-- **[API.md](docs/API.md)** - API endpoint documentation
-- **[Roadmap.md](docs/Roadmap.md)** - Future features and enhancements
-
----
-
-## 🔒 Security Features
-
-- **JWT-based authentication** with token expiration and rotation
-- **Password hashing** using bcryptjs
-- **HTTPS/TLS encryption** for all API traffic
-- **Role-based access control** (RBAC) for different user types
-- **Proctoring enforcement** with automatic violation detection
-- **Sandboxed code execution** to prevent malicious access
-- **Data encryption** at rest for sensitive information
-- **CORS protection** and security headers (Helmet)
-
----
-
-## 🧪 Testing
-
-### Frontend
-```bash
+```powershell
 cd frontend
-npm run test        # Run tests once
-npm run test:watch  # Watch mode
+npm run e2e
 ```
 
-### Backend
-Tests can be added using Jest or your preferred testing framework.
+## Deployment (Render + Supabase + Upstash)
+- Render blueprint: `render.yaml`
+- Backend + worker require `REDIS_URL`, database URL, JWT and scoring envs.
+- Frontend requires `VITE_API_BASE_URL`.
+- Observability: Sentry + UptimeRobot + Render logs.
 
----
+Deployment references:
+- `docs/Deployment-Phase1.md`
+- `docs/RunStack.md`
+- `docs/Launch-Checklist.md`
 
-## 📝 License
+## Release 1.1+ Roadmap
+Planned post-release improvements:
+- Mixed assessments (MCQ, explanation, engineering scenarios)
+- Automated rubric grading for non-coding items
+- CV quality intelligence and role-fit guidance
+- Soft-skill signal capture
+- External verification adapters (GitHub/LinkedIn attestations)
 
-This project is licensed under the [MIT License](LICENSE).
-
----
-
-## 👥 Contributing
-
-This is an industry project. For contribution guidelines, please refer to the project documentation or contact the project lead.
-
----
-
-## 📞 Support
-
-For questions, issues, or documentation clarifications, refer to the [docs/](docs/) folder for comprehensive guidance on all aspects of the platform.
+## License
+Academic and project use. Add your final license choice before public launch.

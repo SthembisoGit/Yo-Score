@@ -1,98 +1,94 @@
 # YoScore - Scoring Documentation
 
 ## 1. Overview
-This document defines how **trust scores** are calculated in YoScore MVP. The score combines **challenge performance**, **behavior/proctoring compliance**, and **work experience**, providing a numeric and qualitative measure of developer skill and trustworthiness.
+YoScore Phase 1 scoring is fully server-side and uses real judge output (JS/Python), proctoring penalties, and work experience.
 
 ---
 
-## 2. Scoring Components
+## 2. Submission Score Components
 
-| Component | Weight | Description |
-|-----------|--------|-------------|
-| Challenge Performance | 60% | Correctness and efficiency of submitted code |
-| Behavior / Proctoring | 20% | Camera on, no tab switching, active focus |
-| Work Experience | 20% | Verified or self-reported past projects/jobs |
+| Component | Range | Source |
+|---|---:|---|
+| Correctness | 0-40 | Judge test-case pass points |
+| Efficiency | 0-15 | Runtime vs challenge language baseline |
+| Style | 0-5 | Deterministic JS/Python static checks |
+| Behavior | 0-20 | Proctoring penalties applied to max 20 |
 
-> Total = 100 points
-
----
-
-## 3. Challenge Performance Scoring
-
-- **Correctness (0–40 points):**  
-  - Fully correct solution: 40 points  
-  - Partially correct: proportional points  
-- **Efficiency (0–20 points):**  
-  - Code optimization, proper algorithm choice  
-  - Faster and cleaner solutions score higher  
-
-**Example:**  
-- Correctness: 35 / 40  
-- Efficiency: 15 / 20  
-- Challenge Performance = 35 + 15 = 50 / 60
+`challenge_score = correctness + efficiency + style` (max 60)  
+`submission_score = challenge_score + behavior` (max 80)
 
 ---
 
-## 4. Behavior / Proctoring Scoring
+## 3. Trust Score
 
-| Violation Type | Penalty Points |
-|----------------|----------------|
-| Camera off | −5 per occurrence |
-| Screen/tab switch | −3 per occurrence |
-| Inactivity > 1 min | −2 per minute |
+Trust score is recomputed whenever:
+- a submission is graded
+- work experience is added/updated
 
-- **Behavior Score:** 20 points minus penalties  
-- Minimum behavior score = 0
+Formula:
 
-**Example:**  
-- Two screen switches (−3 × 2 = 6)  
-- 1 min inactivity (−2)  
-- Behavior score = 20 − 8 = 12 / 20
+`trust_score = clamp(round(avg(all graded submission_score) * 0.8 + work_experience_score), 0, 100)`
 
----
-
-## 5. Work Experience Scoring
-
-- Up to **20 points**, based on:
-  - Duration of experience (months/years)  
-  - Role relevance (frontend, backend, security, etc.)  
-  - Verification (optional, MVP: self-reported)  
-
-**Example:**  
-- 12 months relevant experience → 12 / 20 points  
-- 24 months → 20 / 20 points (cap at 20)
+Where:
+- `avg(all graded submission_score)` is in range `0-80`
+- `work_experience_score = clamp(trusted_months, 0, 20)`
+- `trusted_months` only include work-experience rows where:
+  - `verification_status IN ('pending', 'verified')`
+  - `risk_score <= 60`
+- `flagged` and `rejected` rows do not contribute to trust.
 
 ---
 
-## 6. Total Trust Score Calculation
-- Total Score = Challenge Performance + Behavior Score + Work Experience
-- Max = 60 + 20 + 20 = 100
+## 4. Behavior Penalties
 
-**Example Calculation:**  
-- Challenge Performance = 50  
-- Behavior Score = 12  
-- Work Experience = 12  
-- **Total Trust Score = 50 + 12 + 12 = 74**  
-- Trust Level = Medium (50–74)
+Behavior starts at 20 and is reduced by:
+- violation penalties from `proctoring_logs`
+- pause count penalties
+- pause duration penalties
+- heartbeat staleness penalties
 
-- **Multiple Challenges:** Developers can complete multiple challenges per category.  
-- **Score Impact:** Completing more challenges increases the challenge component of the trust score.  
-- **No Repeats:** Previously completed challenges do not give extra points if attempted again.
+Behavior is clamped: `0-20`.
+
 ---
 
-## 7. Trust Levels
+## 5. Trust Levels
 
 | Score Range | Trust Level |
-|-------------|------------|
-| 0–49 | Low |
-| 50–74 | Medium |
-| 75–100 | High |
+|---|---|
+| 0-54 | Low |
+| 55-79 | Medium |
+| 80-100 | High |
 
 ---
 
-## 8. Notes
+## 6. Operational Rules
 
-- Each submission generates a **score snapshot**, stored in the database.  
-- Trust scores are **recomputed** on new challenge completion or added work experience.  
-- MVP scoring is **rule-based**, allowing future integration of AI/ML for more sophisticated evaluation.  
-- Scores are **visible on Dashboard**, giving developers clear feedback on performance and trust level.
+- Production scoring does **not** use heuristic fallback when strict scoring is enabled.
+- Submissions remain pending/queued/running until judge completion.
+- Judge infrastructure failures set submission `judge_status=failed`.
+- User-code failures still produce a completed judge run with valid component scores.
+
+---
+
+## 7. Data Persistence
+
+Submission-level fields:
+- `score`
+- `component_correctness`
+- `component_efficiency`
+- `component_style`
+- `component_skill`
+- `component_behavior`
+- `component_work_experience`
+- `component_penalty`
+- `scoring_version`
+- `judge_status`, `judge_error`, `judge_run_id`
+
+Run-level fields:
+- `submission_runs` (run summary)
+- `submission_run_tests` (per-test outcomes)
+
+Experience-verification fields:
+- `work_experience.evidence_links`
+- `work_experience.verification_status`
+- `work_experience.risk_score`
