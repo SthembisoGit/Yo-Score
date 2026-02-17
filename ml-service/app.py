@@ -22,10 +22,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize detectors
-face_detector = FaceDetector()
-audio_analyzer = AudioAnalyzer()
-object_detector = ObjectDetector()
+def _safe_init(name: str, factory):
+    try:
+        detector = factory()
+        print(f"[ml-service] {name} initialized")
+        return detector
+    except Exception as exc:
+        print(f"[ml-service] {name} failed to initialize: {exc}")
+        return None
+
+
+# Initialize detectors (safe, do not crash process)
+face_detector = _safe_init("face detector", FaceDetector)
+audio_analyzer = _safe_init("audio analyzer", AudioAnalyzer)
+object_detector = _safe_init("object detector", ObjectDetector)
 
 class AnalysisRequest(BaseModel):
     session_id: str
@@ -52,6 +62,9 @@ async def analyze_face(
 ):
     """Analyze face for focus, attention, and cheating detection"""
     try:
+        if face_detector is None or not face_detector.is_ready():
+            raise HTTPException(status_code=503, detail="Face detector is unavailable")
+
         # Read image
         contents = await image.read()
         
@@ -126,6 +139,9 @@ async def analyze_audio(
 ):
     """Analyze audio for speech, external help, and unusual sounds"""
     try:
+        if audio_analyzer is None or not audio_analyzer.is_ready():
+            raise HTTPException(status_code=503, detail="Audio analyzer is unavailable")
+
         # Read audio
         contents = await audio.read()
         
@@ -201,6 +217,9 @@ async def analyze_object(
 ):
     """Detect forbidden objects (phones, books, second monitor)"""
     try:
+        if object_detector is None or not object_detector.is_ready():
+            raise HTTPException(status_code=503, detail="Object detector is unavailable")
+
         # Read image
         contents = await image.read()
         
@@ -256,9 +275,9 @@ async def health_check():
         "service": "ML Proctoring",
         "timestamp": datetime.utcnow().isoformat(),
         "detectors": {
-            "face": face_detector.is_ready(),
-            "audio": audio_analyzer.is_ready(),
-            "object": object_detector.is_ready()
+            "face": bool(face_detector and face_detector.is_ready()),
+            "audio": bool(audio_analyzer and audio_analyzer.is_ready()),
+            "object": bool(object_detector and object_detector.is_ready())
         }
     }
 
