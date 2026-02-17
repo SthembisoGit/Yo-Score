@@ -1,0 +1,128 @@
+@startuml
+hide circle
+skinparam classAttributeIconSize 0
+
+class User {
+  +id: UUID
+  +name: string
+  +email: string
+  +role: string
+}
+
+class Challenge {
+  +id: UUID
+  +title: string
+  +category: string
+  +difficulty: string
+  +target_seniority: string
+  +duration_minutes: int
+  +publish_status: string
+}
+
+class Submission {
+  +id: UUID
+  +language: string
+  +status: string
+  +judge_status: string
+  +score: int
+}
+
+class SubmissionRun {
+  +id: UUID
+  +status: string
+  +test_passed: int
+  +test_total: int
+}
+
+class SubmissionRunTest {
+  +id: UUID
+  +status: string
+  +points_awarded: int
+}
+
+class ProctoringSession {
+  +id: UUID
+  +status: string
+  +deadline_at: datetime
+  +duration_seconds: int
+  +total_violations: int
+  +total_penalty: int
+}
+
+class ProctoringLog {
+  +id: UUID
+  +violation_type: string
+  +severity: string
+  +penalty: int
+}
+
+class TrustScore {
+  +id: UUID
+  +total_score: int
+  +trust_level: string
+}
+
+class WorkExperience {
+  +id: UUID
+  +company_name: string
+  +role: string
+  +duration_months: int
+  +evidence_links: jsonb
+  +verification_status: string
+  +risk_score: int
+}
+
+class ReferenceDoc {
+  +id: UUID
+  +title: string
+}
+
+class ChallengeTestCase {
+  +id: UUID
+  +name: string
+  +points: int
+}
+
+class ChallengeBaseline {
+  +id: UUID
+  +language: string
+  +runtime_ms: int
+  +memory_mb: int
+}
+
+class ProctoringSettings {
+  +id: UUID
+  +require_camera: bool
+  +require_microphone: bool
+  +require_audio: bool
+}
+
+class AdminAuditLog {
+  +id: UUID
+  +action: string
+}
+
+class AiHintEvent {
+  +id: UUID
+  +hint_index: int
+  +contains_code: bool
+  +created_at: datetime
+}
+
+User "1" -- "0..*" Submission
+Challenge "1" -- "0..*" Submission
+Submission "1" -- "0..*" SubmissionRun
+SubmissionRun "1" -- "0..*" SubmissionRunTest
+User "1" -- "0..*" ProctoringSession
+ProctoringSession "1" -- "0..*" ProctoringLog
+User "1" -- "1" TrustScore
+User "1" -- "0..*" WorkExperience
+User "1" -- "0..*" AiHintEvent
+Challenge "1" -- "0..*" ReferenceDoc
+Challenge "1" -- "0..*" ChallengeTestCase
+Challenge "1" -- "0..*" ChallengeBaseline
+Challenge "1" -- "0..*" AiHintEvent
+ProctoringSession "0..1" -- "0..*" AiHintEvent
+User "1" -- "0..*" AdminAuditLog : admin_user_id
+User "1" -- "0..*" AdminAuditLog : target_user_id
+@enduml

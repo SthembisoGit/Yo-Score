@@ -1,0 +1,28 @@
+@startuml
+title Submission and Proctoring Session State Diagrams
+
+state "Submission Lifecycle" as SubmissionLifecycle {
+  [*] --> pending
+  pending --> queued
+  queued --> running
+  running --> completed : tests/scoring successful
+  running --> failed : infrastructure/runtime failure
+  pending --> failed : deadline + grace exceeded
+  completed --> [*]
+  failed --> [*]
+}
+
+state "Proctoring Session Lifecycle" as SessionLifecycle {
+  [*] --> active
+  active --> paused : required device off / heartbeat timeout
+  paused --> active : recovery + resume
+  active --> offline_active : network loss
+  offline_active --> active : reconnect
+  offline_active --> locked : deadline reached offline
+  locked --> active : reconnect and submit within grace
+  locked --> completed : grace window exceeded
+  active --> completed : submission end
+  paused --> completed : forced end
+  completed --> [*]
+}
+@enduml

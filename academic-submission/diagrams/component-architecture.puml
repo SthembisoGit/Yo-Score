@@ -1,0 +1,25 @@
+@startuml
+skinparam componentStyle rectangle
+
+component "Web Frontend\n(React/Vite)" as FE
+component "Backend API\n(Node/Express)" as API
+component "Judge Worker\n(BullMQ Worker)" as Worker
+component "ML Service\n(FastAPI)" as ML
+component "AI Coach Policy Service" as Coach
+component "Local Draft Store\n(browser storage)" as Draft
+database "PostgreSQL\n(Supabase)" as DB
+queue "Redis Queue\n(Upstash)" as Redis
+component "Monitoring\n(Sentry/Uptime)" as Mon
+
+FE --> API : REST / JSON
+FE --> Draft : autosave/recover
+API --> DB : SQL
+API --> Redis : enqueue jobs
+API --> Coach : constrained hint request
+Worker --> Redis : consume jobs
+Worker --> DB : run + score persistence
+API --> ML : face/audio analysis calls
+Worker --> Mon : exceptions/health events
+API --> Mon : exceptions/health events
+FE --> Mon : frontend error events
+@enduml
