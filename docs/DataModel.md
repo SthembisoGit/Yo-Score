@@ -1,127 +1,142 @@
-# YoScore - Data Model
+# YoScore Data Model
 
 ## 1. Overview
-This document defines the **database schema** for YoScore MVP. It includes all entities, relationships, and example fields required for the backend to support challenges, scoring, proctoring, work experience, and user profiles.
+YoScore uses PostgreSQL as the source of truth for identity, challenges, judged submissions, proctoring, and trust scoring.
 
----
+Canonical schema file: `backend/db/schema.sql`
 
-## 2. Entities
+## 2. Core Entities
 
 ### 2.1 Users
-**Description:** Stores developer, recruiter, and admin profiles.  
-**Fields:**
-| Field | Type | Description |
-|-------|------|-------------|
-| user_id | UUID / INT | Primary Key |
-| name | VARCHAR | Full name of the user |
-| email | VARCHAR | Unique email |
-| password_hash | VARCHAR | Hashed password |
-| role | ENUM (developer, recruiter, admin) | User type |
-| created_at | TIMESTAMP | Account creation date |
-| updated_at | TIMESTAMP | Last update |
+Purpose: account identity and role.
 
----
+Key fields:
+- `id`
+- `name`
+- `email`
+- `password`
+- `role` (`developer|recruiter|admin`)
+- `created_at`, `updated_at`
 
 ### 2.2 Challenges
-**Description:** Stores all coding challenges.  
-**Fields:**
-| Field | Type | Description |
-|-------|------|-------------|
-| challenge_id | UUID / INT | Primary Key |
-| title | VARCHAR | Challenge title |
-| description | TEXT | Challenge description |
-| category | ENUM (frontend, backend, security, etc.) | Category of challenge |
-| difficulty | ENUM (easy, medium, hard) | Difficulty level |
-| created_at | TIMESTAMP | Creation date |
-| updated_at | TIMESTAMP | Last update |
+Purpose: challenge metadata and publication state.
 
----
+Key fields:
+- `id`
+- `title`, `description`
+- `category`
+- `difficulty`
+- `target_seniority` (`graduate|junior|mid|senior`)
+- `duration_minutes`
+- `publish_status` (`draft|published|archived`)
+- `created_by`, `created_at`, `updated_at`
 
-### 2.3 Submissions
-**Description:** Stores developer submissions for challenges.  
-**Fields:**
-| Field | Type | Description |
-|-------|------|-------------|
-| submission_id | UUID / INT | Primary Key |
-| user_id | UUID / INT | Foreign Key → Users(user_id) |
-| challenge_id | UUID / INT | Foreign Key → Challenges(challenge_id) |
-| code | TEXT | Submitted code |
-| score | INT | Score assigned (0–100) |
-| status | ENUM (pending, graded, failed) | Submission status |
-| submitted_at | TIMESTAMP | Submission time |
+### 2.3 Challenge Test and Baseline Objects
+Purpose: judge correctness and efficiency references.
 
----
+Tables:
+- `challenge_test_cases` (name, input_data, expected_output, points, hidden flag)
+- `challenge_baselines` (language, baseline_runtime_ms, baseline_memory_kb)
+- `reference_docs` (allowed guidance per challenge)
 
-### 2.4 TrustScores
-**Description:** Stores calculated trust scores for each user.  
-**Fields:**
-| Field | Type | Description |
-|-------|------|-------------|
-| score_id | UUID / INT | Primary Key |
-| user_id | UUID / INT | Foreign Key → Users(user_id) |
-| total_score | INT | Final trust score (0–100) |
-| trust_level | ENUM (Low, Medium, High) | Calculated trust level |
-| updated_at | TIMESTAMP | Last update of score |
+### 2.4 Submissions
+Purpose: user solution attempts and final components.
 
----
+Key fields:
+- `id`, `user_id`, `challenge_id`
+- `code`
+- `language` (`javascript|python`)
+- `status` (`pending|graded|failed`)
+- `judge_status` (`queued|running|completed|failed`)
+- `judge_run_id`, `judge_error`
+- score components:
+  - `component_correctness`
+  - `component_efficiency`
+  - `component_style`
+  - `component_behavior`
+  - `component_work_experience`
+  - `component_penalty`
+- `score`, `submitted_at`, `graded_at`
 
-### 2.5 ProctoringLogs
-**Description:** Stores logs from proctoring system for each submission.  
-**Fields:**
-| Field | Type | Description |
-|-------|------|-------------|
-| log_id | UUID / INT | Primary Key |
-| submission_id | UUID / INT | Foreign Key → Submissions(submission_id) |
-| violation_type | ENUM (camera_off, screen_switch, inactivity) | Type of violation |
-| timestamp | TIMESTAMP | Time of violation |
-| penalty | INT | Points deducted for violation |
+### 2.5 Submission Runs
+Purpose: detailed async judge execution history.
 
----
+Tables:
+- `submission_runs`
+  - run status, runtime, memory, stdout/stderr, summary payload
+- `submission_run_tests`
+  - per-test pass/fail, expected vs actual, time/memory, points
 
-### 2.6 WorkExperience
-**Description:** Stores user’s work experience or project history contributing to trust score.  
-**Fields:**
-| Field | Type | Description |
-|-------|------|-------------|
-| experience_id | UUID / INT | Primary Key |
-| user_id | UUID / INT | Foreign Key → Users(user_id) |
-| company_name | VARCHAR | Company or project name |
-| role | VARCHAR | Role / position held |
-| duration_months | INT | Duration of experience |
-| verified | BOOLEAN | Optional verification status |
-| added_at | TIMESTAMP | When experience was added |
+### 2.6 Proctoring
+Purpose: monitor behavior during challenge attempts.
 
----
+Tables:
+- `proctoring_sessions`
+  - `status`, `start_time`, `end_time`
+  - `deadline_at`, `duration_seconds`
+  - aggregated violation and penalty fields
+- `proctoring_logs`
+  - violation events with severity and penalty
+- `ml_analysis_results`
+  - raw ML service outputs
+- `proctoring_settings`
+  - persistent platform policy flags and thresholds
 
-### 2.7 ReferenceDocs
-**Description:** Stores allowed documentation for challenges.  
-**Fields:**
-| Field | Type | Description |
-|-------|------|-------------|
-| doc_id | UUID / INT | Primary Key |
-| challenge_id | UUID / INT | Foreign Key → Challenges(challenge_id) |
-| title | VARCHAR | Document title |
-| content | TEXT | Document content (Markdown or HTML) |
-| created_at | TIMESTAMP | Creation date |
-| updated_at | TIMESTAMP | Last update |
+### 2.7 Work Experience and Trust
+Purpose: experience-informed trust scoring with low-admin checks.
 
----
+Tables:
+- `work_experience`
+  - `company_name`, `role`, `duration_months`
+  - `evidence_links` (JSONB array)
+  - `verification_status` (`pending|verified|flagged|rejected`)
+  - `risk_score` (0-100)
+- `trust_scores`
+  - user-level aggregate (`total_score`, `trust_level`, details JSON)
 
-## 3. Relationships
+### 2.8 AI Coach Audit
+Purpose: enforce and audit constrained hint usage.
 
-- **Users → Submissions** → One-to-Many  
-- **Challenges → Submissions** → One-to-Many  
-- **Submissions → ProctoringLogs** → One-to-Many  
-- **Users → TrustScores** → One-to-One  
-- **Users → WorkExperience** → One-to-Many  
-- **Challenges → ReferenceDocs** → One-to-Many  
+Table:
+- `ai_hint_events`
+  - `user_id`, `challenge_id`, optional `session_id`
+  - `hint_index`
+  - `contains_code`
+  - `created_at`
 
----
+### 2.9 Admin Audit
+Purpose: track sensitive admin actions.
 
-## 4. Notes
+Table:
+- `admin_audit_logs`
+  - action, entity type/id, details payload
+  - actor/target references
 
-- All IDs are primary keys and auto-generated (UUID or INT).  
-- Foreign key constraints enforce relational integrity.  
-- Timestamps track creation and updates for audit and scoring purposes.  
-- WorkExperience is **optional for MVP**, but contributes to overall trust score.  
-- ReferenceDocs are **read-only**, ensuring developers cannot upload arbitrary docs.
+## 3. Relationship Summary
+- User -> many Submissions
+- Challenge -> many Submissions
+- Submission -> many SubmissionRuns
+- SubmissionRun -> many SubmissionRunTests
+- User -> many ProctoringSessions
+- ProctoringSession -> many ProctoringLogs
+- User -> many WorkExperience rows
+- User -> one TrustScores row
+- Challenge -> many ChallengeTestCases, ChallengeBaselines, ReferenceDocs
+
+## 4. Integrity and Constraints
+- Enumerated checks on language, judge status, publish status, verification status.
+- Numeric bounds:
+  - `duration_minutes` within acceptable range
+  - `risk_score` 0-100
+- Foreign keys enforce user/challenge/submission references.
+- Indexes optimize:
+  - submission lifecycle polling
+  - run/test lookups
+  - challenge category plus seniority routing
+  - work experience verification and risk filtering
+  - proctoring deadline reads
+
+## 5. Notes for Release 1
+- Coding assessments only.
+- JavaScript and Python only for judge execution.
+- Non-coding item entities (MCQ/explanations/scenarios) are deferred to Release 1.1.
