@@ -9,13 +9,20 @@ interface DescriptionPanelProps {
     description: string;
     category: string;
     difficulty: string;
+    target_seniority?: string;
+    duration_minutes?: number;
   };
   compact?: boolean;
 }
 
 export const DescriptionPanel = ({ challenge, compact = false }: DescriptionPanelProps) => {
-  const { duration, points } = getDurationAndPoints(challenge.difficulty);
+  const defaults = getDurationAndPoints(challenge.difficulty);
+  const duration = Number(challenge.duration_minutes ?? defaults.duration);
+  const points = defaults.points;
   const displayDifficulty = difficultyDisplayMap[challenge.difficulty.toLowerCase()] || 'Medium';
+  const seniorityLabel = challenge.target_seniority
+    ? challenge.target_seniority.charAt(0).toUpperCase() + challenge.target_seniority.slice(1)
+    : null;
 
   if (compact) {
     return (
@@ -32,6 +39,11 @@ export const DescriptionPanel = ({ challenge, compact = false }: DescriptionPane
             )}>
               {displayDifficulty}
             </span>
+            {seniorityLabel && (
+              <span className="text-xs font-medium px-2.5 py-1 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 rounded-full">
+                {seniorityLabel}
+              </span>
+            )}
           </div>
           <p className="text-muted-foreground text-sm leading-relaxed">
             {challenge.description}
@@ -64,6 +76,11 @@ export const DescriptionPanel = ({ challenge, compact = false }: DescriptionPane
         )}>
           {displayDifficulty}
         </span>
+        {seniorityLabel && (
+          <span className="text-sm font-medium px-3 py-1.5 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 rounded-full">
+            {seniorityLabel}
+          </span>
+        )}
       </div>
 
       <h1 className="text-2xl lg:text-3xl font-bold">{challenge.title}</h1>

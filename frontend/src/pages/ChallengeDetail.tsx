@@ -34,11 +34,17 @@ export default function ChallengeDetail() {
   const navigate = useNavigate();
   const { user, setPreferredLanguage, availableLanguages } = useAuth();
   
+  const supportedLanguages = availableLanguages.filter(
+    (lang) => ['JavaScript', 'Python'].includes(lang),
+  );
+
   const { challenge, referenceDocs, isLoading, error } = useChallengeData(id);
   const [showProctoringModal, setShowProctoringModal] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
+  const [durationSeconds, setDurationSeconds] = useState<number>(0);
   const [violations, setViolations] = useState<ViolationEvent[]>([]);
   const [violationCount, setViolationCount] = useState(0);
   const [isStartingProctoring, setIsStartingProctoring] = useState(false);
@@ -49,12 +55,12 @@ export default function ChallengeDetail() {
 
   // Initialize language from user preference
   useEffect(() => {
-    if (user?.preferredLanguage) {
+    if (user?.preferredLanguage && supportedLanguages.includes(user.preferredLanguage)) {
       setSelectedLanguage(user.preferredLanguage);
-    } else if (availableLanguages.length > 0) {
-      setSelectedLanguage(availableLanguages[0]);
+    } else if (supportedLanguages.length > 0) {
+      setSelectedLanguage(supportedLanguages[0]);
     }
-  }, [availableLanguages, user?.preferredLanguage]);
+  }, [supportedLanguages, user?.preferredLanguage]);
 
   const handleLanguageChange = (language: string) => {
     setSelectedLanguage(language);
@@ -77,8 +83,10 @@ export default function ChallengeDetail() {
     setShowProctoringModal(false);
 
     try {
-      const newSessionId = await startSession(id, user.id);
-      setSessionId(newSessionId);
+      const sessionMeta = await startSession(id, user.id);
+      setSessionId(sessionMeta.sessionId);
+      setDeadlineAt(sessionMeta.deadlineAt);
+      setDurationSeconds(sessionMeta.durationSeconds);
       setSessionStarted(true);
       toast.success('Proctoring session started. Camera and microphone are now active.');
     } catch (error) {
@@ -188,7 +196,7 @@ export default function ChallengeDetail() {
           <ChallengeOverview
             challenge={challenge}
             selectedLanguage={selectedLanguage}
-            availableLanguages={availableLanguages}
+            availableLanguages={supportedLanguages}
             onLanguageChange={handleLanguageChange}
             onStartSession={handleStartSession}
             onBack={() => navigate('/challenges')}
@@ -210,7 +218,7 @@ export default function ChallengeDetail() {
               challenge={challenge}
               referenceDocs={referenceDocs}
               selectedLanguage={selectedLanguage}
-              availableLanguages={availableLanguages}
+              availableLanguages={supportedLanguages}
               onLanguageChange={handleLanguageChange}
               challengeId={id!}
               sessionId={sessionId}
@@ -218,6 +226,8 @@ export default function ChallengeDetail() {
               violationCount={violationCount}
               isSessionPaused={isSessionPaused}
               pauseReason={pauseReason}
+              deadlineAt={deadlineAt}
+              durationSeconds={durationSeconds}
             />
           </>
         )}

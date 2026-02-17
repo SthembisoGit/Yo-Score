@@ -10,6 +10,7 @@ export interface Challenge {
   title: string;
   category: Category;
   difficulty: Difficulty;
+  targetSeniority?: 'graduate' | 'junior' | 'mid' | 'senior';
   description: string;
   duration: number;
   points: number;
@@ -26,7 +27,7 @@ interface ChallengeContextType {
   filterByCategory: (category: Category | 'All') => Challenge[];
   filterByDifficulty: (difficulty: Difficulty | 'All') => Challenge[];
   fetchChallenges: () => Promise<void>;
-  getAssignedChallenge: () => Promise<Challenge>;
+  getAssignedChallenge: (category?: Category) => Promise<Challenge>;
 }
 
 const ChallengeContext = createContext<ChallengeContextType | undefined>(undefined);
@@ -68,15 +69,17 @@ const mapBackendChallenge = (backendChallenge: any, completedSubmissions: any[])
   const points = backendChallenge.difficulty === 'easy' ? 100 : 
                  backendChallenge.difficulty === 'medium' ? 150 : 200;
 
-  // Calculate duration based on difficulty
-  const duration = backendChallenge.difficulty === 'easy' ? 30 : 
-                   backendChallenge.difficulty === 'medium' ? 45 : 60;
+  const duration = Number(backendChallenge.duration_minutes ?? (
+    backendChallenge.difficulty === 'easy' ? 30 :
+    backendChallenge.difficulty === 'medium' ? 45 : 60
+  ));
 
   return {
     id: backendChallenge.challenge_id,
     title: backendChallenge.title,
     category: mappedCategory,
     difficulty: difficultyMap[backendChallenge.difficulty?.toLowerCase()] || 'Medium',
+    targetSeniority: backendChallenge.target_seniority,
     description: backendChallenge.description || 'No description available.',
     duration: duration,
     points: points,
@@ -127,10 +130,10 @@ export function ChallengeProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const getAssignedChallenge = useCallback(async (): Promise<Challenge> => {
+  const getAssignedChallenge = useCallback(async (category?: Category): Promise<Challenge> => {
     try {
       const completedSubmissions = await fetchCompletedSubmissions();
-      const backendChallenge = await challengeService.getNextChallenge();
+      const backendChallenge = await challengeService.getNextChallenge(category);
       return mapBackendChallenge(backendChallenge, completedSubmissions);
     } catch (err) {
       console.error('Failed to get next challenge:', err);

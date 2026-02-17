@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  'http://localhost:3000/api';
 
 const JWT_STORAGE_KEY =
   import.meta.env.VITE_JWT_STORAGE_KEY || 'yoScore_auth_token';
@@ -40,10 +42,15 @@ apiClient.interceptors.response.use(
           }
         );
 
-        localStorage.setItem(JWT_STORAGE_KEY, rotateResponse.data.token);
+        const rotatedToken = rotateResponse.data?.data?.token;
+        if (!rotatedToken) {
+          throw error;
+        }
+
+        localStorage.setItem(JWT_STORAGE_KEY, rotatedToken);
 
         error.config.headers.Authorization =
-          `Bearer ${rotateResponse.data.token}`;
+          `Bearer ${rotatedToken}`;
 
         return apiClient(error.config);
       } catch {

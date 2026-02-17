@@ -50,6 +50,7 @@ export interface User {
   trustLevel: 'Low' | 'Medium' | 'High';
   categoryScores: CategoryScore[];
   workExperienceMonths: number;
+  seniorityBand?: 'graduate' | 'junior' | 'mid' | 'senior';
   preferredLanguage?: ProgrammingLanguage;
   preferredTool?: Tool;
   createdAt?: string;
@@ -73,7 +74,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const availableLanguages: ProgrammingLanguage[] = [
-  'JavaScript', 'TypeScript', 'Python', 'Java', 'C#', 'Go', 'Rust', 'PHP', 'Ruby', 'Swift', 'Kotlin'
+  'JavaScript',
+  'Python',
 ];
 
 const availableTools: Tool[] = [
@@ -169,6 +171,7 @@ const login = useCallback(async (email: string, password: string) => {
       trustLevel: dashboardData.trust_level,
       categoryScores: categoryScoresArray,
       workExperienceMonths: totalWorkExperienceMonths,
+      seniorityBand: dashboardData.seniority_band,
       createdAt: userProfile.created_at
     };
     

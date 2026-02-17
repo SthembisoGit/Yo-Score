@@ -9,6 +9,12 @@ export interface ProctoringSession {
   status: 'active' | 'paused' | 'completed';
 }
 
+export interface ProctoringSessionStartResponse {
+  sessionId: string;
+  deadline_at: string;
+  duration_seconds: number;
+}
+
 export interface ProctoringViolation {
   type: string;
   severity: 'low' | 'medium' | 'high';
@@ -84,11 +90,10 @@ class ProctoringService {
   /**
    * Start a new proctoring session
    */
-  async startSession(challengeId: string): Promise<{ sessionId: string }> {
+  async startSession(challengeId: string): Promise<ProctoringSessionStartResponse> {
     try {
       const response = await apiClient.post('/proctoring/session/start', { challengeId });
-      const data = unwrapData<{ sessionId: string }>(response);
-      return { sessionId: data.sessionId };
+      return unwrapData<ProctoringSessionStartResponse>(response);
     } catch {
       throw new Error('Could not start proctoring session');
     }
@@ -144,24 +149,13 @@ class ProctoringService {
     type: string, 
     description?: string
   ): Promise<ProctoringViolation> {
-    try {
-      const response = await apiClient.post('/proctoring/violation', {
-        sessionId,
-        type,
-        description: description || `Violation: ${type}`
-      });
-      
-      return unwrapData<ProctoringViolation>(response);
-    } catch {
-      // Return a mock violation if backend fails
-      return {
-        type,
-        severity: 'medium',
-        description: description || `Violation: ${type}`,
-        penalty: 5,
-        timestamp: new Date().toISOString()
-      };
-    }
+    const response = await apiClient.post('/proctoring/violation', {
+      sessionId,
+      type,
+      description: description || `Violation: ${type}`
+    });
+    
+    return unwrapData<ProctoringViolation>(response);
   }
 
   /**
@@ -180,12 +174,8 @@ class ProctoringService {
    * Get user's recent proctoring sessions
    */
   async getUserSessions(userId: string, limit: number = 10): Promise<ProctoringSession[]> {
-    try {
-      const response = await apiClient.get(`/proctoring/user/${userId}/sessions?limit=${limit}`);
-      return unwrapData<ProctoringSession[]>(response);
-    } catch {
-      return [];
-    }
+    const response = await apiClient.get(`/proctoring/user/${userId}/sessions?limit=${limit}`);
+    return unwrapData<ProctoringSession[]>(response);
   }
 
   /**
@@ -196,33 +186,30 @@ class ProctoringService {
     totalPenalty: number;
     byType: Record<string, number>;
   }> {
-    try {
-      const response = await apiClient.get(`/proctoring/user/${userId}/violations/summary`);
-      return unwrapData(response);
-    } catch {
-      return {
-        totalViolations: 0,
-        totalPenalty: 0,
-        byType: {}
-      };
-    }
+    const response = await apiClient.get(`/proctoring/user/${userId}/violations/summary`);
+    return unwrapData(response);
   }
 
   /**
    * Check if proctoring service is available
    */
-  async healthCheck(): Promise<{ status: 'healthy' | 'unhealthy'; message: string }> {
+  async healthCheck(): Promise<{ status: 'healthy' | 'unhealthy'; message: string; degraded?: boolean }> {
     try {
-      // We'll use a simple endpoint check
-      await apiClient.get('/proctoring/health');
+      const response = await apiClient.get('/proctoring/health');
+      const data = unwrapData<{ database: boolean; mlService: boolean }>(response);
+      const degraded = !data.mlService;
       return {
-        status: 'healthy',
-        message: 'Proctoring service is available'
+        status: data.database ? 'healthy' : 'unhealthy',
+        message: degraded
+          ? 'Proctoring API is available but ML analysis is degraded.'
+          : 'Proctoring service is available',
+        degraded
       };
     } catch {
       return {
         status: 'unhealthy',
-        message: 'Proctoring service is temporarily unavailable'
+        message: 'Proctoring service is temporarily unavailable',
+        degraded: false
       };
     }
   }
@@ -234,18 +221,8 @@ class ProctoringService {
     sessionId: string,
     violations: Array<{ type: string; description?: string }>
   ): Promise<ProctoringViolation[]> {
-    try {
-      const response = await apiClient.post('/proctoring/violations/batch', { sessionId, violations });
-      return unwrapData<ProctoringViolation[]>(response);
-    } catch {
-      return violations.map(violation => ({
-        type: violation.type,
-        severity: 'medium',
-        description: violation.description || `Violation: ${violation.type}`,
-        penalty: 5,
-        timestamp: new Date().toISOString()
-      }));
-    }
+    const response = await apiClient.post('/proctoring/violations/batch', { sessionId, violations });
+    return unwrapData<ProctoringViolation[]>(response);
   }
 
   /**
@@ -256,16 +233,8 @@ class ProctoringService {
     severityDistribution: { high: number; medium: number; low: number };
     peakViolationTime: string | null;
   }> {
-    try {
-      const response = await apiClient.get(`/proctoring/session/${sessionId}/analytics`);
-      return unwrapData(response);
-    } catch {
-      return {
-        violationTimeline: [],
-        severityDistribution: { high: 0, medium: 0, low: 0 },
-        peakViolationTime: null
-      };
-    }
+    const response = await apiClient.get(`/proctoring/session/${sessionId}/analytics`);
+    return unwrapData(response);
   }
 
   /**
@@ -360,21 +329,8 @@ class ProctoringService {
     violationsSinceLastCheck: number;
     currentScore: number;
   }> {
-    try {
-      const response = await apiClient.get(`/proctoring/session/${sessionId}/status`);
-      return unwrapData(response);
-    } catch {
-      return {
-        isActive: true,
-        isPaused: false,
-        status: 'active',
-        pauseReason: null,
-        heartbeatAt: null,
-        isHeartbeatStale: false,
-        violationsSinceLastCheck: 0,
-        currentScore: 100
-      };
-    }
+    const response = await apiClient.get(`/proctoring/session/${sessionId}/status`);
+    return unwrapData(response);
   }
 
   /**
@@ -383,22 +339,13 @@ class ProctoringService {
   async getSettings(): Promise<{
     requireCamera: boolean;
     requireMicrophone: boolean;
+    requireAudio: boolean;
     strictMode: boolean;
     allowedViolationsBeforeWarning: number;
     autoPauseOnViolation: boolean;
   }> {
-    try {
-      const response = await apiClient.get('/proctoring/settings');
-      return unwrapData(response);
-    } catch {
-      return {
-        requireCamera: true,
-        requireMicrophone: true,
-        strictMode: false,
-        allowedViolationsBeforeWarning: 3,
-        autoPauseOnViolation: false
-      };
-    }
+    const response = await apiClient.get('/proctoring/settings');
+    return unwrapData(response);
   }
 
   /**
@@ -407,6 +354,7 @@ class ProctoringService {
   async updateSettings(settings: Partial<{
     requireCamera: boolean;
     requireMicrophone: boolean;
+    requireAudio: boolean;
     strictMode: boolean;
     allowedViolationsBeforeWarning: number;
     autoPauseOnViolation: boolean;

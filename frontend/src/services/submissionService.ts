@@ -9,6 +9,9 @@ export interface SubmissionViolation {
 
 export interface SubmissionScoreBreakdown {
   components: {
+    correctness?: number;
+    efficiency?: number;
+    style?: number;
     skill: number;
     behavior: number;
     work_experience: number;
@@ -26,13 +29,30 @@ export interface SubmissionResult {
   submission_id: string;
   challenge_id: string;
   challenge_title: string;
+  language: 'javascript' | 'python';
   status: 'pending' | 'graded' | 'failed';
+  judge_status: 'queued' | 'running' | 'completed' | 'failed';
+  judge_error?: string | null;
+  judge_run_id?: string | null;
   submitted_at: string;
-  score: number;
+  score: number | null;
   total_score?: number | null;
-  trust_level: 'Low' | 'Medium' | 'High';
+  trust_level?: 'Low' | 'Medium' | 'High';
   score_breakdown?: SubmissionScoreBreakdown;
   penalties?: SubmissionPenaltySummary;
+  run_summary?: {
+    run_id: string;
+    status: 'queued' | 'running' | 'completed' | 'failed' | 'skipped';
+    error_message?: string | null;
+    started_at?: string | null;
+    finished_at?: string | null;
+  } | null;
+  tests_summary?: {
+    passed: number;
+    total: number;
+    runtime_ms: number;
+    memory_mb: number;
+  } | null;
   violations: SubmissionViolation[];
 }
 
@@ -40,20 +60,58 @@ export interface UserSubmission {
   submission_id: string;
   challenge_id: string;
   challenge_title: string;
+  language: 'javascript' | 'python';
   score: number | null;
   status: 'pending' | 'graded' | 'failed';
+  judge_status: 'queued' | 'running' | 'completed' | 'failed';
   submitted_at: string;
+}
+
+export interface SubmissionRunSummary {
+  run_id: string;
+  submission_id: string;
+  language: 'javascript' | 'python';
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'skipped';
+  score_correctness: number;
+  score_efficiency: number;
+  score_style: number;
+  test_passed: number;
+  test_total: number;
+  runtime_ms: number;
+  memory_mb: number;
+  started_at?: string | null;
+  finished_at?: string | null;
+  error_message?: string | null;
+}
+
+export interface SubmissionRunDetails extends SubmissionRunSummary {
+  tests: Array<{
+    run_test_id: string;
+    test_case_id: string;
+    status: 'passed' | 'failed' | 'error';
+    runtime_ms: number;
+    output: string;
+    error?: string | null;
+    points_awarded: number;
+  }>;
 }
 
 class SubmissionService {
   async submitChallenge(
     challengeId: string,
     code: string,
+    language: 'javascript' | 'python',
     sessionId?: string
-  ): Promise<{ submission_id: string; status: string; message: string }> {
+  ): Promise<{
+    submission_id: string;
+    status: 'pending' | 'graded' | 'failed';
+    judge_status: 'queued' | 'running' | 'completed' | 'failed';
+    message: string;
+  }> {
     const payload: Record<string, string> = {
       challenge_id: challengeId,
-      code
+      code,
+      language,
     };
 
     if (sessionId) {
@@ -61,7 +119,12 @@ class SubmissionService {
     }
 
     const response = await apiClient.post('/submissions', payload);
-    return unwrapData<{ submission_id: string; status: string; message: string }>(response);
+    return unwrapData<{
+      submission_id: string;
+      status: 'pending' | 'graded' | 'failed';
+      judge_status: 'queued' | 'running' | 'completed' | 'failed';
+      message: string;
+    }>(response);
   }
 
   async getSubmissionResult(submissionId: string): Promise<SubmissionResult> {
@@ -74,6 +137,19 @@ class SubmissionService {
     return unwrapData<UserSubmission[]>(response);
   }
 
+  async getSubmissionRuns(submissionId: string): Promise<SubmissionRunSummary[]> {
+    const response = await apiClient.get(`/submissions/${submissionId}/runs`);
+    return unwrapData<SubmissionRunSummary[]>(response);
+  }
+
+  async getSubmissionRunDetails(
+    submissionId: string,
+    runId: string,
+  ): Promise<SubmissionRunDetails> {
+    const response = await apiClient.get(`/submissions/${submissionId}/runs/${runId}`);
+    return unwrapData<SubmissionRunDetails>(response);
+  }
+
   async pollSubmissionStatus(
     submissionId: string,
     interval = 2000,
@@ -83,7 +159,11 @@ class SubmissionService {
 
     while (attempts < maxAttempts) {
       const result = await this.getSubmissionResult(submissionId);
-      if (result.status !== 'pending') {
+      if (
+        result.status !== 'pending' &&
+        result.judge_status !== 'queued' &&
+        result.judge_status !== 'running'
+      ) {
         return result;
       }
       attempts += 1;
