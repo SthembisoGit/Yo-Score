@@ -12,6 +12,8 @@ services:
         value: production
       - key: ENABLE_JUDGE
         value: "true"
+      - key: RUN_JUDGE_IN_API
+        value: "true"
       - key: STRICT_REAL_SCORING
         value: "true"
       - key: ADMIN_PANEL_ENABLED
@@ -25,33 +27,6 @@ services:
       - key: FRONTEND_URL
         sync: false
       - key: ML_SERVICE_URL
-        sync: false
-      - key: SENTRY_DSN
-        sync: false
-      - key: SENTRY_ENVIRONMENT
-        value: production
-      - key: SENTRY_TRACES_SAMPLE_RATE
-        value: "0.1"
-
-  - type: worker
-    name: yoscore-judge-worker
-    runtime: node
-    rootDir: backend
-    buildCommand: npm install && npm run build
-    startCommand: npm run worker
-    autoDeploy: true
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: ENABLE_JUDGE
-        value: "true"
-      - key: STRICT_REAL_SCORING
-        value: "true"
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        sync: false
-      - key: JWT_SECRET
         sync: false
       - key: SENTRY_DSN
         sync: false
