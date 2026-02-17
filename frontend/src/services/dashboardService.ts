@@ -6,6 +6,13 @@ type ChallengeProgressStatus = 'completed' | 'pending' | 'in_progress' | 'graded
 export interface DashboardData {
   total_score: number;
   trust_level: 'Low' | 'Medium' | 'High';
+  seniority_band?: 'graduate' | 'junior' | 'mid' | 'senior';
+  work_experience_score?: number;
+  work_experience_summary?: {
+    trusted_months: number;
+    total_entries: number;
+    flagged_entries: number;
+  };
   category_scores: {
     [category: string]: number;
   };
@@ -23,6 +30,9 @@ export interface WorkExperience {
   role: string;
   duration_months: number;
   verified: boolean;
+  evidence_links?: string[];
+  verification_status?: 'pending' | 'verified' | 'flagged' | 'rejected';
+  risk_score?: number;
   added_at: string;
 }
 
@@ -30,7 +40,7 @@ export interface AddWorkExperienceInput {
   company_name: string;
   role: string;
   duration_months: number;
-  verified?: boolean;
+  evidence_links?: string[];
 }
 
 export interface UserProfile {

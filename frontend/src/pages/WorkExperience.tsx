@@ -16,6 +16,7 @@ interface ExperienceFormData {
   company_name: string;
   role: string;
   duration_months: string;
+  evidence_links: string;
 }
 
 const calculateTotalMonths = (experiences: WorkExperienceRecord[]) =>
@@ -45,6 +46,7 @@ export default function WorkExperience() {
     company_name: '',
     role: '',
     duration_months: '',
+    evidence_links: '',
   });
 
   const loadExperiences = useCallback(async () => {
@@ -91,12 +93,16 @@ export default function WorkExperience() {
         company_name: formData.company_name.trim(),
         role: formData.role.trim(),
         duration_months: durationMonths,
+        evidence_links: formData.evidence_links
+          .split('\n')
+          .map((link) => link.trim())
+          .filter((link) => link.length > 0),
       });
 
       const updated = [created, ...experiences];
       setExperiences(updated);
       updateUser({ workExperienceMonths: calculateTotalMonths(updated) });
-      setFormData({ company_name: '', role: '', duration_months: '' });
+      setFormData({ company_name: '', role: '', duration_months: '', evidence_links: '' });
       setShowForm(false);
       toast.success('Work experience added');
     } catch (error: unknown) {
@@ -205,6 +211,24 @@ export default function WorkExperience() {
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="evidence_links">
+                  Evidence Links (optional, one URL per line)
+                </Label>
+                <textarea
+                  id="evidence_links"
+                  name="evidence_links"
+                  rows={4}
+                  value={formData.evidence_links}
+                  onChange={(e) =>
+                    setFormData((previous) => ({ ...previous, evidence_links: e.target.value }))
+                  }
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="https://linkedin.com/in/your-profile"
+                  disabled={isSaving}
+                />
+              </div>
+
               <div className="flex gap-3 justify-end">
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)} disabled={isSaving}>
                   Cancel
@@ -244,16 +268,42 @@ export default function WorkExperience() {
                       </div>
                     </div>
                   </div>
-                  <span
-                    className={`text-xs rounded-full px-2 py-1 ${
-                      experience.verified
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    {experience.verified ? 'Verified' : 'Unverified'}
-                  </span>
+                  <div className="flex flex-col items-end gap-2">
+                    <span
+                      className={`text-xs rounded-full px-2 py-1 ${
+                        experience.verification_status === 'verified'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          : experience.verification_status === 'flagged'
+                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                            : 'bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      {(experience.verification_status || 'pending').toUpperCase()}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      Risk Score: {experience.risk_score ?? 0}
+                    </span>
+                  </div>
                 </div>
+                {experience.evidence_links && experience.evidence_links.length > 0 && (
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    <p className="font-medium mb-1">Evidence links</p>
+                    <ul className="space-y-1">
+                      {experience.evidence_links.map((link) => (
+                        <li key={link} className="truncate">
+                          <a
+                            href={link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            {link}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             ))
           ) : null}

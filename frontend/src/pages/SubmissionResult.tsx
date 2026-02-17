@@ -29,8 +29,18 @@ export default function SubmissionResult() {
       }
 
       try {
-        const result = await submissionService.getSubmissionResult(id);
-        setSubmission(result);
+        const initial = await submissionService.getSubmissionResult(id);
+        setSubmission(initial);
+
+        const isPending =
+          initial.status === 'pending' ||
+          initial.judge_status === 'queued' ||
+          initial.judge_status === 'running';
+
+        if (isPending) {
+          const polled = await submissionService.pollSubmissionStatus(id, 2000, 90);
+          setSubmission(polled);
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load submission';
         setError(message);
@@ -76,6 +86,9 @@ export default function SubmissionResult() {
 
   const scoreBreakdown = submission.score_breakdown;
   const components = scoreBreakdown?.components ?? {
+    correctness: 0,
+    efficiency: 0,
+    style: 0,
     skill: 0,
     behavior: 0,
     work_experience: 0,
@@ -85,6 +98,11 @@ export default function SubmissionResult() {
     submission.penalties?.total ??
     submission.violations.reduce((sum, violation) => sum + Number(violation.penalty ?? 0), 0);
   const violationCount = submission.penalties?.violation_count ?? submission.violations.length;
+
+  const isJudgePending =
+    submission.status === 'pending' ||
+    submission.judge_status === 'queued' ||
+    submission.judge_status === 'running';
 
   return (
     <div className="min-h-screen bg-background">
@@ -103,12 +121,22 @@ export default function SubmissionResult() {
               <div className="flex items-end justify-between">
                 <div>
                   <p className="text-5xl font-bold">{submission.score ?? 0}</p>
-                  <p className="text-muted-foreground">Submission score</p>
+                  <p className="text-muted-foreground">
+                    {isJudgePending ? 'Scoring in progress' : 'Submission score'}
+                  </p>
                 </div>
-                <div className={`text-2xl font-semibold ${trustLevelClass[submission.trust_level]}`}>
-                  {submission.trust_level}
-                </div>
+                {!isJudgePending && submission.trust_level && (
+                  <div className={`text-2xl font-semibold ${trustLevelClass[submission.trust_level]}`}>
+                    {submission.trust_level}
+                  </div>
+                )}
               </div>
+              <p className="text-sm text-muted-foreground mt-3">
+                Judge status: <span className="font-medium capitalize">{submission.judge_status}</span>
+              </p>
+              {submission.judge_error && (
+                <p className="text-sm text-destructive mt-2">{submission.judge_error}</p>
+              )}
               {typeof submission.total_score === 'number' && (
                 <p className="text-sm text-muted-foreground mt-3">
                   Overall trust score:{' '}
@@ -121,6 +149,18 @@ export default function SubmissionResult() {
               <h3 className="text-lg font-semibold mb-4">Score Breakdown</h3>
               {scoreBreakdown ? (
                 <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Correctness</span>
+                    <span className="font-medium">{components.correctness}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Efficiency</span>
+                    <span className="font-medium">{components.efficiency}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Style</span>
+                    <span className="font-medium">{components.style}</span>
+                  </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Skill component</span>
                     <span className="font-medium">{components.skill}</span>
@@ -147,6 +187,28 @@ export default function SubmissionResult() {
                 </p>
               )}
             </div>
+
+            {submission.tests_summary && (
+              <div className="bg-card border border-border rounded-xl p-6">
+                <h3 className="text-lg font-semibold mb-4">Judge Summary</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Tests passed</span>
+                    <span className="font-medium">
+                      {submission.tests_summary.passed}/{submission.tests_summary.total}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Runtime</span>
+                    <span className="font-medium">{submission.tests_summary.runtime_ms} ms</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Memory</span>
+                    <span className="font-medium">{submission.tests_summary.memory_mb} MB</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="bg-card border border-border rounded-xl p-6">
               <h3 className="text-lg font-semibold mb-4">Proctoring Violations</h3>
@@ -197,12 +259,24 @@ export default function SubmissionResult() {
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Status</span>
-                  <span className="font-medium capitalize">{submission.status}</span>
+                  <span className="font-medium capitalize">
+                    {submission.status} / {submission.judge_status}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Language</span>
+                  <span className="font-medium capitalize">{submission.language}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Submitted</span>
                   <span className="font-medium">{new Date(submission.submitted_at).toLocaleString()}</span>
                 </div>
+                {submission.run_summary?.run_id && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Run ID</span>
+                    <span className="font-mono text-xs">{submission.run_summary.run_id.slice(0, 8)}...</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Submission ID</span>
                   <span className="font-mono text-xs">{submission.submission_id.slice(0, 8)}...</span>

@@ -16,6 +16,8 @@ import WorkExperience from "./pages/WorkExperience";
 import Profile from "./pages/Profile";
 import SubmissionResult from "./pages/SubmissionResult";
 import NotFound from "./pages/NotFound";
+import AdminDashboard from "./pages/AdminDashboard";
+import { AdminRoute } from "./components/guards/AdminRoute";
 import ConnectionTest from "./components/ConnectionTest";
 
 const queryClient = new QueryClient();
@@ -39,6 +41,7 @@ const App = () => (
               <Route path="/work-experience" element={<WorkExperience />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/submissions/:id" element={<SubmissionResult />} />
+              <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
 
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

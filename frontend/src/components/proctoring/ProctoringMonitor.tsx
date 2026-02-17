@@ -89,6 +89,7 @@ const ProctoringMonitor: React.FC<Props> = ({
   const [faceGuidance, setFaceGuidance] = useState(
     'Align your face in view. Slight left/right/up/down movement is fine.',
   );
+  const [mlDegraded, setMlDegraded] = useState(false);
   const [position, setPosition] = useState({ x: window.innerWidth - 340, y: 20 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -563,6 +564,18 @@ const ProctoringMonitor: React.FC<Props> = ({
   }, [captureAndAnalyzeFrame, checkRequiredDevices, restartStream, sendHeartbeat, triggerViolation]);
 
   useEffect(() => {
+    void proctoringService.healthCheck().then((health) => {
+      if (health.degraded) {
+        setMlDegraded(true);
+        addAlert(
+          'ML analysis degraded. Core proctoring checks continue, but face/audio confidence may be reduced.',
+          'medium',
+        );
+      }
+    });
+  }, [addAlert]);
+
+  useEffect(() => {
     let removeEvents: (() => void) | undefined;
     void startProctoring()
       .then((cleanup) => {
@@ -728,6 +741,7 @@ const ProctoringMonitor: React.FC<Props> = ({
               <p>- Camera and microphone must stay on</p>
               <p>- Session pauses automatically on device-off</p>
               <p>- Face and audio analysis active</p>
+              {mlDegraded && <p>- ML analysis currently degraded</p>}
             </div>
           </div>
         )}

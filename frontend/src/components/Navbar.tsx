@@ -4,7 +4,7 @@ import { Menu, X, User, LogOut, LayoutDashboard, Trophy, Briefcase } from 'lucid
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 
-const navLinks = [
+const baseNavLinks = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/challenges', label: 'Challenges', icon: Trophy },
   { to: '/work-experience', label: 'Work Experience', icon: Briefcase },
@@ -16,6 +16,10 @@ export function Navbar() {
   const { isAuthenticated, logout, user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const navLinks =
+    user?.role === 'admin'
+      ? [...baseNavLinks, { to: '/admin', label: 'Admin', icon: LayoutDashboard }]
+      : baseNavLinks;
 
   const handleLogout = () => {
     logout();

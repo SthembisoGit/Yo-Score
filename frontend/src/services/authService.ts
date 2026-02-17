@@ -55,7 +55,7 @@ export const authService = {
 
   async validateToken(): Promise<{ valid: boolean; user?: { user_id: string; name: string; email: string; role: string } }> {
     const response = await apiClient.get('/auth/validate');
-    const body = response as { valid?: boolean; user?: { user_id: string; name: string; email: string; role: string } };
+    const body = unwrapData<{ valid?: boolean; user?: { user_id: string; name: string; email: string; role: string } }>(response);
     return body.valid && body.user ? { valid: true, user: body.user } : { valid: false };
   }
 };

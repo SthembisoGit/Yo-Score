@@ -5,9 +5,16 @@ import { toast } from 'react-hot-toast';
 interface ProctoringSettings {
   requireCamera: boolean;
   requireMicrophone: boolean;
+  requireAudio: boolean;
   strictMode: boolean;
   allowedViolationsBeforeWarning: number;
   autoPauseOnViolation: boolean;
+}
+
+export interface ProctoringSessionStartMeta {
+  sessionId: string;
+  deadlineAt: string;
+  durationSeconds: number;
 }
 
 export const useProctoring = () => {
@@ -44,14 +51,18 @@ export const useProctoring = () => {
     }
   }, []);
 
-  const startSession = useCallback(async (challengeId: string, _userId: string): Promise<string> => {
+  const startSession = useCallback(async (challengeId: string, _userId: string): Promise<ProctoringSessionStartMeta> => {
     try {
       const response = await proctoringService.startSession(challengeId);
       setCurrentSessionId(response.sessionId);
       setIsActive(true);
       setViolations([]);
       await loadSettings();
-      return response.sessionId;
+      return {
+        sessionId: response.sessionId,
+        deadlineAt: response.deadline_at,
+        durationSeconds: response.duration_seconds,
+      };
     } catch (error) {
       console.error('Failed to start proctoring session:', error);
       throw new Error('Proctoring service is unavailable. Please try again.');
@@ -92,15 +103,7 @@ export const useProctoring = () => {
       return violation;
     } catch (error) {
       console.error('Failed to log violation:', error);
-      const fallback: ProctoringViolation = {
-        type,
-        severity: 'medium',
-        description: description || `Violation: ${type}`,
-        penalty: 5,
-        timestamp: new Date().toISOString()
-      };
-      setViolations((previous) => [...previous, fallback]);
-      return fallback;
+      throw error;
     }
   }, [settings, violations.length]);
 
@@ -123,6 +126,7 @@ export const useProctoring = () => {
       setSettings((previous) => ({ ...(previous || {
         requireCamera: true,
         requireMicrophone: true,
+        requireAudio: true,
         strictMode: false,
         allowedViolationsBeforeWarning: 3,
         autoPauseOnViolation: false

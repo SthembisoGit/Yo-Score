@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, TrendingUp, Clock, Target, Award, Layers } from 'lucide-react';
 
 import { Navbar } from '@/components/Navbar';
@@ -8,6 +8,14 @@ import { ChallengeCard } from '@/components/ChallengeCard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { toast } from 'react-hot-toast';
 
 import { useAuth } from '@/context/AuthContext';
 import { useChallenges } from '@/context/ChallengeContext';
@@ -15,6 +23,7 @@ import {
   dashboardService,
   type DashboardData as ServiceDashboardData
 } from '@/services/dashboardService';
+import { challengeService } from '@/services/challengeService';
 
 const CATEGORY_COLORS = [
   'blue',
@@ -28,12 +37,17 @@ const CATEGORY_COLORS = [
 ] as const;
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, availableCategories } = useAuth();
+  const navigate = useNavigate();
   const { challenges } = useChallenges();
 
   const [isLoading, setIsLoading] = useState(false);
-type DashboardViewData = ServiceDashboardData & { monthly_progress?: number };
-const [dashboardData, setDashboardData] = useState<DashboardViewData | null>(null);
+  type DashboardViewData = ServiceDashboardData & { monthly_progress?: number };
+  const [dashboardData, setDashboardData] = useState<DashboardViewData | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    availableCategories[0] ?? 'Frontend',
+  );
+  const [isAssigning, setIsAssigning] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -49,6 +63,18 @@ const [dashboardData, setDashboardData] = useState<DashboardViewData | null>(nul
       console.error('Dashboard data fetch failed', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleStartMatchedChallenge = async () => {
+    setIsAssigning(true);
+    try {
+      const next = await challengeService.getNextChallenge(selectedCategory);
+      navigate(`/challenges/${next.challenge_id}`);
+    } catch (error: any) {
+      toast.error(error?.message || 'No matching challenge available for this category and seniority.');
+    } finally {
+      setIsAssigning(false);
     }
   };
 
@@ -76,10 +102,17 @@ const [dashboardData, setDashboardData] = useState<DashboardViewData | null>(nul
   const recentChallenges = challenges.filter((c) => c.completed).slice(0, 3);
   const pendingChallenges = challenges.filter((c) => !c.completed).slice(0, 2);
 
-  const trustScorePercentage = Math.min(Math.round(user.totalScore), 100);
+  const totalScore = dashboardData?.total_score ?? user.totalScore ?? 0;
+  const trustLevel = dashboardData?.trust_level ?? user.trustLevel;
+  const trustScorePercentage = Math.min(Math.round(totalScore), 100);
 
   const monthlyProgress = dashboardData?.monthly_progress ?? 0;
-  const categoryScores = user.categoryScores ?? [];
+  const seniorityBand = dashboardData?.seniority_band ?? 'graduate';
+  const workExperienceScore = dashboardData?.work_experience_score ?? 0;
+  const trustedMonths = dashboardData?.work_experience_summary?.trusted_months ?? user.workExperienceMonths;
+  const categoryScores = Object.entries(dashboardData?.category_scores ?? {}).map(
+    ([category, score]) => ({ category, score }),
+  );
 
   return (
     <div className="min-h-screen bg-muted">
@@ -99,8 +132,8 @@ const [dashboardData, setDashboardData] = useState<DashboardViewData | null>(nul
           <div>
             <ScoreCard
               title="Total Trust Score"
-              score={user.totalScore}
-              trustLevel={user.trustLevel}
+              score={totalScore}
+              trustLevel={trustLevel}
               size="hero"
               colorVariant="primary"
             />
@@ -109,7 +142,10 @@ const [dashboardData, setDashboardData] = useState<DashboardViewData | null>(nul
           <div className="rounded-xl border border-border bg-card p-6 shadow-md lg:col-span-2">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Trust Score Insights</h2>
-              <Badge variant="secondary">{user.trustLevel}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">{trustLevel}</Badge>
+                <Badge variant="outline">{seniorityBand.toUpperCase()}</Badge>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -126,6 +162,11 @@ const [dashboardData, setDashboardData] = useState<DashboardViewData | null>(nul
                 <span className="font-medium">+{monthlyProgress} pts</span>
               </div>
 
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Trusted Experience Score</span>
+                <span className="font-medium">{workExperienceScore}/20</span>
+              </div>
+
               <div className="flex gap-3 pt-2">
                 <Link to="/challenges" className="flex-1">
                   <Button className="w-full" disabled={isLoading}>
@@ -138,6 +179,27 @@ const [dashboardData, setDashboardData] = useState<DashboardViewData | null>(nul
                     Add Experience
                   </Button>
                 </Link>
+              </div>
+            </div>
+
+            <div className="mt-4 border-t border-border pt-4">
+              <p className="text-sm font-medium mb-2">Start Seniority-Matched Challenge</p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger className="sm:w-[220px]">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableCategories.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button onClick={() => void handleStartMatchedChallenge()} disabled={isAssigning || isLoading}>
+                  {isAssigning ? 'Assigning...' : 'Start Matched Challenge'}
+                </Button>
               </div>
             </div>
           </div>
@@ -157,7 +219,7 @@ const [dashboardData, setDashboardData] = useState<DashboardViewData | null>(nul
           <div className="flex items-center gap-4 rounded-lg border border-border bg-card p-5">
             <Award className="h-6 w-6 text-[hsl(142,70%,45%)]" />
             <div>
-              <p className="font-mono text-2xl font-bold">{user.totalScore}</p>
+                  <p className="font-mono text-2xl font-bold">{totalScore}</p>
               <p className="text-sm text-muted-foreground">Trust Score</p>
             </div>
           </div>
@@ -166,7 +228,7 @@ const [dashboardData, setDashboardData] = useState<DashboardViewData | null>(nul
             <Clock className="h-6 w-6 text-[hsl(40,90%,50%)]" />
             <div>
               <p className="font-mono text-2xl font-bold">
-                {user.workExperienceMonths}mo
+                {trustedMonths}mo
               </p>
               <p className="text-sm text-muted-foreground">Experience</p>
             </div>
