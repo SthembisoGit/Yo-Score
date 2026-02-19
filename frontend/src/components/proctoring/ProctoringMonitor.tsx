@@ -70,6 +70,7 @@ const ProctoringMonitor: React.FC<Props> = ({
   const cameraReadyRef = useRef(false);
   const micReadyRef = useRef(false);
   const audioReadyRef = useRef(false);
+  const mlDegradedRef = useRef(false);
 
   const frameIntervalRef = useRef<NodeJS.Timeout>();
   const audioIntervalRef = useRef<NodeJS.Timeout>();
@@ -125,6 +126,10 @@ const ProctoringMonitor: React.FC<Props> = ({
     audioReadyRef.current = audioReady;
   }, [audioReady]);
 
+  useEffect(() => {
+    mlDegradedRef.current = mlDegraded;
+  }, [mlDegraded]);
+
   const clearAlertTimer = useCallback((id: string) => {
     const timer = alertTimeoutsRef.current[id];
     if (timer) {
@@ -175,16 +180,17 @@ const ProctoringMonitor: React.FC<Props> = ({
 
   const logViolation = useCallback(
     async (type: string, description: string) => {
-      setViolationCount((prev) => prev + 1);
-      onViolation(type, {
-        description,
-        timestamp: new Date().toISOString(),
-        sessionId,
-        userId,
-        challengeId,
-      });
       try {
-        await proctoringService.logViolation(sessionId, type, description);
+        const violation = await proctoringService.logViolation(sessionId, type, description);
+        setViolationCount((prev) => prev + 1);
+        onViolation(type, {
+          ...violation,
+          description,
+          timestamp: new Date().toISOString(),
+          sessionId,
+          userId,
+          challengeId,
+        });
       } catch (error) {
         console.error('Error logging violation:', error);
       }
@@ -258,6 +264,37 @@ const ProctoringMonitor: React.FC<Props> = ({
     }
   }, []);
 
+  const estimateSpeechFromAudio = useCallback(async (blob: Blob) => {
+    const audioContextClass =
+      window.AudioContext ||
+      (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!audioContextClass) return false;
+
+    const context = new audioContextClass();
+    try {
+      const arrayBuffer = await blob.arrayBuffer();
+      const decoded = await context.decodeAudioData(arrayBuffer.slice(0));
+      const channel = decoded.getChannelData(0);
+      if (!channel.length) return false;
+
+      let peak = 0;
+      let sum = 0;
+      const step = Math.max(1, Math.floor(channel.length / 4000));
+      for (let i = 0; i < channel.length; i += step) {
+        const value = Math.abs(channel[i]);
+        peak = Math.max(peak, value);
+        sum += value;
+      }
+
+      const avg = sum / Math.ceil(channel.length / step);
+      return peak > 0.08 && avg > 0.015;
+    } catch {
+      return false;
+    } finally {
+      await context.close().catch(() => undefined);
+    }
+  }, []);
+
   const updateFaceGuidance = useCallback((result: FaceMonitorResult) => {
     if (result.face_count === 0) {
       setFaceGuidance('Face not detected. Move slightly left/right/up/down or sit a bit closer.');
@@ -324,13 +361,19 @@ const ProctoringMonitor: React.FC<Props> = ({
             return;
           }
           if (audioChunksRef.current.length === 0) return;
-          const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const mimeType =
+            audioChunksRef.current[0]?.type || recorder.mimeType || 'audio/webm';
+          const blob = new Blob(audioChunksRef.current, { type: mimeType });
           audioChunksRef.current = [];
           const durationMs = Date.now() - lastAudioChunkTimeRef.current;
           lastAudioChunkTimeRef.current = Date.now();
           const result = await proctoringService.analyzeAudio(sessionId, blob, durationMs);
-          if (!result) return;
-          if (result.has_speech) {
+          let speechDetected = Boolean(result?.has_speech);
+          if (!speechDetected && (mlDegradedRef.current || Boolean(result?.error))) {
+            speechDetected = await estimateSpeechFromAudio(blob);
+          }
+
+          if (speechDetected) {
             triggerViolation(
               'speech_detected',
               'Speech detected during session',
@@ -339,6 +382,7 @@ const ProctoringMonitor: React.FC<Props> = ({
               15000,
             );
           }
+          if (!result) return;
           if (result.voice_count > 1) {
             triggerViolation(
               'multiple_voices',
@@ -368,7 +412,7 @@ const ProctoringMonitor: React.FC<Props> = ({
         );
       }
     },
-    [addAlert, getSupportedRecorderOptions, sessionId, triggerViolation],
+    [addAlert, estimateSpeechFromAudio, getSupportedRecorderOptions, sessionId, triggerViolation],
   );
 
   const restartStream = useCallback(async () => {

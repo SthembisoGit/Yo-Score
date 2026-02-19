@@ -32,6 +32,7 @@ export interface AudioAnalysisResult {
   noiseLevel: number;
   suspiciousKeywords: string[];
   transcript: string;
+  error?: string;
 }
 
 export interface ObjectAnalysisResult {
@@ -423,6 +424,28 @@ export class ProctoringService {
   }
 
   // Basic Violation Logging
+  private mapMlViolation(
+    violationType: string,
+    description?: string,
+    confidence?: number,
+  ): ProctoringViolation {
+    const normalizedType = normalizeViolationType(violationType);
+    const base = this.violationWeights[normalizedType] ?? {
+      type: normalizedType,
+      severity: 'medium' as const,
+      description: description || `Violation: ${normalizedType}`,
+      penalty: getViolationPenalty(normalizedType),
+    };
+
+    return {
+      ...base,
+      type: normalizedType,
+      description: description ?? base.description,
+      penalty: getViolationPenalty(normalizedType),
+      confidence,
+    };
+  }
+
   async logViolation(
     sessionId: string,
     userId: string,
@@ -499,17 +522,15 @@ export class ProctoringService {
     timestamp: string,
   ): Promise<{ result: FaceAnalysisResult; violations: ProctoringViolation[] }> {
     try {
-      // Get user_id from session
+      // Ensure session exists before storing analysis artifacts.
       const sessionResult = await query(
-        `SELECT user_id FROM proctoring_sessions WHERE id = $1`,
+        `SELECT 1 FROM proctoring_sessions WHERE id = $1`,
         [sessionId],
       );
 
       if (sessionResult.rows.length === 0) {
         throw new Error('Session not found');
       }
-
-      const userId = sessionResult.rows[0].user_id;
 
       // Create FormData-like structure for multipart upload
       const FormData = require('form-data');
@@ -550,17 +571,9 @@ export class ProctoringService {
         mlResult.violations || [],
       );
 
-      const violations: ProctoringViolation[] = [];
-      for (const mlViolation of mlResult.violations || []) {
-        const violation = await this.logViolation(
-          sessionId,
-          userId,
-          mlViolation.type,
-          mlViolation.description,
-          mlResult.results,
-        );
-        violations.push({ ...violation, confidence: mlViolation.confidence });
-      }
+      const violations: ProctoringViolation[] = (mlResult.violations || []).map((mlViolation: any) =>
+        this.mapMlViolation(mlViolation.type, mlViolation.description, mlViolation.confidence),
+      );
 
       return {
         result: mlResult.results,
@@ -579,17 +592,15 @@ export class ProctoringService {
     durationMs: number,
   ): Promise<{ result: AudioAnalysisResult; violations: ProctoringViolation[] }> {
     try {
-      // Get user_id from session
+      // Ensure session exists before storing analysis artifacts.
       const sessionResult = await query(
-        `SELECT user_id FROM proctoring_sessions WHERE id = $1`,
+        `SELECT 1 FROM proctoring_sessions WHERE id = $1`,
         [sessionId],
       );
 
       if (sessionResult.rows.length === 0) {
         throw new Error('Session not found');
       }
-
-      const userId = sessionResult.rows[0].user_id;
 
       // Create FormData-like structure for multipart upload
       const FormData = require('form-data');
@@ -630,17 +641,9 @@ export class ProctoringService {
         mlResult.violations || [],
       );
 
-      const violations: ProctoringViolation[] = [];
-      for (const mlViolation of mlResult.violations || []) {
-        const violation = await this.logViolation(
-          sessionId,
-          userId,
-          mlViolation.type,
-          mlViolation.description,
-          mlResult.results,
-        );
-        violations.push({ ...violation, confidence: mlViolation.confidence });
-      }
+      const violations: ProctoringViolation[] = (mlResult.violations || []).map((mlViolation: any) =>
+        this.mapMlViolation(mlViolation.type, mlViolation.description, mlViolation.confidence),
+      );
 
       return {
         result: mlResult.results,
@@ -658,6 +661,7 @@ export class ProctoringService {
           noiseLevel: 0,
           suspiciousKeywords: [],
           transcript: '',
+          error: 'Audio analysis unavailable',
         },
         violations: [],
       };

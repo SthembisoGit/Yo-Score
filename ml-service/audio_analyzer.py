@@ -4,11 +4,18 @@ import speech_recognition as sr
 from pydub import AudioSegment
 import tempfile
 import os
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Dict, Any, List, Optional
 import asyncio
 
+try:
+    import imageio_ffmpeg  # type: ignore
+except Exception:
+    imageio_ffmpeg = None
+
 class AudioAnalyzer:
     def __init__(self):
+        self._configure_ffmpeg_binary()
         self.recognizer = sr.Recognizer()
         # Common cheating-related keywords
         self.suspicious_keywords = [
@@ -16,6 +23,25 @@ class AudioAnalyzer:
             'search', 'copy', 'paste', 'phone', 'friend',
             'whatsapp', 'telegram', 'look up', 'find'
         ]
+
+    def _configure_ffmpeg_binary(self) -> None:
+        if imageio_ffmpeg is None:
+            return
+        try:
+            AudioSegment.converter = imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            # Keep default pydub behavior when bundled ffmpeg cannot be loaded.
+            pass
+
+    def _load_audio_segment(self, audio_path: str) -> AudioSegment:
+        _, extension = os.path.splitext(audio_path)
+        normalized = extension.lower().replace('.', '')
+        if normalized:
+            try:
+                return AudioSegment.from_file(audio_path, format=normalized)
+            except Exception:
+                pass
+        return AudioSegment.from_file(audio_path)
         
     def is_ready(self) -> bool:
         return self.recognizer is not None
@@ -26,6 +52,19 @@ class AudioAnalyzer:
         return await loop.run_in_executor(
             None, self._analyze_audio_sync, audio_path, duration_ms
         )
+
+    def _recognize_google_with_timeout(self, audio_data: sr.AudioData, timeout_seconds: float = 4.0) -> str:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                self.recognizer.recognize_google,
+                audio_data,
+                language='en-US',
+                show_all=False,
+            )
+            try:
+                return future.result(timeout=timeout_seconds)
+            except FuturesTimeoutError as exc:
+                raise sr.RequestError('Speech API timeout') from exc
     
     def _analyze_audio_sync(self, audio_path: str, duration_ms: int) -> Dict[str, Any]:
         results = {
@@ -40,59 +79,58 @@ class AudioAnalyzer:
         
         try:
             # Load audio file
-            audio = AudioSegment.from_file(audio_path)
+            audio = self._load_audio_segment(audio_path)
             
             # Convert to WAV for speech recognition
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_wav:
-                audio.export(tmp_wav.name, format='wav')
-                
+            fd, tmp_wav_path = tempfile.mkstemp(suffix='.wav')
+            os.close(fd)
+            try:
+                audio.export(tmp_wav_path, format='wav')
+
                 # Analyze with librosa
-                y, sr_rate = librosa.load(tmp_wav.name, sr=None)
-                
+                y, sr_rate = librosa.load(tmp_wav_path, sr=None)
+
                 # Calculate noise level
                 rms = librosa.feature.rms(y=y)
                 avg_rms = np.mean(rms)
                 results['noise_level'] = float(min(avg_rms * 10, 1.0))  # Normalize
-                
+
                 # Voice activity detection
                 speech_intervals = self._detect_speech(y, sr_rate)
                 results['has_speech'] = len(speech_intervals) > 0
-                
+
                 if results['has_speech']:
                     # Try speech recognition
-                    with sr.AudioFile(tmp_wav.name) as source:
+                    with sr.AudioFile(tmp_wav_path) as source:
                         audio_data = self.recognizer.record(source)
-                        
+
                         try:
                             # Use Google Web Speech API (requires internet)
-                            transcript = self.recognizer.recognize_google(
-                                audio_data,
-                                language='en-US',
-                                show_all=False
-                            )
-                            
+                            transcript = self._recognize_google_with_timeout(audio_data)
+
                             results['transcript'] = transcript.lower()
                             results['speech_confidence'] = 0.85
-                            
+
                             # Check for suspicious keywords
                             found_keywords = []
                             for keyword in self.suspicious_keywords:
                                 if keyword in results['transcript']:
                                     found_keywords.append(keyword)
-                            
+
                             results['suspicious_keywords'] = found_keywords
-                            
+
                             # Simple voice counting (by sentence segmentation)
                             sentences = [s.strip() for s in results['transcript'].split('.') if s.strip()]
                             results['voice_count'] = min(len(sentences), 3)  # Estimate
-                            
+
                         except sr.UnknownValueError:
                             results['speech_confidence'] = 0.3
                             results['transcript'] = "[Unintelligible speech]"
                         except sr.RequestError as e:
                             results['transcript'] = f"[Speech API error: {e}]"
-                
-                os.unlink(tmp_wav.name)
+            finally:
+                if os.path.exists(tmp_wav_path):
+                    os.unlink(tmp_wav_path)
                 
         except Exception as e:
             results['error'] = str(e)

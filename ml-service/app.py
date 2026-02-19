@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import uvicorn
 import json
 import asyncio
+import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -126,6 +127,8 @@ async def analyze_face(
             'violation_count': len(violations)
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -138,6 +141,7 @@ async def analyze_audio(
     analysis_type: str = Query("audio")
 ):
     """Analyze audio for speech, external help, and unusual sounds"""
+    tmp_path = None
     try:
         if audio_analyzer is None or not audio_analyzer.is_ready():
             raise HTTPException(status_code=503, detail="Audio analyzer is unavailable")
@@ -145,20 +149,30 @@ async def analyze_audio(
         # Read audio
         contents = await audio.read()
         
-        # Save temporarily
+        # Save temporarily. Preserve upload format so decoding can choose the right backend.
         import tempfile
-        import os
-        
-        with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
+
+        extension = os.path.splitext(audio.filename or '')[1].lower()
+        content_type = (audio.content_type or '').lower()
+        if extension not in {'.webm', '.wav', '.ogg', '.mp3', '.m4a', '.mp4'}:
+            if 'wav' in content_type:
+                extension = '.wav'
+            elif 'ogg' in content_type:
+                extension = '.ogg'
+            elif 'mpeg' in content_type or 'mp3' in content_type:
+                extension = '.mp3'
+            elif 'mp4' in content_type or 'm4a' in content_type:
+                extension = '.mp4'
+            else:
+                extension = '.webm'
+
+        with tempfile.NamedTemporaryFile(suffix=extension, delete=False) as tmp:
             tmp.write(contents)
             tmp_path = tmp.name
         
         # Analyze audio
         results = await audio_analyzer.analyze_audio(tmp_path, duration_ms)
-        
-        # Clean up
-        os.unlink(tmp_path)
-        
+
         # Detect violations
         violations = []
         
@@ -205,8 +219,13 @@ async def analyze_audio(
             'violation_count': len(violations)
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 @app.post("/api/analyze/object")
 async def analyze_object(
@@ -265,6 +284,8 @@ async def analyze_object(
             'violation_count': len(violations)
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
