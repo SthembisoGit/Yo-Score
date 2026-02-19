@@ -49,8 +49,10 @@ export class WorkExperienceController {
 
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to add work experience';
+      const statusCode =
+        /required|positive number|invalid/i.test(message) ? 400 : 500;
       
-      return res.status(400).json({
+      return res.status(statusCode).json({
         success: false,
         message,
         error: 'ADD_EXPERIENCE_FAILED'
@@ -78,7 +80,7 @@ export class WorkExperienceController {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to get work experiences';
       
-      return res.status(400).json({
+      return res.status(500).json({
         success: false,
         message,
         error: 'GET_EXPERIENCES_FAILED'

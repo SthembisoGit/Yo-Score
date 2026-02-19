@@ -6,7 +6,7 @@ import { CorsOptions } from 'cors';
  * Ensures secure cross-origin requests between frontend and backend
  */
 export const getCorsConfig = (): CorsOptions => {
-  const rawFrontendUrls = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const rawFrontendUrls = process.env.FRONTEND_URL || 'http://localhost:5173,http://localhost:8080';
   const allowedOrigins = rawFrontendUrls
     .split(',')
     .map((value) => value.trim())
@@ -19,6 +19,24 @@ export const getCorsConfig = (): CorsOptions => {
       }
     });
 
+  const defaultDevOrigins = [
+    'http://localhost:8080',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:8080',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+  ];
+
+  for (const origin of defaultDevOrigins) {
+    if (!allowedOrigins.includes(origin)) {
+      allowedOrigins.push(origin);
+    }
+  }
+
+  const allowRenderOrigins = (process.env.ALLOW_RENDER_ORIGINS ?? 'true').toLowerCase() === 'true';
+  const renderOriginRegex = /^https:\/\/[a-z0-9-]+\.onrender\.com$/i;
+
   return {
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       // Allow requests with no origin (server-to-server, curl, mobile apps)
@@ -29,6 +47,12 @@ export const getCorsConfig = (): CorsOptions => {
 
       // Allow requests from configured frontend origins
       if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      // Allow Render-hosted frontends by default for easier multi-service deployments.
+      if (allowRenderOrigins && renderOriginRegex.test(origin)) {
         callback(null, true);
         return;
       }

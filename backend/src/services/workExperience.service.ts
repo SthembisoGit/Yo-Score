@@ -9,6 +9,12 @@ export interface WorkExperienceInput {
 }
 
 export class WorkExperienceService {
+  private isMissingSchemaError(error: unknown): boolean {
+    const code = (error as { code?: string })?.code;
+    const message = (error as { message?: string })?.message ?? '';
+    return code === '42703' || code === '42P01' || /does not exist/i.test(message);
+  }
+
   private normalizeEvidenceLinks(rawLinks: unknown): string[] {
     if (!Array.isArray(rawLinks)) return [];
 
@@ -65,21 +71,35 @@ export class WorkExperienceService {
     const riskScore = this.computeRiskScore(data.duration_months, evidenceLinks);
     const verificationStatus = this.getVerificationStatus(riskScore);
 
-    const result = await query(
-      `INSERT INTO work_experience
-         (user_id, company_name, role, duration_months, verified, evidence_links, verification_status, risk_score)
-       VALUES ($1, $2, $3, $4, false, $5::jsonb, $6, $7)
-       RETURNING id, user_id, company_name, role, duration_months, verified, evidence_links, verification_status, risk_score, added_at`,
-      [
-        userId,
-        data.company_name,
-        data.role,
-        data.duration_months,
-        JSON.stringify(evidenceLinks),
-        verificationStatus,
-        riskScore,
-      ],
-    );
+    let result;
+    try {
+      result = await query(
+        `INSERT INTO work_experience
+           (user_id, company_name, role, duration_months, verified, evidence_links, verification_status, risk_score)
+         VALUES ($1, $2, $3, $4, false, $5::jsonb, $6, $7)
+         RETURNING id, user_id, company_name, role, duration_months, verified, evidence_links, verification_status, risk_score, added_at`,
+        [
+          userId,
+          data.company_name,
+          data.role,
+          data.duration_months,
+          JSON.stringify(evidenceLinks),
+          verificationStatus,
+          riskScore,
+        ],
+      );
+    } catch (error) {
+      if (!this.isMissingSchemaError(error)) {
+        throw error;
+      }
+      result = await query(
+        `INSERT INTO work_experience
+           (user_id, company_name, role, duration_months, verified)
+         VALUES ($1, $2, $3, $4, false)
+         RETURNING id, user_id, company_name, role, duration_months, verified, added_at`,
+        [userId, data.company_name, data.role, data.duration_months],
+      );
+    }
 
     const experience = result.rows[0];
     await scoringService.recomputeTrustScore(userId);
@@ -97,13 +117,27 @@ export class WorkExperienceService {
   }
 
   async getUserWorkExperiences(userId: string) {
-    const result = await query(
-      `SELECT id, company_name, role, duration_months, verified, evidence_links, verification_status, risk_score, added_at
-       FROM work_experience
-       WHERE user_id = $1
-       ORDER BY added_at DESC`,
-      [userId]
-    );
+    let result;
+    try {
+      result = await query(
+        `SELECT id, company_name, role, duration_months, verified, evidence_links, verification_status, risk_score, added_at
+         FROM work_experience
+         WHERE user_id = $1
+         ORDER BY added_at DESC`,
+        [userId],
+      );
+    } catch (error) {
+      if (!this.isMissingSchemaError(error)) {
+        throw error;
+      }
+      result = await query(
+        `SELECT id, company_name, role, duration_months, verified, added_at
+         FROM work_experience
+         WHERE user_id = $1
+         ORDER BY added_at DESC`,
+        [userId],
+      );
+    }
 
     return result.rows.map((exp) => ({
       experience_id: exp.id,
