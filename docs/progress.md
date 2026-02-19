@@ -13,6 +13,10 @@
   - Corrected error status behavior in `backend/src/controllers/workExperience.controller.ts` (validation vs server failures).
 - Improved CORS reliability for Render deployments:
   - Supports comma-separated origins, localhost defaults, and optional `*.onrender.com` allowance via `ALLOW_RENDER_ORIGINS` in `backend/src/utils/corsConfig.ts`.
+- Added DB/queue resilience to prevent hanging requests when infrastructure is unstable:
+  - Pool-level connection/query timeouts in `backend/src/db/index.ts`.
+  - Judge queue initialization made lazy in `backend/src/queue/judgeQueue.ts` (no eager Redis bind at module import).
+  - Submission enqueue timeout guard in `backend/src/services/submission.service.ts`.
 
 ### Real challenge scoring readiness completed
 - Added easy challenge seed pipeline with real automated checks:

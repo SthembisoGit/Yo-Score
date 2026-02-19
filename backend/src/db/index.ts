@@ -7,6 +7,10 @@ const isLocalDatabase =
 const pool = new Pool({
   connectionString: config.DATABASE_URL,
   ssl: isLocalDatabase ? undefined : { rejectUnauthorized: false },
+  connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS ?? 10000),
+  idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS ?? 30000),
+  query_timeout: Number(process.env.PG_QUERY_TIMEOUT_MS ?? 15000),
+  statement_timeout: Number(process.env.PG_STATEMENT_TIMEOUT_MS ?? 20000),
 });
 
 pool.on('error', (err) => {
