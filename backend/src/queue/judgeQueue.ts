@@ -1,4 +1,4 @@
-import { Queue, Worker, QueueEvents, JobsOptions } from 'bullmq';
+import { Queue, Worker, JobsOptions } from 'bullmq';
 import { config, enableJudge } from '../config';
 
 const connection = { url: config.REDIS_URL || 'redis://127.0.0.1:6379' };
@@ -24,11 +24,28 @@ class DisabledJudgeQueue implements JudgeQueueLike {
   }
 }
 
-export const judgeQueue: JudgeQueueLike = enableJudge
-  ? new Queue('judge', { connection })
-  : new DisabledJudgeQueue();
+class LazyJudgeQueue implements JudgeQueueLike {
+  private queue: Queue | null = null;
 
-export const judgeEvents = enableJudge ? new QueueEvents('judge', { connection }) : null;
+  private getQueue(): Queue {
+    if (!this.queue) {
+      this.queue = new Queue('judge', { connection });
+    }
+    return this.queue;
+  }
+
+  async add(...args: Parameters<Queue['add']>) {
+    return this.getQueue().add(...args);
+  }
+
+  async getJobCounts(...statuses: Parameters<Queue['getJobCounts']>) {
+    return this.getQueue().getJobCounts(...statuses);
+  }
+}
+
+export const judgeQueue: JudgeQueueLike = enableJudge
+  ? new LazyJudgeQueue()
+  : new DisabledJudgeQueue();
 
 export type JudgeJobData = {
   submissionId: string;

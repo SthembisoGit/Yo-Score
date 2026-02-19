@@ -103,18 +103,24 @@ export class SubmissionService {
 
     if (enableJudge) {
       try {
-        await judgeQueue.add(
-          'judge.run',
-          {
-            submissionId: submission.id,
-            challengeId: data.challenge_id,
-            userId,
-            code: data.code,
-            language,
-            sessionId: data.session_id ?? null,
-          },
-          defaultJobOptions,
-        );
+        const enqueueTimeoutMs = Number(process.env.JUDGE_QUEUE_ADD_TIMEOUT_MS ?? 8000);
+        await Promise.race([
+          judgeQueue.add(
+            'judge.run',
+            {
+              submissionId: submission.id,
+              challengeId: data.challenge_id,
+              userId,
+              code: data.code,
+              language,
+              sessionId: data.session_id ?? null,
+            },
+            defaultJobOptions,
+          ),
+          new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Judge queue enqueue timeout')), enqueueTimeoutMs);
+          }),
+        ]);
       } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Failed to enqueue submission for judge';
