@@ -61,6 +61,8 @@ test('admin can open dashboard and publish a ready challenge', async ({ page }) 
               description: 'Solve two sum',
               category: 'Backend',
               difficulty: 'Easy',
+              target_seniority: 'junior',
+              duration_minutes: 45,
               publish_status: 'draft',
               readiness: {
                 has_tests: true,
@@ -90,6 +92,18 @@ test('admin can open dashboard and publish a ready challenge', async ({ page }) 
           challenge_id: 'challenge-1',
           publish_status: 'published',
         },
+      }),
+    });
+  });
+
+  await page.route('**/api/admin/work-experience/flagged?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        message: 'Flagged',
+        data: [],
       }),
     });
   });
@@ -210,7 +224,7 @@ test('admin can open dashboard and publish a ready challenge', async ({ page }) 
   await page.goto('/admin');
 
   await expect(page.getByRole('heading', { name: /admin dashboard/i })).toBeVisible();
-  await expect(page.getByText(/two sum/i)).toBeVisible();
+  await expect(page.getByText('Two Sum')).toBeVisible();
   await page.getByRole('button', { name: 'Publish' }).first().click();
   await expect.poll(() => publishCalls).toBe(1);
 });

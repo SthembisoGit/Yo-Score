@@ -50,6 +50,14 @@ export interface AdminChallengeBaseline {
   updated_at: string;
 }
 
+export interface AdminChallengeDoc {
+  doc_id: string;
+  title: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AdminJudgeRun {
   id: string;
   submission_id: string;
@@ -280,6 +288,22 @@ class AdminService {
   ) {
     const response = await apiClient.put(`/admin/challenges/${challengeId}/baseline`, payload);
     return unwrapData(response);
+  }
+
+  async listChallengeDocs(challengeId: string) {
+    const response = await apiClient.get(`/admin/challenges/${challengeId}/docs`);
+    return unwrapData<AdminChallengeDoc[]>(response);
+  }
+
+  async createChallengeDoc(
+    challengeId: string,
+    payload: {
+      title: string;
+      content: string;
+    },
+  ) {
+    const response = await apiClient.post(`/admin/challenges/${challengeId}/docs`, payload);
+    return unwrapData<AdminChallengeDoc>(response);
   }
 
   async getJudgeHealth() {

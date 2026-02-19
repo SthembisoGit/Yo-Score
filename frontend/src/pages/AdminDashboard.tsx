@@ -5,6 +5,7 @@ import {
   adminService,
   type AdminAuditLog,
   type AdminChallenge,
+  type AdminChallengeDoc,
   type AdminChallengeTestCase,
   type AdminDashboardSummary,
   type AdminFlaggedWorkExperience,
@@ -52,11 +53,16 @@ export default function AdminDashboard() {
   });
   const [selectedChallengeId, setSelectedChallengeId] = useState<string | null>(null);
   const [tests, setTests] = useState<AdminChallengeTestCase[]>([]);
+  const [challengeDocs, setChallengeDocs] = useState<AdminChallengeDoc[]>([]);
   const [newTest, setNewTest] = useState({
     name: 'Sample test',
     input: '',
     expected_output: '',
     points: 1,
+  });
+  const [newDoc, setNewDoc] = useState({
+    title: 'Reference Guide',
+    content: '',
   });
   const [jsBaseline, setJsBaseline] = useState({ runtime_ms: 2000, memory_mb: 256 });
   const [pyBaseline, setPyBaseline] = useState({ runtime_ms: 2000, memory_mb: 256 });
@@ -64,7 +70,7 @@ export default function AdminDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [d, c, r, u, s, ps, set, logs, flagged] = await Promise.all([
+      const [d, c, r, u, s, ps, set, logs, flagged] = await Promise.allSettled([
         adminService.getDashboard(),
         adminService.listChallenges(),
         adminService.listJudgeRuns(30),
@@ -75,15 +81,26 @@ export default function AdminDashboard() {
         adminService.getAuditLogs(25),
         adminService.getFlaggedWorkExperience(25),
       ]);
-      setSummary(d);
-      setChallenges(c);
-      setRuns(r);
-      setUsers(u);
-      setSessions(s);
-      setViolationSummary(ps);
-      setSettings(set);
-      setAuditLogs(logs);
-      setFlaggedWorkExperience(flagged);
+
+      const pick = <T, F>(
+        result: PromiseSettledResult<T>,
+        fallback: F,
+        label: string,
+      ): T | F => {
+        if (result.status === 'fulfilled') return result.value;
+        toast.error(`Failed to load ${label}`);
+        return fallback;
+      };
+
+      setSummary(pick(d, null, 'dashboard summary'));
+      setChallenges(pick(c, [], 'challenges'));
+      setRuns(pick(r, [], 'judge runs'));
+      setUsers(pick(u, [], 'users'));
+      setSessions(pick(s, [], 'proctoring sessions'));
+      setViolationSummary(pick(ps, null, 'proctoring summary'));
+      setSettings(pick(set, defaultSettings, 'proctoring settings'));
+      setAuditLogs(pick(logs, [], 'audit logs'));
+      setFlaggedWorkExperience(pick(flagged, [], 'flagged work experience'));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load admin data');
     } finally {
@@ -97,12 +114,14 @@ export default function AdminDashboard() {
 
   const loadChallengeConfig = async (challengeId: string) => {
     try {
-      const [testRows, js, py] = await Promise.all([
+      const [testRows, js, py, docs] = await Promise.all([
         adminService.getChallengeTests(challengeId),
         adminService.getChallengeBaseline(challengeId, 'javascript'),
         adminService.getChallengeBaseline(challengeId, 'python'),
+        adminService.listChallengeDocs(challengeId),
       ]);
       setTests(testRows);
+      setChallengeDocs(docs);
       if (js) setJsBaseline({ runtime_ms: Number(js.runtime_ms), memory_mb: Number(js.memory_mb) });
       if (py) setPyBaseline({ runtime_ms: Number(py.runtime_ms), memory_mb: Number(py.memory_mb) });
       setSelectedChallengeId(challengeId);
@@ -161,6 +180,28 @@ export default function AdminDashboard() {
       await loadData();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save baseline');
+    }
+  };
+
+  const onAddDoc = async () => {
+    if (!selectedChallengeId) return;
+    if (!newDoc.title.trim() || !newDoc.content.trim()) {
+      toast.error('Reference document title and content are required');
+      return;
+    }
+    try {
+      await adminService.createChallengeDoc(selectedChallengeId, {
+        title: newDoc.title.trim(),
+        content: newDoc.content.trim(),
+      });
+      toast.success('Reference document saved');
+      setNewDoc({
+        title: 'Reference Guide',
+        content: '',
+      });
+      await loadChallengeConfig(selectedChallengeId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to add challenge document');
     }
   };
 
@@ -318,6 +359,30 @@ export default function AdminDashboard() {
               {tests.map((t) => (
                 <div key={t.id} className="rounded border px-2 py-1">{t.name} ({t.points} pts)</div>
               ))}
+            </div>
+            <div className="rounded border p-3 space-y-2">
+              <p className="font-medium">Reference docs</p>
+              <input
+                className="w-full rounded border px-2 py-1"
+                value={newDoc.title}
+                onChange={(e) => setNewDoc((p) => ({ ...p, title: e.target.value }))}
+                placeholder="Doc title"
+              />
+              <textarea
+                className="w-full rounded border px-2 py-1"
+                rows={3}
+                value={newDoc.content}
+                onChange={(e) => setNewDoc((p) => ({ ...p, content: e.target.value }))}
+                placeholder="Doc content / instructions"
+              />
+              <Button size="sm" onClick={() => void onAddDoc()}>Add Doc</Button>
+              <div className="space-y-1 text-sm">
+                {challengeDocs.map((doc) => (
+                  <div key={doc.doc_id} className="rounded border px-2 py-1">
+                    {doc.title}
+                  </div>
+                ))}
+              </div>
             </div>
           </section>
         )}
