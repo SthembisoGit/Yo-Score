@@ -1,5 +1,50 @@
 # YoScore Development Progress
 
+## Latest Update (Stability + Real Scoring Seed, 2026-02-19)
+
+### Critical runtime fixes completed
+- Hardened challenge APIs against partial/old DB schema states:
+  - Added safe legacy fallbacks when newer columns/tables are missing in `backend/src/services/challenge.service.ts`.
+  - Added `readyOnly` challenge filtering so developer-facing challenge endpoints only return publish-ready challenges (tests + JS baseline + Python baseline).
+- Updated challenge controllers to use ready-only listing/details for developer routes:
+  - `backend/src/controllers/challenge.controller.ts`.
+- Hardened work-experience APIs for mixed schema environments:
+  - Legacy insert/select fallback logic in `backend/src/services/workExperience.service.ts`.
+  - Corrected error status behavior in `backend/src/controllers/workExperience.controller.ts` (validation vs server failures).
+- Improved CORS reliability for Render deployments:
+  - Supports comma-separated origins, localhost defaults, and optional `*.onrender.com` allowance via `ALLOW_RENDER_ORIGINS` in `backend/src/utils/corsConfig.ts`.
+
+### Real challenge scoring readiness completed
+- Added easy challenge seed pipeline with real automated checks:
+  - New script: `backend/scripts/seed-easy-challenges.js`.
+  - New npm command: `npm run seed:easy-challenges`.
+  - Seeds 9 category-aligned beginner challenges, each with:
+    - publish status = published
+    - target seniority = graduate
+    - explicit duration
+    - deterministic test cases
+    - JS + Python baselines
+- Seed validation completed successfully against DB (9 challenges inserted/updated).
+
+### Judge execution reliability completed
+- Reworked runner execution to support practical non-Docker environments in `backend/src/services/runner.service.ts`:
+  - Added `JUDGE_RUNNER_MODE` (`local|docker|auto`) support.
+  - Added runtime command execution with hard timeouts and safe process termination.
+  - Added automatic Docker-unavailable fallback to local execution.
+  - Added Python runtime detection (`python3`/`python`) for local mode.
+- Updated environment docs (`backend/.env.example`, `docs/RunStack.md`) with runner mode and new seed step.
+
+### Frontend alignment fixes completed
+- Improved API error surfacing from backend response envelopes in `frontend/src/services/apiClient.ts`.
+- Fixed local env key mismatch (`frontend/.env`) from deprecated `REACT_APP_*` to active `VITE_*` keys.
+
+### Verification results (this pass)
+- `backend`: `npm run build` passes.
+- `backend`: `npm run test:api` passes (4/4).
+- `frontend`: `npm run build` passes.
+- `frontend`: `npm run test -- --run` passes.
+- Judge service validated locally for JS and Python against seeded challenge tests (passing summaries observed).
+
 ## Latest Update (Trust-Core Realignment, 2026-02-16)
 
 ### Product and docs alignment completed
