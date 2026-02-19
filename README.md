@@ -1,13 +1,14 @@
-# Yo-Score
+﻿# Yo-Score
 
 **Yo-Score** is a **Developer Trust and Skill Scoring Platform** designed to objectively evaluate developer skills, problem-solving ability, and trustworthiness in real-world coding scenarios. The platform provides a secure, monitored environment for developers to solve coding challenges while tracking performance, behavior, and professional experience to produce verifiable trust scores.
 
 ---
 
-## 📋 Table of Contents
+## ðŸ“‹ Table of Contents
 
 - [Vision & Purpose](#vision--purpose)
 - [Key Features](#key-features)
+- [Live Deployment](#live-deployment)
 - [Technology Stack](#technology-stack)
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
@@ -18,7 +19,17 @@
 
 ---
 
-## 🎯 Vision & Purpose
+## Live Deployment
+
+- Frontend (Render): `https://yoscore-frontend.onrender.com`
+- Backend API (Render): `https://yoscore-backend.onrender.com/api`
+  - Health: `https://yoscore-backend.onrender.com/health`
+- ML Service (Render): `https://yoscore-ml-service.onrender.com`
+  - Health: `https://yoscore-ml-service.onrender.com/health`
+
+---
+
+## ðŸŽ¯ Vision & Purpose
 
 ### Problem Statement
 Traditional coding assessments fail to accurately reflect real-world developer skills. Developers often rely on external references, and current systems don't track behavior or secure coding practices, leading to incomplete evaluations and unverifiable trust scores.
@@ -38,7 +49,7 @@ Yo-Score provides:
 
 ---
 
-## ✨ Key Features
+## âœ¨ Key Features
 
 ### 1. **Secure Challenge Environment**
    - Developers solve real-world coding challenges in categories: Frontend, Backend, Security, etc.
@@ -61,7 +72,7 @@ Yo-Score provides:
    - Real-time score tracking across multiple challenges
    - Progress visualization by category
    - Historical score data
-   - Trust level classification: Low (0–49), Medium (50–74), High (75–100)
+   - Trust level classification: Low (0â€“49), Medium (50â€“74), High (75â€“100)
 
 ### 5. **Work Experience Tracker**
    - Developers input previous work experience, projects, or internships
@@ -75,7 +86,7 @@ Yo-Score provides:
 
 ---
 
-## 🛠️ Technology Stack
+## ðŸ› ï¸ Technology Stack
 
 ### Frontend
 - **Framework**: React + TypeScript
@@ -103,58 +114,58 @@ Yo-Score provides:
 
 ---
 
-## 📁 Project Structure
+## ðŸ“ Project Structure
 
 ```
 Yo-Score/
-├── frontend/                  # React + TypeScript web application
-│   ├── src/
-│   │   ├── components/       # Reusable UI components
-│   │   ├── pages/            # Application pages
-│   │   ├── services/         # API client services
-│   │   ├── context/          # React Context (auth, etc.)
-│   │   └── hooks/            # Custom React hooks
-│   └── package.json
-│
-├── backend/                   # Node.js/Express API server
-│   ├── src/
-│   │   ├── app.ts            # Express application setup
-│   │   ├── controllers/      # Route handlers
-│   │   ├── services/         # Business logic
-│   │   ├── routes/           # API route definitions
-│   │   ├── middleware/       # Auth, CORS, etc.
-│   │   ├── types/            # TypeScript interfaces
-│   │   └── config/           # Configuration
-│   ├── db/
-│   │   ├── index.ts          # Database connection
-│   │   └── schema.sql        # Database schema
-│   └── package.json
-│
-├── ml-service/               # Python ML service
-│   ├── app.py               # FastAPI application
-│   ├── face_detector.py     # MediaPipe face detection
-│   ├── audio_analyzer.py    # Audio/speech analysis
-│   ├── object_detector.py   # Object detection
-│   ├── requirements.txt     # Python dependencies
-│   └── SETUP.md             # Setup instructions
-│
-├── docs/                      # Comprehensive documentation
-│   ├── Vision.md             # Project vision and goals
-│   ├── PRD.md               # Product requirements
-│   ├── Architecture.md       # System architecture
-│   ├── Features.md          # Feature specifications
-│   ├── DataModel.md         # Database schema
-│   ├── Scoring.md           # Scoring algorithm
-│   ├── Security.md          # Security measures
-│   ├── Proctoring-Implementation.md # Proctoring details
-│   └── more...
-│
-└── LICENSE
+â”œâ”€â”€ frontend/                  # React + TypeScript web application
+â”‚   â”œâ”€â”€ src/
+â”‚   â”‚   â”œâ”€â”€ components/       # Reusable UI components
+â”‚   â”‚   â”œâ”€â”€ pages/            # Application pages
+â”‚   â”‚   â”œâ”€â”€ services/         # API client services
+â”‚   â”‚   â”œâ”€â”€ context/          # React Context (auth, etc.)
+â”‚   â”‚   â””â”€â”€ hooks/            # Custom React hooks
+â”‚   â””â”€â”€ package.json
+â”‚
+â”œâ”€â”€ backend/                   # Node.js/Express API server
+â”‚   â”œâ”€â”€ src/
+â”‚   â”‚   â”œâ”€â”€ app.ts            # Express application setup
+â”‚   â”‚   â”œâ”€â”€ controllers/      # Route handlers
+â”‚   â”‚   â”œâ”€â”€ services/         # Business logic
+â”‚   â”‚   â”œâ”€â”€ routes/           # API route definitions
+â”‚   â”‚   â”œâ”€â”€ middleware/       # Auth, CORS, etc.
+â”‚   â”‚   â”œâ”€â”€ types/            # TypeScript interfaces
+â”‚   â”‚   â””â”€â”€ config/           # Configuration
+â”‚   â”œâ”€â”€ db/
+â”‚   â”‚   â”œâ”€â”€ index.ts          # Database connection
+â”‚   â”‚   â””â”€â”€ schema.sql        # Database schema
+â”‚   â””â”€â”€ package.json
+â”‚
+â”œâ”€â”€ ml-service/               # Python ML service
+â”‚   â”œâ”€â”€ app.py               # FastAPI application
+â”‚   â”œâ”€â”€ face_detector.py     # MediaPipe face detection
+â”‚   â”œâ”€â”€ audio_analyzer.py    # Audio/speech analysis
+â”‚   â”œâ”€â”€ object_detector.py   # Object detection
+â”‚   â”œâ”€â”€ requirements.txt     # Python dependencies
+â”‚   â””â”€â”€ SETUP.md             # Setup instructions
+â”‚
+â”œâ”€â”€ docs/                      # Comprehensive documentation
+â”‚   â”œâ”€â”€ Vision.md             # Project vision and goals
+â”‚   â”œâ”€â”€ PRD.md               # Product requirements
+â”‚   â”œâ”€â”€ Architecture.md       # System architecture
+â”‚   â”œâ”€â”€ Features.md          # Feature specifications
+â”‚   â”œâ”€â”€ DataModel.md         # Database schema
+â”‚   â”œâ”€â”€ Scoring.md           # Scoring algorithm
+â”‚   â”œâ”€â”€ Security.md          # Security measures
+â”‚   â”œâ”€â”€ Proctoring-Implementation.md # Proctoring details
+â”‚   â””â”€â”€ more...
+â”‚
+â””â”€â”€ LICENSE
 ```
 
 ---
 
-## 🚀 Getting Started
+## ðŸš€ Getting Started
 
 ### Prerequisites
 - Node.js 16+ (for frontend and backend)
@@ -205,34 +216,34 @@ npm run migrate
 
 ---
 
-## 🏗️ Architecture
+## ðŸ—ï¸ Architecture
 
 ### High-Level System Design
 
 ```
-┌─────────────────┐
-│   Frontend      │ (React + TypeScript)
-│   (Browser)     │
-└────────┬────────┘
-         │ HTTP/REST
-         ▼
-┌─────────────────┐
-│   Backend API   │ (Node.js + Express)
-│  - Auth         │
-│  - Challenges   │
-│  - Scoring      │
-│  - Proctoring   │
-└────┬────────┬───┘
-     │        │
-     │        └─────────────────┐
-     │                          │
-     ▼                          ▼
-┌──────────────┐        ┌───────────────┐
-│  PostgreSQL  │        │  ML Service   │ (Python FastAPI)
-│  Database    │        │  - Face Detect│
-│              │        │  - Audio      │
-│              │        │  - Objects    │
-└──────────────┘        └───────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚   Frontend      â”‚ (React + TypeScript)
+â”‚   (Browser)     â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+         â”‚ HTTP/REST
+         â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚   Backend API   â”‚ (Node.js + Express)
+â”‚  - Auth         â”‚
+â”‚  - Challenges   â”‚
+â”‚  - Scoring      â”‚
+â”‚  - Proctoring   â”‚
+â””â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”˜
+     â”‚        â”‚
+     â”‚        â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+     â”‚                          â”‚
+     â–¼                          â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”        â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  PostgreSQL  â”‚        â”‚  ML Service   â”‚ (Python FastAPI)
+â”‚  Database    â”‚        â”‚  - Face Detectâ”‚
+â”‚              â”‚        â”‚  - Audio      â”‚
+â”‚              â”‚        â”‚  - Objects    â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜        â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 ### Key Components
@@ -245,22 +256,22 @@ npm run migrate
 
 ---
 
-## 📊 Scoring System
+## ðŸ“Š Scoring System
 
 The trust score is calculated as a weighted combination of three components:
 
 | Component | Weight | Details |
 |-----------|--------|---------|
-| **Challenge Performance** | 60% | Correctness (0–40) + Efficiency (0–20) |
+| **Challenge Performance** | 60% | Correctness (0â€“40) + Efficiency (0â€“20) |
 | **Behavior/Proctoring** | 20% | Base 20 points minus penalties for violations |
-| **Work Experience** | 20% | Duration and relevance of past work (0–20) |
+| **Work Experience** | 20% | Duration and relevance of past work (0â€“20) |
 
-**Score Range**: 0–100 points
+**Score Range**: 0â€“100 points
 
 **Trust Levels**:
-- **Low**: 0–49
-- **Medium**: 50–74
-- **High**: 75–100
+- **Low**: 0â€“49
+- **Medium**: 50â€“74
+- **High**: 75â€“100
 
 ### Proctoring Penalties
 
@@ -289,7 +300,7 @@ Challenge Performance:
 
 Behavior Score:
   - Base: 20
-  - Penalties: -8 (2 tab switches × 3 + 1 inactivity × 2)
+  - Penalties: -8 (2 tab switches Ã— 3 + 1 inactivity Ã— 2)
   - Subtotal: 12/20
 
 Work Experience:
@@ -300,7 +311,7 @@ Total Trust Score: 50 + 12 + 12 = 74 (Medium Trust Level)
 
 ---
 
-## 📚 Documentation
+## ðŸ“š Documentation
 
 Comprehensive documentation is available in the [docs/](docs/) folder:
 
@@ -317,7 +328,7 @@ Comprehensive documentation is available in the [docs/](docs/) folder:
 
 ---
 
-## 🔒 Security Features
+## ðŸ”’ Security Features
 
 - **JWT-based authentication** with token expiration and rotation
 - **Password hashing** using bcryptjs
@@ -330,7 +341,7 @@ Comprehensive documentation is available in the [docs/](docs/) folder:
 
 ---
 
-## 🧪 Testing
+## ðŸ§ª Testing
 
 ### Frontend
 ```bash
@@ -344,18 +355,19 @@ Tests can be added using Jest or your preferred testing framework.
 
 ---
 
-## 📝 License
+## ðŸ“ License
 
 This project is licensed under the [MIT License](LICENSE).
 
 ---
 
-## 👥 Contributing
+## ðŸ‘¥ Contributing
 
 This is an industry project. For contribution guidelines, please refer to the project documentation or contact the project lead.
 
 ---
 
-## 📞 Support
+## ðŸ“ž Support
 
 For questions, issues, or documentation clarifications, refer to the [docs/](docs/) folder for comprehensive guidance on all aspects of the platform.
+
