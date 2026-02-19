@@ -69,6 +69,7 @@ export interface AudioMonitorResult {
   noise_level: number;
   suspicious_keywords: string[];
   transcript: string;
+  error?: string;
 }
 
 export interface SessionHeartbeatPayload {
@@ -309,6 +310,10 @@ class ProctoringService {
           ? (wrappedResult.suspicious_keywords as string[])
           : [],
         transcript: String(wrappedResult.transcript ?? ''),
+        error:
+          typeof wrappedResult.error === 'string'
+            ? wrappedResult.error
+            : undefined,
       };
     } catch (error) {
       console.error('Audio analysis failed:', error);
