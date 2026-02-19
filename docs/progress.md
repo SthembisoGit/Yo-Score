@@ -305,3 +305,46 @@ Current Status: Proctoring stable; judge/scoring expanded with Docker-based exec
 - Add unit tests for auth and submission services; integration test for login -> dashboard -> challenges.
 
 Last Updated: Judge runner & stack script added; build passing.
+
+## Session Update - Proctoring/Admin/Judge Verification
+
+### Proctoring + ML fixes
+- Removed duplicate ML violation persistence path in backend `ProctoringService`:
+  - `analyzeFaceFrame()` and `analyzeAudioChunk()` now store ML analysis results but do not auto-write `proctoring_logs`.
+  - Frontend rule engine remains the single source for when a violation is counted, which prevents double-counting.
+- Frontend `ProctoringMonitor` now increments violation count only after backend `/proctoring/violation` success.
+- Added audio fallback behavior in frontend monitor:
+  - If ML audio analysis is degraded/unavailable, it estimates speech from decoded audio energy and still enforces `speech_detected`.
+- Improved audio blob MIME handling in frontend monitor (no hardcoded `audio/webm`).
+- `ml-service` audio reliability hardening:
+  - `app.py` now preserves upload file extension/content type when saving temp audio.
+  - Added proper `HTTPException` passthrough in ML endpoints.
+  - Added bundled ffmpeg support via `imageio-ffmpeg` and configured pydub converter.
+  - Fixed Windows temp-file lock bug in `audio_analyzer.py` (moved from open-handle `NamedTemporaryFile` export to `mkstemp` flow).
+  - Added timeout wrapper around Google speech recognition call to prevent hanging requests.
+
+### Admin dashboard improvements
+- Admin dashboard data loading changed from all-or-nothing to partial-resilient:
+  - `Promise.allSettled` now loads independent sections even if one API call fails.
+- Added challenge reference-doc management in admin UI:
+  - List docs per challenge.
+  - Add doc title/content from dashboard.
+  - Wired through new frontend admin service methods to existing backend admin docs endpoints.
+
+### Judge verification and smoke tooling
+- Added backend smoke command:
+  - `npm run test:judge-smoke`
+  - Confirms Redis queue connectivity and executes real `judgeService.runTests()` against published challenge test cases/baselines.
+- This smoke test validates judged execution path and per-test result production without mutating submission history.
+
+### Validation status (this session)
+- Backend build: pass (`npm run build`)
+- Frontend build: pass (`npm run build`)
+- Backend API smoke tests: pass (`npm run test:api`)
+- Frontend unit tests: pass (`npm run test`)
+- Frontend Playwright e2e: pass (`npm run e2e`)
+- Judge smoke: pass (`npm run test:judge-smoke`)
+- ML local verification:
+  - `/health` OK
+  - `/api/analyze/face` returns `no_face` violation on blank frame
+  - `/api/analyze/audio` responds correctly for silence/tone test payloads
