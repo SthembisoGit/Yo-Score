@@ -27,6 +27,11 @@ apiClient.interceptors.request.use(config => {
 apiClient.interceptors.response.use(
   response => response.data,
   async error => {
+    const apiMessage: string | undefined = error?.response?.data?.message;
+    if (apiMessage && typeof apiMessage === 'string') {
+      error.message = apiMessage;
+    }
+
     if (error.response?.status === 401) {
       try {
         const token = localStorage.getItem(JWT_STORAGE_KEY);

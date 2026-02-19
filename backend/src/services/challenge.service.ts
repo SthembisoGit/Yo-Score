@@ -49,36 +49,123 @@ export interface ChallengeReadiness {
 
 type GetChallengeOptions = {
   includeUnpublished?: boolean;
+  readyOnly?: boolean;
 };
 
 export class ChallengeService {
-  async getAllChallenges(options: GetChallengeOptions = {}) {
-    const includeUnpublished = options.includeUnpublished ?? false;
+  private isMissingSchemaError(error: unknown): boolean {
+    const code = (error as { code?: string })?.code;
+    const message = (error as { message?: string })?.message ?? '';
+    return code === '42703' || code === '42P01' || /does not exist/i.test(message);
+  }
+
+  private getReadinessSql(alias = ''): string {
+    const prefix = alias ? `${alias}.` : '';
+    return `EXISTS (
+              SELECT 1
+              FROM challenge_test_cases t
+              WHERE t.challenge_id = ${prefix}id
+            )
+            AND EXISTS (
+              SELECT 1
+              FROM challenge_baselines b_js
+              WHERE b_js.challenge_id = ${prefix}id
+                AND b_js.language = 'javascript'
+            )
+            AND EXISTS (
+              SELECT 1
+              FROM challenge_baselines b_py
+              WHERE b_py.challenge_id = ${prefix}id
+                AND b_py.language = 'python'
+            )`;
+  }
+
+  private async getAllChallengesLegacy(options: GetChallengeOptions = {}) {
+    const readyOnly = options.readyOnly ?? false;
+    const where = readyOnly ? `WHERE ${this.getReadinessSql('c')}` : '';
     const result = await query(
-      `SELECT id, title, description, category, difficulty, target_seniority, duration_minutes, publish_status, created_at, updated_at
-       FROM challenges
-       ${includeUnpublished ? '' : `WHERE publish_status = 'published'`}
-       ORDER BY created_at DESC`,
+      `SELECT c.id, c.title, c.description, c.category, c.difficulty, c.created_at, c.updated_at
+       FROM challenges c
+       ${where}
+       ORDER BY c.created_at DESC`,
     );
 
     return result.rows.map((challenge) => this.mapRowToChallenge(challenge));
   }
 
+  async getAllChallenges(options: GetChallengeOptions = {}) {
+    const includeUnpublished = options.includeUnpublished ?? false;
+    const readyOnly = options.readyOnly ?? false;
+    const conditions: string[] = [];
+    if (!includeUnpublished) {
+      conditions.push(`c.publish_status = 'published'`);
+    }
+    if (readyOnly) {
+      conditions.push(this.getReadinessSql('c'));
+    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    try {
+      const result = await query(
+        `SELECT c.id, c.title, c.description, c.category, c.difficulty, c.target_seniority, c.duration_minutes, c.publish_status, c.created_at, c.updated_at
+         FROM challenges c
+         ${where}
+         ORDER BY c.created_at DESC`,
+      );
+
+      return result.rows.map((challenge) => this.mapRowToChallenge(challenge));
+    } catch (error) {
+      if (this.isMissingSchemaError(error)) {
+        return this.getAllChallengesLegacy(options);
+      }
+      throw error;
+    }
+  }
+
   async getChallengeById(challengeId: string, options: GetChallengeOptions = {}) {
     const includeUnpublished = options.includeUnpublished ?? false;
-    const result = await query(
-      `SELECT id, title, description, category, difficulty, target_seniority, duration_minutes, publish_status, created_at, updated_at
-       FROM challenges
-       WHERE id = $1
-       ${includeUnpublished ? '' : `AND publish_status = 'published'`}`,
-      [challengeId],
-    );
-
-    if (result.rows.length === 0) {
-      throw new Error('Challenge not found');
+    const readyOnly = options.readyOnly ?? false;
+    const conditions = [`c.id = $1`];
+    if (!includeUnpublished) {
+      conditions.push(`c.publish_status = 'published'`);
+    }
+    if (readyOnly) {
+      conditions.push(this.getReadinessSql('c'));
     }
 
-    return this.mapRowToChallenge(result.rows[0]);
+    try {
+      const result = await query(
+        `SELECT c.id, c.title, c.description, c.category, c.difficulty, c.target_seniority, c.duration_minutes, c.publish_status, c.created_at, c.updated_at
+         FROM challenges c
+         WHERE ${conditions.join(' AND ')}`,
+        [challengeId],
+      );
+
+      if (result.rows.length === 0) {
+        throw new Error('Challenge not found');
+      }
+
+      return this.mapRowToChallenge(result.rows[0]);
+    } catch (error) {
+      if (!this.isMissingSchemaError(error)) {
+        throw error;
+      }
+
+      const legacyConditions = [`c.id = $1`];
+      if (readyOnly) {
+        legacyConditions.push(this.getReadinessSql('c'));
+      }
+      const legacyResult = await query(
+        `SELECT c.id, c.title, c.description, c.category, c.difficulty, c.created_at, c.updated_at
+         FROM challenges c
+         WHERE ${legacyConditions.join(' AND ')}`,
+        [challengeId],
+      );
+      if (legacyResult.rows.length === 0) {
+        throw new Error('Challenge not found');
+      }
+      return this.mapRowToChallenge(legacyResult.rows[0]);
+    }
   }
 
   private async getTrustedExperienceMonths(userId: string): Promise<number> {
@@ -112,29 +199,62 @@ export class ChallengeService {
     const categoryFilter = category ? `AND LOWER(c.category) = LOWER($3)` : '';
     if (category) params.push(category);
 
-    const result = await query(
-      `SELECT c.id, c.title, c.description, c.category, c.difficulty,
-              c.target_seniority, c.duration_minutes, c.publish_status, c.created_at, c.updated_at
-       FROM challenges c
-       WHERE c.publish_status = 'published'
-         AND c.target_seniority = ANY($2::text[])
-         ${categoryFilter}
-         AND NOT EXISTS (
-           SELECT 1
-           FROM submissions s
-           WHERE s.challenge_id = c.id
-             AND s.user_id = $1
-             AND s.status = 'graded'
-         )
-       ORDER BY array_position($2::text[], c.target_seniority), RANDOM()
-       LIMIT 1`,
-      params,
-    );
+    try {
+      const result = await query(
+        `SELECT c.id, c.title, c.description, c.category, c.difficulty,
+                c.target_seniority, c.duration_minutes, c.publish_status, c.created_at, c.updated_at
+         FROM challenges c
+         WHERE c.publish_status = 'published'
+           AND c.target_seniority = ANY($2::text[])
+           AND ${this.getReadinessSql('c')}
+           ${categoryFilter}
+           AND NOT EXISTS (
+             SELECT 1
+             FROM submissions s
+             WHERE s.challenge_id = c.id
+               AND s.user_id = $1
+               AND s.status = 'graded'
+           )
+         ORDER BY array_position($2::text[], c.target_seniority), RANDOM()
+         LIMIT 1`,
+        params,
+      );
 
-    if (result.rows.length === 0) {
-      throw new Error('No challenges available');
+      if (result.rows.length === 0) {
+        throw new Error('No challenges available');
+      }
+      return this.mapRowToChallenge(result.rows[0]);
+    } catch (error) {
+      if (!this.isMissingSchemaError(error)) {
+        throw error;
+      }
+
+      const legacyParams: unknown[] = [userId];
+      const legacyCategoryFilter = category ? `AND LOWER(c.category) = LOWER($2)` : '';
+      if (category) legacyParams.push(category);
+
+      const legacyResult = await query(
+        `SELECT c.id, c.title, c.description, c.category, c.difficulty, c.created_at, c.updated_at
+         FROM challenges c
+         WHERE ${this.getReadinessSql('c')}
+           ${legacyCategoryFilter}
+           AND NOT EXISTS (
+             SELECT 1
+             FROM submissions s
+             WHERE s.challenge_id = c.id
+               AND s.user_id = $1
+               AND s.status = 'graded'
+           )
+         ORDER BY RANDOM()
+         LIMIT 1`,
+        legacyParams,
+      );
+
+      if (legacyResult.rows.length === 0) {
+        throw new Error('No challenges available');
+      }
+      return this.mapRowToChallenge(legacyResult.rows[0]);
     }
-    return this.mapRowToChallenge(result.rows[0]);
   }
 
   async createChallenge(data: CreateChallengeInput) {

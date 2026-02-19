@@ -8,7 +8,7 @@ const challengeService = new ChallengeService();
 export class ChallengeController {
   async listChallenges(req: Request, res: Response) {
     try {
-      const challenges = await challengeService.getAllChallenges();
+      const challenges = await challengeService.getAllChallenges({ readyOnly: true });
 
       return res.status(200).json({
         success: true,
@@ -38,7 +38,7 @@ export class ChallengeController {
         });
       }
 
-      const challenge = await challengeService.getChallengeById(challenge_id);
+      const challenge = await challengeService.getChallengeById(challenge_id, { readyOnly: true });
 
       return res.status(200).json({
         success: true,
