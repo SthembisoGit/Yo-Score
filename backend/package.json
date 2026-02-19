@@ -9,6 +9,7 @@
     "start": "node dist/src/app.js",
     "test:api": "npm run build && node --test tests/api.smoke.test.js",
     "migrate": "node scripts/migrate.js",
+    "seed:easy-challenges": "node scripts/seed-easy-challenges.js",
     "bootstrap:admin": "node scripts/bootstrap-admin.js",
     "worker": "node dist/src/worker.js",
     "backfill:scoring": "node scripts/backfill-scoring.js",

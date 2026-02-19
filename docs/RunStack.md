@@ -5,11 +5,15 @@ Prereqs
 - Set feature flags in `backend/.env`:
   - `STRICT_REAL_SCORING=true`
   - `ADMIN_PANEL_ENABLED=true`
+- Set judge runner mode in `backend/.env`:
+  - `JUDGE_RUNNER_MODE=local` (recommended for free hosting/testing)
+  - `JUDGE_RUNNER_MODE=docker` (sandboxed Docker execution)
+  - `JUDGE_RUNNER_MODE=auto` (Docker if available, else local)
 - Optional observability in `backend/.env`:
   - `SENTRY_DSN=...`
   - `SENTRY_ENVIRONMENT=development`
   - `SENTRY_TRACES_SAMPLE_RATE=0.1`
-- Docker Desktop running (needed for judge sandbox).
+- Docker Desktop running (only required if `JUDGE_RUNNER_MODE=docker`).
 - ML service deps (ffmpeg) installed.
 - Node/npm installed; backend and frontend already `npm install`.
 
@@ -17,6 +21,7 @@ Apply latest schema before first run:
 ```
 cd backend
 npm run migrate
+npm run seed:easy-challenges
 npm run bootstrap:admin
 ```
 `bootstrap:admin` reads from env:
@@ -34,7 +39,8 @@ powershell -ExecutionPolicy Bypass -File scripts/start-stack.ps1
 - Pass `-NoFrontend` to skip the frontend window.
 
 Notes
-- If Docker is not running, judge jobs will fail. Start Docker Desktop first.
+- If `JUDGE_RUNNER_MODE=docker` and Docker is not running, jobs automatically fall back to local runner.
+- `npm run seed:easy-challenges` creates 9 publish-ready beginner challenges with real tests and baselines (JS + Python).
 - Upstash Redis: keep the `rediss://...` URL/token private.
 - If submissions stay `queued`, verify:
   1. `ENABLE_JUDGE=true`
