@@ -8,12 +8,14 @@ This phase models YoScore Trust-Core behavior with UML artifacts in `academic-su
 - Includes domain entities:
   - `User`, `Challenge`, `Submission`, `SubmissionRun`, `SubmissionRunTest`
   - `ProctoringSession`, `ProctoringLog`, `ProctoringSettings`
+  - `ProctoringEventLog`, `ProctoringSnapshot`
   - `WorkExperience`, `TrustScore`
   - `ChallengeTestCase`, `ChallengeBaseline`, `ReferenceDoc`
   - `AiHintEvent`, `AdminAuditLog`
 - Trust-Core fields modeled:
   - challenge `target_seniority`, `duration_minutes`
   - session `deadline_at`, `duration_seconds`
+  - user profile `avatar_url`, `headline`, `bio`, `location`, portfolio links
   - experience `evidence_links`, `verification_status`, `risk_score`
 
 ## 2. Sequence Diagram
@@ -22,9 +24,11 @@ This phase models YoScore Trust-Core behavior with UML artifacts in `academic-su
 - Visualizes:
   1. category + seniority challenge assignment
   2. proctoring session start with deadline metadata
+  3. live phase event batch + snapshot ingestion
   3. constrained AI Coach hint request
   4. submission queue lifecycle (`queued -> running -> completed|failed`)
-  5. final dashboard refresh
+  5. post-exam async review summary write
+  6. final dashboard refresh
 
 ## 3. State Diagram
 - Source: `diagrams/state-submission-session.puml`
@@ -50,7 +54,7 @@ This phase models YoScore Trust-Core behavior with UML artifacts in `academic-su
 - Components:
   - Frontend (session timer, offline state, AI coach panel)
   - Backend API (assignment, submission, coach, admin endpoints)
-  - Judge worker and queue
+  - Judge worker and post-exam reviewer queues
   - ML service
   - PostgreSQL and Redis
   - Monitoring stack

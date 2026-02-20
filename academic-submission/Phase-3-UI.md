@@ -7,6 +7,7 @@ Implemented and documented screens:
 - Challenge Detail and Session
 - Submission Result
 - Work Experience
+- Profile
 - Admin Dashboard
 
 Trust-Core additions in UI:
@@ -17,6 +18,7 @@ Trust-Core additions in UI:
 - Local autosave and reconnect auto-submit handling
 - AI Coach panel with 3-hint counter and policy messaging
 - Work-experience evidence links and verification/risk status badges
+- Expanded profile editing (photo URL, headline, bio, location, professional links)
 
 ## 2. Demo the Prototype
 Suggested 6-8 minute demo sequence:
@@ -28,6 +30,7 @@ Suggested 6-8 minute demo sequence:
 6. Submit and show async lifecycle (`queued -> running -> completed`).
 7. Open dashboard and verify score plus seniority display.
 8. Login as admin and show flagged work-experience audit queue.
+9. Show post-exam proctoring review summary on admin session detail.
 
 ## 3. Evaluate User Interface (Heuristic Evaluation)
 Method: Nielsen heuristics.

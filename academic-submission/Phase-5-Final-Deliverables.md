@@ -9,10 +9,12 @@ YoScore is delivered as a complete 3-tier client-server system:
 Trust-Core Release 1 delivered capabilities:
 - category + seniority challenge routing
 - timed proctored coding sessions
+- two-phase proctoring (live telemetry + async post-exam review)
 - offline autosave and reconnect submit behavior
 - constrained AI Coach
 - real async judged scoring
 - trust score with evidence-aware work-experience contribution
+- expanded developer profile attributes (photo URL + professional links)
 - admin operations dashboard with flagged experience queue
 
 ## 2. Test Plan and Test Cases

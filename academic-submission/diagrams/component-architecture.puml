@@ -4,6 +4,7 @@ skinparam componentStyle rectangle
 component "Web Frontend\n(React/Vite)" as FE
 component "Backend API\n(Node/Express)" as API
 component "Judge Worker\n(BullMQ Worker)" as Worker
+component "Post-Exam Reviewer\n(Async Proctoring Job)" as Reviewer
 component "ML Service\n(FastAPI)" as ML
 component "AI Coach Policy Service" as Coach
 component "Local Draft Store\n(browser storage)" as Draft
@@ -16,10 +17,14 @@ FE --> Draft : autosave/recover
 API --> DB : SQL
 API --> Redis : enqueue jobs
 API --> Coach : constrained hint request
+API --> Redis : enqueue post-exam review
 Worker --> Redis : consume jobs
 Worker --> DB : run + score persistence
+Reviewer --> Redis : consume review jobs
+Reviewer --> DB : event/snapshot aggregation
 API --> ML : face/audio analysis calls
 Worker --> Mon : exceptions/health events
+Reviewer --> Mon : exceptions/health events
 API --> Mon : exceptions/health events
 FE --> Mon : frontend error events
 @enduml
