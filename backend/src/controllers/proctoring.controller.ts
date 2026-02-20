@@ -4,6 +4,89 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 export class ProctoringController {
   private readonly proctoringService = new ProctoringService();
+  private readonly maxSnapshotBytes = 2 * 1024 * 1024;
+  private readonly maxFaceFrameBytes = 5 * 1024 * 1024;
+  private readonly maxAudioChunkBytes = 10 * 1024 * 1024;
+
+  private asBuffer(payload: unknown): Buffer {
+    if (Buffer.isBuffer(payload)) return payload;
+    if (payload === undefined || payload === null) return Buffer.alloc(0);
+    if (typeof payload === 'string') return Buffer.from(payload);
+    if (payload instanceof Uint8Array) return Buffer.from(payload);
+    if (Array.isArray(payload)) return Buffer.from(payload);
+    return Buffer.alloc(0);
+  }
+
+  private isJpeg(buffer: Buffer): boolean {
+    return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  }
+
+  private isPng(buffer: Buffer): boolean {
+    if (buffer.length < 8) return false;
+    return (
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47 &&
+      buffer[4] === 0x0d &&
+      buffer[5] === 0x0a &&
+      buffer[6] === 0x1a &&
+      buffer[7] === 0x0a
+    );
+  }
+
+  private isWebm(buffer: Buffer): boolean {
+    return buffer.length >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3;
+  }
+
+  private isWav(buffer: Buffer): boolean {
+    if (buffer.length < 12) return false;
+    return (
+      buffer.toString('ascii', 0, 4) === 'RIFF' &&
+      buffer.toString('ascii', 8, 12) === 'WAVE'
+    );
+  }
+
+  private isOgg(buffer: Buffer): boolean {
+    return buffer.length >= 4 && buffer.toString('ascii', 0, 4) === 'OggS';
+  }
+
+  private ensureImagePayload(buffer: Buffer, maxBytes: number) {
+    if (!buffer || buffer.length === 0) {
+      throw new Error('Image data is required');
+    }
+    if (buffer.length > maxBytes) {
+      throw new Error(`Image payload exceeds ${maxBytes} bytes`);
+    }
+    if (!this.isJpeg(buffer) && !this.isPng(buffer)) {
+      throw new Error('Unsupported image format');
+    }
+  }
+
+  private ensureAudioPayload(buffer: Buffer, maxBytes: number) {
+    if (!buffer || buffer.length === 0) {
+      throw new Error('Audio data is required');
+    }
+    if (buffer.length > maxBytes) {
+      throw new Error(`Audio payload exceeds ${maxBytes} bytes`);
+    }
+    if (!this.isWebm(buffer) && !this.isWav(buffer) && !this.isOgg(buffer)) {
+      throw new Error('Unsupported audio format');
+    }
+  }
+
+  private requireUserId(req: AuthenticatedRequest, res: Response): string | null {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+        error: 'UNAUTHORIZED',
+      });
+      return null;
+    }
+    return userId;
+  }
 
   async health(_req: AuthenticatedRequest, res: Response) {
     try {
@@ -13,17 +96,20 @@ export class ProctoringController {
         message: 'Proctoring service health',
         data: health,
       });
-    } catch (error: any) {
+    } catch {
       return res.status(500).json({
         success: false,
         message: 'Failed to retrieve proctoring health',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
 
   async startSession(req: AuthenticatedRequest, res: Response) {
     try {
+      const userId = this.requireUserId(req, res);
+      if (!userId) return;
+
       const { challengeId } = req.body;
 
       if (!challengeId) {
@@ -33,7 +119,7 @@ export class ProctoringController {
         });
       }
 
-      const session = await this.proctoringService.startSession(req.user.id, challengeId);
+      const session = await this.proctoringService.startSession(userId, challengeId);
 
       return res.status(201).json({
         success: true,
@@ -44,11 +130,11 @@ export class ProctoringController {
           duration_seconds: session.durationSeconds,
         },
       });
-    } catch (error: any) {
+    } catch {
       return res.status(500).json({
         success: false,
         message: 'Failed to start proctoring session',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
@@ -70,17 +156,20 @@ export class ProctoringController {
         success: true,
         message: 'Proctoring session ended',
       });
-    } catch (error: any) {
+    } catch {
       return res.status(500).json({
         success: false,
         message: 'Failed to end proctoring session',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
 
   async pauseSession(req: AuthenticatedRequest, res: Response) {
     try {
+      const userId = this.requireUserId(req, res);
+      if (!userId) return;
+
       const { sessionId, reason } = req.body as { sessionId?: string; reason?: string };
 
       if (!sessionId) {
@@ -92,7 +181,7 @@ export class ProctoringController {
 
       const paused = await this.proctoringService.pauseSession(
         sessionId,
-        req.user.id,
+        userId,
         reason || 'Session paused by proctoring policy',
       );
 
@@ -101,17 +190,20 @@ export class ProctoringController {
         message: 'Proctoring session paused',
         data: paused,
       });
-    } catch (error: any) {
+    } catch {
       return res.status(400).json({
         success: false,
         message: 'Failed to pause proctoring session',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
 
   async resumeSession(req: AuthenticatedRequest, res: Response) {
     try {
+      const userId = this.requireUserId(req, res);
+      if (!userId) return;
+
       const { sessionId } = req.body as { sessionId?: string };
 
       if (!sessionId) {
@@ -121,24 +213,27 @@ export class ProctoringController {
         });
       }
 
-      const resumed = await this.proctoringService.resumeSession(sessionId, req.user.id);
+      const resumed = await this.proctoringService.resumeSession(sessionId, userId);
 
       return res.status(200).json({
         success: true,
         message: 'Proctoring session resumed',
         data: resumed,
       });
-    } catch (error: any) {
+    } catch {
       return res.status(400).json({
         success: false,
         message: 'Failed to resume proctoring session',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
 
   async heartbeat(req: AuthenticatedRequest, res: Response) {
     try {
+      const userId = this.requireUserId(req, res);
+      if (!userId) return;
+
       const { sessionId, cameraReady, microphoneReady, audioReady, isPaused, windowFocused, timestamp } = req.body as {
         sessionId?: string;
         cameraReady?: boolean;
@@ -167,7 +262,7 @@ export class ProctoringController {
         });
       }
 
-      const heartbeat = await this.proctoringService.recordHeartbeat(sessionId, req.user.id, {
+      const heartbeat = await this.proctoringService.recordHeartbeat(sessionId, userId, {
         cameraReady,
         microphoneReady,
         audioReady,
@@ -181,17 +276,20 @@ export class ProctoringController {
         message: 'Heartbeat recorded',
         data: heartbeat,
       });
-    } catch (error: any) {
+    } catch {
       return res.status(400).json({
         success: false,
         message: 'Failed to record heartbeat',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
 
   async logViolation(req: AuthenticatedRequest, res: Response) {
     try {
+      const userId = this.requireUserId(req, res);
+      if (!userId) return;
+
       const { sessionId, type, description, evidence } = req.body;
 
       if (!sessionId || !type) {
@@ -203,7 +301,7 @@ export class ProctoringController {
 
       const violation = await this.proctoringService.logViolation(
         sessionId,
-        req.user.id,
+        userId,
         type,
         description,
         evidence,
@@ -214,17 +312,20 @@ export class ProctoringController {
         message: 'Violation logged',
         data: violation,
       });
-    } catch (error: any) {
+    } catch {
       return res.status(500).json({
         success: false,
         message: 'Failed to log violation',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
 
   async logMultipleViolations(req: AuthenticatedRequest, res: Response) {
     try {
+      const userId = this.requireUserId(req, res);
+      if (!userId) return;
+
       const { sessionId, violations } = req.body as {
         sessionId?: string;
         violations?: Array<{ type: string; description?: string }>;
@@ -239,7 +340,7 @@ export class ProctoringController {
 
       const logged = await this.proctoringService.logMultipleViolations(
         sessionId,
-        req.user.id,
+        userId,
         violations,
       );
 
@@ -248,17 +349,20 @@ export class ProctoringController {
         message: 'Violations logged',
         data: logged,
       });
-    } catch (error: any) {
+    } catch {
       return res.status(500).json({
         success: false,
         message: 'Failed to log violations',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
 
   async ingestEventsBatch(req: AuthenticatedRequest, res: Response) {
     try {
+      const userId = this.requireUserId(req, res);
+      if (!userId) return;
+
       const { session_id, events } = req.body as {
         session_id?: string;
         events?: Array<{
@@ -278,7 +382,7 @@ export class ProctoringController {
 
       const result = await this.proctoringService.ingestEventBatch(
         session_id,
-        req.user.id,
+        userId,
         events,
       );
 
@@ -287,17 +391,20 @@ export class ProctoringController {
         message: 'Proctoring events ingested',
         data: result,
       });
-    } catch (error: any) {
+    } catch {
       return res.status(400).json({
         success: false,
         message: 'Failed to ingest proctoring events',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
 
   async uploadSnapshot(req: AuthenticatedRequest, res: Response) {
     try {
+      const userId = this.requireUserId(req, res);
+      if (!userId) return;
+
       const { sessionId } = req.params;
       const triggerType =
         (req.query.trigger_type as string) ||
@@ -311,15 +418,8 @@ export class ProctoringController {
         });
       }
 
-      const imageBuffer = Buffer.isBuffer(req.body)
-        ? req.body
-        : Buffer.from(req.body as any);
-      if (!imageBuffer || imageBuffer.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'Snapshot image data is required',
-        });
-      }
+      const imageBuffer = this.asBuffer(req.body);
+      this.ensureImagePayload(imageBuffer, this.maxSnapshotBytes);
 
       let metadata: Record<string, unknown> = {};
       const metadataHeader = req.headers['x-proctoring-metadata'];
@@ -333,7 +433,7 @@ export class ProctoringController {
 
       const saved = await this.proctoringService.storeSnapshot(
         sessionId,
-        req.user.id,
+        userId,
         triggerType,
         imageBuffer,
         metadata,
@@ -344,11 +444,11 @@ export class ProctoringController {
         message: 'Snapshot stored',
         data: saved,
       });
-    } catch (error: any) {
+    } catch {
       return res.status(400).json({
         success: false,
         message: 'Failed to store snapshot',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
@@ -371,8 +471,8 @@ export class ProctoringController {
         message: 'Session details retrieved',
         data: sessionDetails,
       });
-    } catch (error: any) {
-      if (error.message === 'Session not found') {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message === 'Session not found') {
         return res.status(404).json({
           success: false,
           message: 'Session not found',
@@ -382,7 +482,7 @@ export class ProctoringController {
       return res.status(500).json({
         success: false,
         message: 'Failed to get session details',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
@@ -405,11 +505,11 @@ export class ProctoringController {
         message: 'Session analytics retrieved',
         data: analytics,
       });
-    } catch (error: any) {
+    } catch {
       return res.status(500).json({
         success: false,
         message: 'Failed to get session analytics',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
@@ -432,17 +532,20 @@ export class ProctoringController {
         message: 'Session status retrieved',
         data: status,
       });
-    } catch (error: any) {
+    } catch {
       return res.status(500).json({
         success: false,
         message: 'Failed to get session status',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
 
   async getUserSessions(req: AuthenticatedRequest, res: Response) {
     try {
+      const requesterId = this.requireUserId(req, res);
+      if (!requesterId) return;
+
       const { userId } = req.params;
       const limit = Number(req.query.limit ?? 10);
 
@@ -453,7 +556,7 @@ export class ProctoringController {
         });
       }
 
-      if (userId !== req.user.id && req.user.role !== 'admin') {
+      if (userId !== requesterId && req.user?.role !== 'admin') {
         return res.status(403).json({
           success: false,
           message: 'You can only view your own proctoring sessions',
@@ -467,17 +570,20 @@ export class ProctoringController {
         message: 'User sessions retrieved',
         data: sessions,
       });
-    } catch (error: any) {
+    } catch {
       return res.status(500).json({
         success: false,
         message: 'Failed to get user sessions',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
 
   async getUserViolationSummary(req: AuthenticatedRequest, res: Response) {
     try {
+      const requesterId = this.requireUserId(req, res);
+      if (!requesterId) return;
+
       const { userId } = req.params;
 
       if (!userId) {
@@ -487,7 +593,7 @@ export class ProctoringController {
         });
       }
 
-      if (userId !== req.user.id && req.user.role !== 'admin') {
+      if (userId !== requesterId && req.user?.role !== 'admin') {
         return res.status(403).json({
           success: false,
           message: 'You can only view your own violation summary',
@@ -501,38 +607,44 @@ export class ProctoringController {
         message: 'User violation summary retrieved',
         data: summary,
       });
-    } catch (error: any) {
+    } catch {
       return res.status(500).json({
         success: false,
         message: 'Failed to get user violation summary',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
 
   async getSettings(req: AuthenticatedRequest, res: Response) {
     try {
-      const settings = await this.proctoringService.getSettingsForUser(req.user.id);
+      const userId = this.requireUserId(req, res);
+      if (!userId) return;
+
+      const settings = await this.proctoringService.getSettingsForUser(userId);
 
       return res.status(200).json({
         success: true,
         message: 'Proctoring settings retrieved',
         data: settings,
       });
-    } catch (error: any) {
+    } catch {
       return res.status(500).json({
         success: false,
         message: 'Failed to get proctoring settings',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
 
   async updateSettings(req: AuthenticatedRequest, res: Response) {
     try {
+      const userId = this.requireUserId(req, res);
+      if (!userId) return;
+
       const partialSettings = req.body as Partial<ProctoringSettings>;
       const updated = await this.proctoringService.updateSettingsForUser(
-        req.user.id,
+        userId,
         partialSettings,
       );
 
@@ -541,11 +653,11 @@ export class ProctoringController {
         message: 'Proctoring settings updated',
         data: updated,
       });
-    } catch (error: any) {
+    } catch {
       return res.status(500).json({
         success: false,
         message: 'Failed to update proctoring settings',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
@@ -563,16 +675,8 @@ export class ProctoringController {
       }
 
       // Get image buffer from request body (raw binary data)
-      const imageBuffer = Buffer.isBuffer(req.body) 
-        ? req.body 
-        : Buffer.from(req.body as any);
-
-      if (!imageBuffer || imageBuffer.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'Image data is required',
-        });
-      }
+      const imageBuffer = this.asBuffer(req.body);
+      this.ensureImagePayload(imageBuffer, this.maxFaceFrameBytes);
 
       const result = await this.proctoringService.analyzeFaceFrame(
         sessionId,
@@ -585,12 +689,11 @@ export class ProctoringController {
         message: 'Face analysis completed',
         data: result,
       });
-    } catch (error: any) {
-      console.error('Face analysis error:', error);
+    } catch {
       return res.status(500).json({
         success: false,
         message: 'Failed to analyze face',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
@@ -609,16 +712,8 @@ export class ProctoringController {
       }
 
       // Get audio buffer from request body (raw binary data)
-      const audioBuffer = Buffer.isBuffer(req.body)
-        ? req.body
-        : Buffer.from(req.body as any);
-
-      if (!audioBuffer || audioBuffer.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'Audio data is required',
-        });
-      }
+      const audioBuffer = this.asBuffer(req.body);
+      this.ensureAudioPayload(audioBuffer, this.maxAudioChunkBytes);
 
       const result = await this.proctoringService.analyzeAudioChunk(
         sessionId,
@@ -632,12 +727,11 @@ export class ProctoringController {
         message: 'Audio analysis completed',
         data: result,
       });
-    } catch (error: any) {
-      console.error('Audio analysis error:', error);
+    } catch {
       return res.status(500).json({
         success: false,
         message: 'Failed to analyze audio',
-        error: error.message,
+        error: 'PROCTORING_REQUEST_FAILED',
       });
     }
   }
