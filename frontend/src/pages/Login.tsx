@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
+import { authService } from '@/services/authService';
 
 
 export default function Login() {
@@ -64,7 +65,12 @@ export default function Login() {
 
     try {
       await login(email, password);
-      navigate('/dashboard');
+      const validated = await authService.validateToken().catch(() => ({ valid: false }));
+      if (validated.valid && validated.user?.role === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       const backendError = err.message || err.response?.message || '';
       const statusCode = err.status;

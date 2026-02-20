@@ -48,14 +48,24 @@ export interface UserProfile {
   name: string;
   email: string;
   role: string;
+  avatar_url?: string | null;
+  headline?: string | null;
+  bio?: string | null;
+  location?: string | null;
+  github_url?: string | null;
+  linkedin_url?: string | null;
+  portfolio_url?: string | null;
   created_at: string;
 }
 
 export interface Submission {
   submission_id: string;
   challenge_id: string;
+  challenge_title?: string;
+  language?: 'javascript' | 'python';
   score: number | null;
   status: 'pending' | 'graded' | 'failed';
+  judge_status?: 'queued' | 'running' | 'completed' | 'failed';
   submitted_at: string;
 }
 
@@ -85,7 +95,19 @@ class DashboardService {
     return unwrapData<Submission[]>(response);
   }
 
-  async updateProfile(profileData: Partial<{ name: string; email: string }>): Promise<UserProfile> {
+  async updateProfile(
+    profileData: Partial<{
+      name: string;
+      email: string;
+      avatar_url: string | null;
+      headline: string | null;
+      bio: string | null;
+      location: string | null;
+      github_url: string | null;
+      linkedin_url: string | null;
+      portfolio_url: string | null;
+    }>,
+  ): Promise<UserProfile> {
     const response = await apiClient.put('/users/me', profileData);
     return unwrapData<UserProfile>(response);
   }

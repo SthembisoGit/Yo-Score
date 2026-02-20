@@ -143,7 +143,7 @@ export default function WorkExperience() {
               Add verified experience that contributes to your trust score
             </p>
           </div>
-          <Button onClick={() => setShowForm(!showForm)} className="gap-2" disabled={isLoading}>
+          <Button onClick={() => setShowForm(!showForm)} className="gap-2">
             <Plus className="h-4 w-4" />
             Add Experience
           </Button>
@@ -242,8 +242,11 @@ export default function WorkExperience() {
         )}
 
         {loadError && (
-          <div className="mb-6 rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
-            {loadError}
+          <div className="mb-6 rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive space-y-2">
+            <p>{loadError}</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => void loadExperiences()}>
+              Retry Loading History
+            </Button>
           </div>
         )}
 

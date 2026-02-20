@@ -1,7 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Camera, Mic, Minimize2, RefreshCw, Shield, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { proctoringService, type FaceMonitorResult } from '@/services/proctoring.service';
+import {
+  proctoringService,
+  type FaceMonitorResult,
+  type ProctoringEventInput,
+} from '@/services/proctoring.service';
 
 interface Props {
   sessionId: string;
@@ -34,6 +38,7 @@ const FRAME_CAPTURE_INTERVAL = 3000;
 const AUDIO_CHUNK_DURATION = 10000;
 const CAMERA_CHECK_INTERVAL = 1000;
 const HEARTBEAT_INTERVAL = 5000;
+const EVENT_FLUSH_INTERVAL = 8000;
 const ALERT_TIMEOUT_MS = 30000;
 const DEFAULT_COOLDOWN_MS = 10000;
 const CAMERA_COOLDOWN_MS = 15000;
@@ -41,6 +46,9 @@ const LOOK_AWAY_CONTINUOUS_MS = 60000;
 const LOOK_AWAY_WINDOW_MS = 60000;
 const LOOK_AWAY_THRESHOLD = 3;
 const NO_FACE_STREAK_THRESHOLD = 4;
+const MAX_EVENT_BUFFER = 100;
+const SNAPSHOT_INTERVAL_MS = 25000;
+const SNAPSHOT_SAMPLE_RATE = 0.18;
 const EMPTY_MISSING: MissingDevices = { camera: false, microphone: false, audio: false };
 const isSameMissingState = (a: MissingDevices, b: MissingDevices) =>
   a.camera === b.camera &&
@@ -55,6 +63,7 @@ const ProctoringMonitor: React.FC<Props> = ({
   onPauseStateChange,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -71,11 +80,14 @@ const ProctoringMonitor: React.FC<Props> = ({
   const micReadyRef = useRef(false);
   const audioReadyRef = useRef(false);
   const mlDegradedRef = useRef(false);
+  const eventBufferRef = useRef<ProctoringEventInput[]>([]);
+  const lastSnapshotAtRef = useRef(0);
 
   const frameIntervalRef = useRef<NodeJS.Timeout>();
   const audioIntervalRef = useRef<NodeJS.Timeout>();
   const cameraCheckIntervalRef = useRef<NodeJS.Timeout>();
   const heartbeatIntervalRef = useRef<NodeJS.Timeout>();
+  const eventsFlushIntervalRef = useRef<NodeJS.Timeout>();
 
   const [cameraReady, setCameraReady] = useState(false);
   const [micReady, setMicReady] = useState(false);
@@ -130,6 +142,13 @@ const ProctoringMonitor: React.FC<Props> = ({
     mlDegradedRef.current = mlDegraded;
   }, [mlDegraded]);
 
+  useEffect(() => {
+    if (isMinimized) return;
+    if (!previewVideoRef.current || !mediaStreamRef.current) return;
+    previewVideoRef.current.srcObject = mediaStreamRef.current;
+    void previewVideoRef.current.play().catch(() => undefined);
+  }, [isMinimized]);
+
   const clearAlertTimer = useCallback((id: string) => {
     const timer = alertTimeoutsRef.current[id];
     if (timer) {
@@ -170,6 +189,59 @@ const ProctoringMonitor: React.FC<Props> = ({
     [dismissAlert],
   );
 
+  const queueEvent = useCallback((event: ProctoringEventInput) => {
+    const next = [
+      ...eventBufferRef.current,
+      {
+        ...event,
+        timestamp: event.timestamp || new Date().toISOString(),
+      },
+    ];
+    eventBufferRef.current = next.slice(-MAX_EVENT_BUFFER);
+  }, []);
+
+  const flushEventBuffer = useCallback(async () => {
+    if (eventBufferRef.current.length === 0) return;
+    const payload = [...eventBufferRef.current];
+    eventBufferRef.current = [];
+    try {
+      await proctoringService.batchEvents(sessionId, payload);
+    } catch (error) {
+      console.error('Failed to flush proctoring event buffer:', error);
+      eventBufferRef.current = [...payload, ...eventBufferRef.current].slice(-MAX_EVENT_BUFFER);
+    }
+  }, [sessionId]);
+
+  const uploadSnapshot = useCallback(
+    async (triggerType: string, metadata: Record<string, unknown>) => {
+      if (!videoRef.current || !canvasRef.current || pausedRef.current) return;
+      const now = Date.now();
+      if (now - lastSnapshotAtRef.current < SNAPSHOT_INTERVAL_MS) return;
+      if (Math.random() > SNAPSHOT_SAMPLE_RATE) return;
+
+      const video = videoRef.current;
+      if (video.videoWidth === 0 || video.videoHeight === 0) return;
+
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        try {
+          await proctoringService.uploadSnapshot(sessionId, blob, triggerType, metadata);
+          lastSnapshotAtRef.current = Date.now();
+        } catch (error) {
+          console.error('Snapshot upload failed:', error);
+        }
+      }, 'image/jpeg', 0.65);
+    },
+    [sessionId],
+  );
+
   const canTrigger = useCallback((type: string, cooldownMs = DEFAULT_COOLDOWN_MS) => {
     const now = Date.now();
     const last = cooldownRef.current[type] ?? 0;
@@ -201,10 +273,21 @@ const ProctoringMonitor: React.FC<Props> = ({
   const triggerViolation = useCallback(
     (type: string, description: string, message: string, severity: 'low' | 'medium' | 'high', cooldownMs = DEFAULT_COOLDOWN_MS) => {
       if (!canTrigger(type, cooldownMs)) return;
+      queueEvent({
+        event_type: type,
+        severity,
+        payload: {
+          description,
+          source: 'frontend-live',
+        },
+      });
+      if (severity === 'high') {
+        void uploadSnapshot(type, { description, severity });
+      }
       void logViolation(type, description);
       addAlert(message, severity);
     },
-    [addAlert, canTrigger, logViolation],
+    [addAlert, canTrigger, logViolation, queueEvent, uploadSnapshot],
   );
 
   const buildMissingDevices = useCallback(
@@ -428,6 +511,10 @@ const ProctoringMonitor: React.FC<Props> = ({
       videoRef.current.srcObject = stream;
       await videoRef.current.play().catch(() => undefined);
     }
+    if (previewVideoRef.current) {
+      previewVideoRef.current.srcObject = stream;
+      await previewVideoRef.current.play().catch(() => undefined);
+    }
     setupAudioRecorder(stream);
     setCameraReady(true);
     setMicReady(stream.getAudioTracks().length > 0);
@@ -436,17 +523,14 @@ const ProctoringMonitor: React.FC<Props> = ({
 
   const checkRequiredDevices = useCallback(async () => {
     const stream = mediaStreamRef.current;
-    const video = videoRef.current;
     const videoTrack = stream?.getVideoTracks()[0];
     const audioTrack = stream?.getAudioTracks()[0];
     const cameraOn = Boolean(
-      video &&
       videoTrack &&
       videoTrack.readyState === 'live' &&
       videoTrack.enabled &&
       !videoTrack.muted &&
-      video.videoWidth > 0 &&
-      video.videoHeight > 0,
+      stream?.active,
     );
     const micOn = Boolean(audioTrack && audioTrack.readyState === 'live' && audioTrack.enabled && !audioTrack.muted);
     const audioOn = audioReadyRef.current;
@@ -471,10 +555,10 @@ const ProctoringMonitor: React.FC<Props> = ({
       triggerViolation('camera_off', 'Camera unavailable', 'Camera is off. Session paused.', 'high', CAMERA_COOLDOWN_MS);
     }
     if (missing.microphone) {
-      triggerViolation('camera_off', 'Microphone unavailable', 'Microphone is off. Session paused.', 'high', CAMERA_COOLDOWN_MS);
+      triggerViolation('microphone_off', 'Microphone unavailable', 'Microphone is off. Session paused.', 'high', CAMERA_COOLDOWN_MS);
     }
     if (missing.audio) {
-      triggerViolation('camera_off', 'Audio support unavailable', 'Audio support is required. Session paused.', 'high', CAMERA_COOLDOWN_MS);
+      triggerViolation('audio_off', 'Audio support unavailable', 'Audio support is required. Session paused.', 'high', CAMERA_COOLDOWN_MS);
     }
     const reason = `Required device unavailable: ${[
       missing.camera ? 'camera' : '',
@@ -483,8 +567,13 @@ const ProctoringMonitor: React.FC<Props> = ({
     ]
       .filter(Boolean)
       .join(', ')}`;
+    queueEvent({
+      event_type: 'session_paused',
+      severity: 'high',
+      payload: { reason, missing },
+    });
     await applyPauseState(true, reason, missing);
-  }, [applyPauseState, buildMissingDevices, isSameMissingState, triggerViolation]);
+  }, [applyPauseState, buildMissingDevices, isSameMissingState, queueEvent, triggerViolation]);
 
   const captureAndAnalyzeFrame = useCallback(async () => {
     if (pausedRef.current || !videoRef.current || !canvasRef.current) return;
@@ -604,8 +693,9 @@ const ProctoringMonitor: React.FC<Props> = ({
     }, AUDIO_CHUNK_DURATION);
     cameraCheckIntervalRef.current = setInterval(() => void checkRequiredDevices(), CAMERA_CHECK_INTERVAL);
     heartbeatIntervalRef.current = setInterval(() => void sendHeartbeat(), HEARTBEAT_INTERVAL);
+    eventsFlushIntervalRef.current = setInterval(() => void flushEventBuffer(), EVENT_FLUSH_INTERVAL);
     return removeEvents;
-  }, [captureAndAnalyzeFrame, checkRequiredDevices, restartStream, sendHeartbeat, triggerViolation]);
+  }, [captureAndAnalyzeFrame, checkRequiredDevices, flushEventBuffer, restartStream, sendHeartbeat, triggerViolation]);
 
   useEffect(() => {
     void proctoringService.healthCheck().then((health) => {
@@ -635,6 +725,7 @@ const ProctoringMonitor: React.FC<Props> = ({
       if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
       if (cameraCheckIntervalRef.current) clearInterval(cameraCheckIntervalRef.current);
       if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
+      if (eventsFlushIntervalRef.current) clearInterval(eventsFlushIntervalRef.current);
       removeEvents?.();
       if (mediaRecorderRef.current?.state !== 'inactive') {
         mediaRecorderRef.current.stop();
@@ -642,9 +733,10 @@ const ProctoringMonitor: React.FC<Props> = ({
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       }
+      void flushEventBuffer();
       Object.keys(alertTimeoutsRef.current).forEach((id) => clearAlertTimer(id));
     };
-  }, [addAlert, clearAlertTimer, startProctoring]);
+  }, [addAlert, clearAlertTimer, flushEventBuffer, startProctoring]);
 
   const requestRecovery = useCallback(async (target: 'camera' | 'microphone' | 'audio' | 'all') => {
     setIsRecovering(target);
@@ -664,6 +756,11 @@ const ProctoringMonitor: React.FC<Props> = ({
         await restartStream();
       }
       await checkRequiredDevices();
+      queueEvent({
+        event_type: 'device_recovery',
+        severity: 'low',
+        payload: { target },
+      });
       void sendHeartbeat();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to recover required device.';
@@ -671,7 +768,7 @@ const ProctoringMonitor: React.FC<Props> = ({
     } finally {
       setIsRecovering(null);
     }
-  }, [addAlert, checkAudioSupport, checkRequiredDevices, restartStream, sendHeartbeat]);
+  }, [addAlert, checkAudioSupport, checkRequiredDevices, queueEvent, restartStream, sendHeartbeat]);
 
   const handleDragStart = (event: React.MouseEvent) => {
     if ((event.target as HTMLElement).closest('button')) return;
@@ -707,6 +804,13 @@ const ProctoringMonitor: React.FC<Props> = ({
   return (
     <>
       <canvas ref={canvasRef} style={{ display: 'none' }} />
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none"
+      />
 
       {alerts.length > 0 && !isMinimized && (
         <div className="fixed top-4 left-4 z-[60] space-y-2 max-w-md">
@@ -771,7 +875,13 @@ const ProctoringMonitor: React.FC<Props> = ({
             </div>
             <div className="p-3">
               <div className="relative rounded-lg overflow-hidden border border-border bg-black">
-                <video ref={videoRef} autoPlay muted playsInline className="w-full h-40 object-cover" />
+                <video
+                  ref={previewVideoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="w-full h-40 object-cover"
+                />
                 <div className="absolute top-2 right-2 flex gap-1">
                   <div className={`w-2 h-2 rounded-full ${cameraReady ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
                   <div className={`w-2 h-2 rounded-full ${micReady ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />

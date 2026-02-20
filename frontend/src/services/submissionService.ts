@@ -54,6 +54,7 @@ export interface SubmissionResult {
     memory_mb: number;
   } | null;
   violations: SubmissionViolation[];
+  practice_feedback?: string[];
 }
 
 export interface UserSubmission {

@@ -257,6 +257,102 @@ export class ProctoringController {
     }
   }
 
+  async ingestEventsBatch(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { session_id, events } = req.body as {
+        session_id?: string;
+        events?: Array<{
+          event_type: string;
+          severity: 'low' | 'medium' | 'high';
+          payload?: Record<string, unknown>;
+          timestamp?: string;
+        }>;
+      };
+
+      if (!session_id || !Array.isArray(events)) {
+        return res.status(400).json({
+          success: false,
+          message: 'session_id and events[] are required',
+        });
+      }
+
+      const result = await this.proctoringService.ingestEventBatch(
+        session_id,
+        req.user.id,
+        events,
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: 'Proctoring events ingested',
+        data: result,
+      });
+    } catch (error: any) {
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to ingest proctoring events',
+        error: error.message,
+      });
+    }
+  }
+
+  async uploadSnapshot(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { sessionId } = req.params;
+      const triggerType =
+        (req.query.trigger_type as string) ||
+        (req.query.triggerType as string) ||
+        'sampled_snapshot';
+
+      if (!sessionId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Session ID is required',
+        });
+      }
+
+      const imageBuffer = Buffer.isBuffer(req.body)
+        ? req.body
+        : Buffer.from(req.body as any);
+      if (!imageBuffer || imageBuffer.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Snapshot image data is required',
+        });
+      }
+
+      let metadata: Record<string, unknown> = {};
+      const metadataHeader = req.headers['x-proctoring-metadata'];
+      if (typeof metadataHeader === 'string' && metadataHeader.trim().length > 0) {
+        try {
+          metadata = JSON.parse(decodeURIComponent(metadataHeader));
+        } catch {
+          metadata = {};
+        }
+      }
+
+      const saved = await this.proctoringService.storeSnapshot(
+        sessionId,
+        req.user.id,
+        triggerType,
+        imageBuffer,
+        metadata,
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: 'Snapshot stored',
+        data: saved,
+      });
+    } catch (error: any) {
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to store snapshot',
+        error: error.message,
+      });
+    }
+  }
+
   async getSessionDetails(req: AuthenticatedRequest, res: Response) {
     try {
       const { sessionId } = req.params;

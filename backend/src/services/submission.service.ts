@@ -19,6 +19,20 @@ function normalizeLanguage(language: string): 'javascript' | 'python' {
   throw new Error('Unsupported language. Allowed: javascript, python');
 }
 
+const PRACTICE_GUIDANCE_BY_VIOLATION: Record<string, string> = {
+  tab_switch: 'Practice in a distraction-free setup and keep the challenge tab focused.',
+  window_blur: 'Keep the challenge window active to avoid behavior penalties.',
+  camera_off: 'Keep camera permissions enabled during the full attempt.',
+  microphone_off: 'Keep microphone permissions enabled during the full attempt.',
+  audio_off: 'Enable browser audio support before starting the session.',
+  looking_away: 'Practice maintaining screen focus and reading prompts steadily.',
+  multiple_faces: 'Make sure only you are visible in the camera frame.',
+  no_face: 'Keep your face visible to the camera while coding.',
+  speech_detected: 'Practice solving challenges in a quiet environment.',
+  multiple_voices: 'Use a private room to prevent voice-related flags.',
+  copy_paste: 'Practice writing core logic manually instead of copy/paste.',
+};
+
 export class SubmissionService {
   async createSubmission(userId: string, data: SubmissionInput) {
     const language = normalizeLanguage(data.language);
@@ -211,6 +225,65 @@ export class SubmissionService {
         }
       : null;
 
+    const practiceFeedback = new Set<string>();
+    if (submission.judge_status === 'failed') {
+      practiceFeedback.add(
+        submission.judge_error
+          ? `Judge infrastructure error: ${submission.judge_error}. Retry this challenge.`
+          : 'Judge infrastructure failed for this run. Retry this challenge.',
+      );
+    }
+
+    if (latestRun?.id) {
+      const failedTestsResult = await query(
+        `SELECT COALESCE(tc.name, rt.test_case_id::text) as test_name
+         FROM submission_run_tests rt
+         LEFT JOIN challenge_test_cases tc ON tc.id = rt.test_case_id
+         WHERE rt.submission_run_id = $1
+           AND rt.status IN ('failed', 'error')
+         ORDER BY rt.id
+         LIMIT 3`,
+        [latestRun.id],
+      );
+      for (const row of failedTestsResult.rows) {
+        practiceFeedback.add(
+          `Revisit failed test case: ${row.test_name}. Focus on edge cases and input handling.`,
+        );
+      }
+    }
+
+    const correctness = Number(submission.component_correctness ?? 0);
+    const efficiency = Number(submission.component_efficiency ?? 0);
+    const style = Number(submission.component_style ?? 0);
+    if (correctness < 24) {
+      practiceFeedback.add(
+        'Improve correctness: validate edge cases and compare output formatting exactly.',
+      );
+    }
+    if (efficiency < 8) {
+      practiceFeedback.add(
+        'Improve efficiency: use lower-complexity loops/data structures and avoid repeated work.',
+      );
+    }
+    if (style < 3) {
+      practiceFeedback.add(
+        'Improve code style: use clear naming, small functions, and consistent formatting.',
+      );
+    }
+
+    for (const violation of violations) {
+      const mapped = PRACTICE_GUIDANCE_BY_VIOLATION[violation.type];
+      if (mapped) {
+        practiceFeedback.add(mapped);
+      }
+    }
+
+    if (practiceFeedback.size === 0 && submission.status === 'graded') {
+      practiceFeedback.add(
+        'Strong attempt. Practice a harder challenge in the same category to raise your trust score.',
+      );
+    }
+
     return {
       submission_id: submission.id,
       challenge_id: submission.challenge_id,
@@ -251,6 +324,7 @@ export class SubmissionService {
       total_score: submission.total_score,
       trust_level: submission.trust_level,
       violations,
+      practice_feedback: [...practiceFeedback].slice(0, 8),
     };
   }
 

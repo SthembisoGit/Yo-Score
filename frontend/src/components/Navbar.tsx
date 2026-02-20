@@ -1,14 +1,20 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, User, LogOut, LayoutDashboard, Trophy, Briefcase } from 'lucide-react';
+import { Menu, X, User, LogOut, LayoutDashboard, Trophy, Briefcase, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 
-const baseNavLinks = [
+const developerNavLinks = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/challenges', label: 'Challenges', icon: Trophy },
   { to: '/work-experience', label: 'Work Experience', icon: Briefcase },
   { to: '/profile', label: 'Profile', icon: User },
+];
+
+const adminNavLinks = [{ to: '/admin', label: 'Admin Dashboard', icon: ShieldCheck }];
+const infoLinks = [
+  { to: '/about', label: 'About' },
+  { to: '/how-it-works', label: 'How It Works' },
 ];
 
 export function Navbar() {
@@ -18,8 +24,8 @@ export function Navbar() {
   const navigate = useNavigate();
   const navLinks =
     user?.role === 'admin'
-      ? [...baseNavLinks, { to: '/admin', label: 'Admin', icon: LayoutDashboard }]
-      : baseNavLinks;
+      ? adminNavLinks
+      : developerNavLinks;
 
   const handleLogout = () => {
     logout();
@@ -56,6 +62,19 @@ export function Navbar() {
                     {link.label}
                   </Link>
                 ))}
+                {infoLinks.map((link) => (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      isActive(link.to)
+                        ? 'bg-primary-foreground/20'
+                        : 'hover:bg-primary-foreground/10'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
                 <div className="ml-4 pl-4 border-l border-primary-foreground/20 flex items-center gap-3">
                   <span className="text-sm opacity-80">{user?.name}</span>
                   <Button
@@ -71,6 +90,19 @@ export function Navbar() {
               </>
             ) : (
               <div className="flex items-center gap-2">
+                {infoLinks.map((link) => (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      isActive(link.to)
+                        ? 'bg-primary-foreground/20'
+                        : 'hover:bg-primary-foreground/10'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
                 <Link to="/login">
                   <Button variant="ghost" className="text-primary-foreground hover:bg-primary-foreground/10">
                     Login
@@ -115,6 +147,20 @@ export function Navbar() {
                     {link.label}
                   </Link>
                 ))}
+                {infoLinks.map((link) => (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    onClick={() => setIsOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors ${
+                      isActive(link.to)
+                        ? 'bg-primary-foreground/20'
+                        : 'hover:bg-primary-foreground/10'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
                 <div className="pt-4 mt-4 border-t border-primary-foreground/20">
                   <div className="px-4 py-2 text-sm opacity-80">{user?.email}</div>
                   <button
@@ -128,6 +174,20 @@ export function Navbar() {
               </>
             ) : (
               <div className="space-y-2">
+                {infoLinks.map((link) => (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    onClick={() => setIsOpen(false)}
+                    className={`block px-4 py-3 rounded-md text-center font-medium transition-colors ${
+                      isActive(link.to)
+                        ? 'bg-primary-foreground/20'
+                        : 'hover:bg-primary-foreground/10'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
                 <Link
                   to="/login"
                   onClick={() => setIsOpen(false)}

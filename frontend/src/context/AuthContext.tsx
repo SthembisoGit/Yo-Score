@@ -46,6 +46,12 @@ export interface User {
   email: string;
   role: string;
   avatar?: string;
+  headline?: string;
+  bio?: string;
+  location?: string;
+  githubUrl?: string;
+  linkedinUrl?: string;
+  portfolioUrl?: string;
   totalScore: number;
   trustLevel: 'Low' | 'Medium' | 'High';
   categoryScores: CategoryScore[];
@@ -184,6 +190,13 @@ const login = useCallback(async (email: string, password: string) => {
             name: baselineUser.name,
             email: baselineUser.email,
             role: baselineUser.role,
+            avatar_url: null,
+            headline: null,
+            bio: null,
+            location: null,
+            github_url: null,
+            linkedin_url: null,
+            portfolio_url: null,
             created_at: new Date().toISOString(),
           };
 
@@ -203,6 +216,13 @@ const login = useCallback(async (email: string, password: string) => {
       name: userProfile.name,
       email: userProfile.email,
       role: userProfile.role,
+      avatar: userProfile.avatar_url || undefined,
+      headline: userProfile.headline || undefined,
+      bio: userProfile.bio || undefined,
+      location: userProfile.location || undefined,
+      githubUrl: userProfile.github_url || undefined,
+      linkedinUrl: userProfile.linkedin_url || undefined,
+      portfolioUrl: userProfile.portfolio_url || undefined,
       totalScore: dashboardData.total_score,
       trustLevel: dashboardData.trust_level,
       categoryScores: categoryScoresArray,

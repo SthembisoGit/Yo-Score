@@ -1,18 +1,18 @@
 import asyncio
+import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import cv2
 import numpy as np
 
-try:
-    import mediapipe as mp  # type: ignore
-except Exception:
-    mp = None
-
-
 def _get_mediapipe_solutions():
-    if mp is None:
+    backend = os.getenv("FACE_DETECTOR_BACKEND", "opencv").lower().strip()
+    if backend != "mediapipe":
+        return None
+    try:
+        import mediapipe as mp  # type: ignore
+    except Exception:
         return None
     return getattr(mp, "solutions", None)
 

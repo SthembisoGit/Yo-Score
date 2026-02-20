@@ -14,6 +14,8 @@ import { ReferenceDocsPanel } from './ReferenceDocsPanel';
 interface ChallengeSessionProps {
   challenge: any;
   referenceDocs: any[];
+  docsError?: string | null;
+  onRetryDocs?: (() => void) | undefined;
   selectedLanguage: string;
   availableLanguages: string[];
   onLanguageChange: (language: string) => void;
@@ -54,6 +56,8 @@ const mapToSubmissionLanguage = (language: string): 'javascript' | 'python' => {
 export const ChallengeSession = ({
   challenge,
   referenceDocs,
+  docsError = null,
+  onRetryDocs,
   selectedLanguage,
   availableLanguages,
   onLanguageChange,
@@ -376,6 +380,11 @@ export const ChallengeSession = ({
                   {referenceDocs.length}
                 </span>
               )}
+              {docsError && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/20 text-destructive">
+                  unavailable
+                </span>
+              )}
             </button>
           </div>
 
@@ -490,7 +499,7 @@ export const ChallengeSession = ({
                 </div>
               </div>
             ) : (
-              <ReferenceDocsPanel docs={referenceDocs} />
+              <ReferenceDocsPanel docs={referenceDocs} error={docsError} onRetry={onRetryDocs} />
             )}
           </div>
         </div>

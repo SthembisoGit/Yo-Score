@@ -87,6 +87,13 @@ export interface SessionHeartbeatResponse {
   heartbeatAt: string;
 }
 
+export interface ProctoringEventInput {
+  event_type: string;
+  severity: 'low' | 'medium' | 'high';
+  payload?: Record<string, unknown>;
+  timestamp?: string;
+}
+
 class ProctoringService {
   /**
    * Start a new proctoring session
@@ -369,6 +376,39 @@ class ProctoringService {
     } catch {
       throw new Error('Could not update settings');
     }
+  }
+
+  async batchEvents(
+    sessionId: string,
+    events: ProctoringEventInput[],
+  ): Promise<{ accepted: number; status: 'active' | 'paused' | 'completed' }> {
+    const response = await apiClient.post('/proctoring/events/batch', {
+      session_id: sessionId,
+      events,
+    });
+    return unwrapData(response);
+  }
+
+  async uploadSnapshot(
+    sessionId: string,
+    snapshot: Blob,
+    triggerType: string,
+    metadata: Record<string, unknown> = {},
+  ): Promise<{ snapshot_id: string; bytes: number }> {
+    const arrayBuffer = await snapshot.arrayBuffer();
+    const response = await apiClient.post(
+      `/proctoring/session/${sessionId}/snapshot?trigger_type=${encodeURIComponent(
+        triggerType,
+      )}`,
+      arrayBuffer,
+      {
+        headers: {
+          'Content-Type': 'image/jpeg',
+          'X-Proctoring-Metadata': encodeURIComponent(JSON.stringify(metadata)),
+        },
+      },
+    );
+    return unwrapData(response);
   }
 }
 

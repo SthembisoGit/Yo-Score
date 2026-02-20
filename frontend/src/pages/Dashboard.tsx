@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, TrendingUp, Clock, Target, Award, Layers } from 'lucide-react';
+import { ArrowRight, Clock, Target, Award, Layers } from 'lucide-react';
 
 import { Navbar } from '@/components/Navbar';
 import { ScoreCard } from '@/components/ScoreCard';
@@ -21,7 +21,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useChallenges } from '@/context/ChallengeContext';
 import {
   dashboardService,
-  type DashboardData as ServiceDashboardData
+  type DashboardData as ServiceDashboardData,
+  type Submission as DashboardSubmission,
 } from '@/services/dashboardService';
 import { challengeService } from '@/services/challengeService';
 
@@ -44,6 +45,7 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(false);
   type DashboardViewData = ServiceDashboardData & { monthly_progress?: number };
   const [dashboardData, setDashboardData] = useState<DashboardViewData | null>(null);
+  const [recentSubmissions, setRecentSubmissions] = useState<DashboardSubmission[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>(
     availableCategories[0] ?? 'Frontend',
   );
@@ -57,8 +59,12 @@ export default function Dashboard() {
   const loadDashboardData = async () => {
     setIsLoading(true);
     try {
-      const dashboard = await dashboardService.getDashboardData();
+      const [dashboard, submissions] = await Promise.all([
+        dashboardService.getDashboardData(),
+        dashboardService.getUserSubmissions(),
+      ]);
       setDashboardData(dashboard);
+      setRecentSubmissions(submissions);
     } catch (error) {
       console.error('Dashboard data fetch failed', error);
     } finally {
@@ -70,7 +76,12 @@ export default function Dashboard() {
     setIsAssigning(true);
     try {
       const next = await challengeService.getNextChallenge(selectedCategory);
-      navigate(`/challenges/${next.challenge_id}`);
+      navigate(`/challenges/${next.challenge_id}`, {
+        state: {
+          assignedFromMatcher: true,
+          assignmentCategory: selectedCategory,
+        },
+      });
     } catch (error: any) {
       toast.error(error?.message || 'No matching challenge available for this category and seniority.');
     } finally {
@@ -99,8 +110,29 @@ export default function Dashboard() {
       (c) => c.status === 'completed' || c.status === 'graded'
     ).length ?? 0;
 
-  const recentChallenges = challenges.filter((c) => c.completed).slice(0, 3);
-  const pendingChallenges = challenges.filter((c) => !c.completed).slice(0, 2);
+  const recentChallenges = recentSubmissions
+    .slice(0, 3)
+    .map((submission) => {
+      const match = challenges.find((challenge) => challenge.id === submission.challenge_id);
+      if (!match) return null;
+      const status =
+        submission.status === 'graded'
+          ? 'completed'
+          : submission.status === 'pending'
+            ? 'in_progress'
+            : 'not_started';
+      return {
+        ...match,
+        status,
+        completed: status === 'completed',
+        score: submission.score ?? match.score,
+      };
+    })
+    .filter((challenge): challenge is NonNullable<typeof challenge> => Boolean(challenge));
+
+  const pendingChallenges = challenges
+    .filter((c) => c.status !== 'completed')
+    .slice(0, 2);
 
   const totalScore = dashboardData?.total_score ?? user.totalScore ?? 0;
   const trustLevel = dashboardData?.trust_level ?? user.trustLevel;

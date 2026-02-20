@@ -17,6 +17,8 @@ import Profile from "./pages/Profile";
 import SubmissionResult from "./pages/SubmissionResult";
 import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/AdminDashboard";
+import About from "./pages/About";
+import HowItWorks from "./pages/HowItWorks";
 import { AdminRoute } from "./components/guards/AdminRoute";
 import ConnectionTest from "./components/ConnectionTest";
 
@@ -33,6 +35,8 @@ const App = () => (
             <Routes>
               {/*<Route path="" element={<ConnectionTest />} />*/}
               <Route path="/" element={<Home />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/how-it-works" element={<HowItWorks />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<SignUp />} />
               <Route path="/dashboard" element={<Dashboard />} />

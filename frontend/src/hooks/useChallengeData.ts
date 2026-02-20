@@ -10,6 +10,18 @@ export const useChallengeData = (challengeId: string | undefined) => {
   const [referenceDocs, setReferenceDocs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [docsError, setDocsError] = useState<string | null>(null);
+
+  const loadReferenceDocs = async (id: string) => {
+    try {
+      const docsData = await challengeService.getChallengeDocs(id);
+      setReferenceDocs(docsData);
+      setDocsError(null);
+    } catch (docError: any) {
+      setReferenceDocs([]);
+      setDocsError(docError?.message || 'Reference docs are currently unavailable.');
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -22,14 +34,11 @@ export const useChallengeData = (challengeId: string | undefined) => {
       setError(null);
 
       try {
-        // Fetch challenge details and reference docs in parallel
-        const [challengeData, docsData] = await Promise.all([
-          challengeService.getChallengeById(challengeId),
-          challengeService.getChallengeDocs(challengeId).catch(() => [])
-        ]);
+        // Fetch challenge details first; docs load can fail independently.
+        const challengeData = await challengeService.getChallengeById(challengeId);
 
         setChallenge(challengeData);
-        setReferenceDocs(docsData);
+        await loadReferenceDocs(challengeId);
       } catch (err: any) {
         const errorMessage = err.message || 'Failed to load challenge data';
         setError(errorMessage);
@@ -45,14 +54,9 @@ export const useChallengeData = (challengeId: string | undefined) => {
   return {
     challenge,
     referenceDocs,
+    docsError,
     isLoading,
     error,
-    // Optional: Add refetch function if needed
-    refetch: () => {
-      if (challengeId) {
-        setIsLoading(true);
-        setError(null);
-      }
-    }
+    refetchDocs: challengeId ? () => loadReferenceDocs(challengeId) : undefined,
   };
 };

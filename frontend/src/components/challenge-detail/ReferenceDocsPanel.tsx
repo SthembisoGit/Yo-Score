@@ -11,19 +11,30 @@ interface ReferenceDoc {
 
 interface ReferenceDocsPanelProps {
   docs: ReferenceDoc[];
+  error?: string | null;
+  onRetry?: (() => void) | undefined;
 }
 
-export const ReferenceDocsPanel = ({ docs }: ReferenceDocsPanelProps) => {
+export const ReferenceDocsPanel = ({ docs, error, onRetry }: ReferenceDocsPanelProps) => {
   const [activeDocIndex, setActiveDocIndex] = useState(0);
 
   if (docs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8 text-center">
         <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-        <h3 className="font-medium mb-2">No Reference Documentation</h3>
-        <p className="text-sm text-muted-foreground">
-          This challenge does not have reference documentation.
+        <h3 className="font-medium mb-2">Reference Documentation Unavailable</h3>
+        <p className="text-sm text-muted-foreground mb-3">
+          {error || 'This challenge does not currently have reference documentation.'}
         </p>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted"
+          >
+            Retry
+          </button>
+        )}
       </div>
     );
   }
