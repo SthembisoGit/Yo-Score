@@ -7,6 +7,13 @@ class User {
   +name: string
   +email: string
   +role: string
+  +avatar_url: string?
+  +headline: string?
+  +bio: text?
+  +location: string?
+  +github_url: string?
+  +linkedin_url: string?
+  +portfolio_url: string?
 }
 
 class Challenge {
@@ -54,6 +61,21 @@ class ProctoringLog {
   +violation_type: string
   +severity: string
   +penalty: int
+}
+
+class ProctoringEventLog {
+  +id: UUID
+  +event_type: string
+  +severity: string
+  +event_timestamp: datetime
+}
+
+class ProctoringSnapshot {
+  +id: UUID
+  +trigger_type: string
+  +mime_type: string
+  +size_bytes: int
+  +captured_at: datetime
 }
 
 class TrustScore {
@@ -115,6 +137,8 @@ Submission "1" -- "0..*" SubmissionRun
 SubmissionRun "1" -- "0..*" SubmissionRunTest
 User "1" -- "0..*" ProctoringSession
 ProctoringSession "1" -- "0..*" ProctoringLog
+ProctoringSession "1" -- "0..*" ProctoringEventLog
+ProctoringSession "1" -- "0..*" ProctoringSnapshot
 User "1" -- "1" TrustScore
 User "1" -- "0..*" WorkExperience
 User "1" -- "0..*" AiHintEvent

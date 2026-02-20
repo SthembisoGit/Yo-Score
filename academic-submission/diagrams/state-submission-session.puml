@@ -23,6 +23,8 @@ state "Proctoring Session Lifecycle" as SessionLifecycle {
   locked --> completed : grace window exceeded
   active --> completed : submission end
   paused --> completed : forced end
-  completed --> [*]
+  completed --> review_pending : enqueue post-exam review
+  review_pending --> reviewed : async review stored
+  reviewed --> [*]
 }
 @enduml

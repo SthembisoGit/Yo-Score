@@ -9,6 +9,7 @@ Key objects used in Trust-Core Release 1:
 - Challenges: `challenges`, `challenge_test_cases`, `challenge_baselines`, `reference_docs`
 - Submissions and judging: `submissions`, `submission_runs`, `submission_run_tests`
 - Proctoring: `proctoring_sessions`, `proctoring_logs`, `ml_analysis_results`, `proctoring_settings`
+- Two-phase proctoring evidence: `proctoring_event_logs`, `proctoring_snapshots`
 - Trust and experience: `trust_scores`, `work_experience`
 - AI audit: `ai_hint_events`
 
@@ -26,6 +27,7 @@ Indexes support:
 - submission lifecycle polling
 - run and per-test retrieval
 - proctoring session deadline checks
+- proctoring event/snapshot retrieval and review
 - work-experience risk and status filtering
 
 ## 3. Normalization Process

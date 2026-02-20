@@ -169,6 +169,7 @@
         <li>Category-based challenge request and seniority-aware assignment.</li>
         <li>Timer initialized by server deadline metadata.</li>
         <li>Offline autosave and reconnect auto-submit behavior.</li>
+        <li>Two-phase proctoring: live telemetry plus async post-exam review.</li>
         <li>Submission queue lifecycle with run and test persistence.</li>
         <li>AI Coach policy enforcement (3 hints, no full solution output).</li>
         <li>Evidence-aware work-experience verification and risk scoring.</li>
@@ -250,13 +251,14 @@
       <h2>Phase 3: User Interface</h2>
 
       <h3>1. Design User Interfaces</h3>
-      <p>Implemented screens include login, dashboard, challenge session, result view, work-experience view, and admin dashboard.</p>
+      <p>Implemented screens include login, dashboard, challenge session, result view, work-experience view, profile page, and admin dashboard.</p>
       <ul>
         <li>Category picker and seniority badge in challenge flow</li>
         <li>Server-based countdown timer</li>
         <li>Offline banner plus autosave/reconnect behavior</li>
         <li>AI Coach panel with remaining hint counter</li>
         <li>Work-experience evidence links and risk status badges</li>
+        <li>Profile editing for avatar URL, bio, and professional links</li>
       </ul>
 
       <h3>2. Demo the Prototype</h3>
@@ -268,6 +270,7 @@
         <li>Submit and observe judge lifecycle.</li>
         <li>Review updated dashboard.</li>
         <li>Login as admin and inspect flagged experience queue.</li>
+        <li>Open session detail and verify post-exam proctoring summary.</li>
       </ol>
 
       <h3>3. Evaluate User Interface (Heuristic Evaluation)</h3>
@@ -329,7 +332,7 @@
       <h3>1. Build the Database</h3>
       <p>
         The PostgreSQL schema is defined in <code>backend/db/schema.sql</code> and includes challenge,
-        submission, run-level, proctoring, trust, work-experience, and AI hint audit entities.
+        submission, run-level, proctoring (live and post-exam evidence), trust, work-experience, and AI hint audit entities.
       </p>
 
       <h3>2. Manage Objects</h3>
@@ -337,6 +340,7 @@
         <li>Primary and foreign keys enforce relational integrity.</li>
         <li>Check constraints enforce language, status, and verification enums.</li>
         <li>Indexes support lifecycle polling, assignment, and risk auditing.</li>
+        <li>Two-phase proctoring evidence is stored in <code>proctoring_event_logs</code> and <code>proctoring_snapshots</code>.</li>
       </ul>
 
       <h3>3. Normalization Process</h3>

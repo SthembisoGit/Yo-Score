@@ -7,7 +7,12 @@ start
 :Start proctoring session;
 
 fork
-  :Capture proctoring heartbeats/events;
+  :Run local proctoring checks;
+  :Buffer telemetry events;
+  :Flush event batch to backend;
+  if (High-risk trigger?) then (yes)
+    :Upload sampled snapshot evidence;
+  endif
   if (Violation/device failure?) then (yes)
     :Pause session;
     :User recovers device;
@@ -38,5 +43,8 @@ end fork
 
 :Frontend polls submission status;
 :Display final result and breakdown;
+:End session and enqueue post-exam review;
+:Aggregate timeline + snapshots asynchronously;
+:Persist auditable review summary;
 stop
 @enduml
