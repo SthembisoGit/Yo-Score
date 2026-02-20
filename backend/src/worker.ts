@@ -1,3 +1,4 @@
+import type { Job } from 'bullmq';
 import { createJudgeWorker, JudgeJobData } from './queue/judgeQueue';
 import { judgeService } from './services/judge.service';
 import { submissionRunService } from './services/submissionRun.service';
@@ -16,50 +17,60 @@ async function markSubmissionFailed(submissionId: string, error: string, runId?:
   );
 }
 
-const processor = async (job: { data: JudgeJobData }) => {
+const processor = async (job: Job<JudgeJobData>) => {
   const { submissionId, challengeId, userId, code, language, sessionId } = job.data;
-
-  const normalizedLanguage = language.toLowerCase() === 'python' ? 'python' : 'javascript';
-
-  await query(
-    `UPDATE submissions
-     SET judge_status = 'running', judge_error = NULL
-     WHERE id = $1`,
-    [submissionId],
-  );
-
-  const isReady = await judgeService.isChallengeReadyForLanguage(challengeId, normalizedLanguage);
-  if (!isReady) {
-    await markSubmissionFailed(
-      submissionId,
-      'Challenge is not judge-ready for selected language. Configure tests and baseline first.',
-    );
-    return { submissionId };
-  }
-
-  const runId = await submissionRunService.create({
-    submissionId,
-    language: normalizedLanguage,
-    status: 'running',
-  });
-
-  await query(`UPDATE submissions SET judge_run_id = $2 WHERE id = $1`, [submissionId, runId]);
+  let runId: string | null = null;
 
   try {
+    const normalizedLanguage = language.toLowerCase() === 'python' ? 'python' : 'javascript';
+
+    await query(
+      `UPDATE submissions
+       SET judge_status = 'running', judge_error = NULL
+       WHERE id = $1`,
+      [submissionId],
+    );
+
+    const isReady = await judgeService.isChallengeReadyForLanguage(challengeId, normalizedLanguage);
+    if (!isReady) {
+      await markSubmissionFailed(
+        submissionId,
+        'Challenge is not judge-ready for selected language. Configure tests and baseline first.',
+      );
+      return { submissionId };
+    }
+
+    runId = await submissionRunService.create({
+      submissionId,
+      language: normalizedLanguage,
+      status: 'running',
+    });
+
+    await query(`UPDATE submissions SET judge_run_id = $2 WHERE id = $1`, [submissionId, runId]);
+
+    if (!runId) {
+      throw new Error('Failed to create submission run');
+    }
+    const ensuredRunId = runId;
+
     const runResult = await judgeService.runTests(challengeId, normalizedLanguage, code);
     if (!runResult) {
       await submissionRunService.complete({
-        runId,
+        runId: ensuredRunId,
         status: 'failed',
         errorMessage: 'Judge cannot execute: missing tests or baseline.',
       });
-      await markSubmissionFailed(submissionId, 'Judge cannot execute: missing tests or baseline.', runId);
+      await markSubmissionFailed(
+        submissionId,
+        'Judge cannot execute: missing tests or baseline.',
+        ensuredRunId,
+      );
       return { submissionId };
     }
 
     if (runResult.infrastructureError) {
       await submissionRunService.complete({
-        runId,
+        runId: ensuredRunId,
         status: 'failed',
         scoreCorrectness: 0,
         scoreEfficiency: 0,
@@ -70,13 +81,13 @@ const processor = async (job: { data: JudgeJobData }) => {
         memoryMb: runResult.summary.memoryMb,
         errorMessage: runResult.infrastructureError,
       });
-      await markSubmissionFailed(submissionId, runResult.infrastructureError, runId);
+      await markSubmissionFailed(submissionId, runResult.infrastructureError, ensuredRunId);
       return { submissionId };
     }
 
     await submissionRunService.addTests(
       runResult.tests.map((test) => ({
-        runId,
+        runId: ensuredRunId,
         testCaseId: test.testCaseId,
         status: test.status,
         runtimeMs: test.runtimeMs,
@@ -87,7 +98,7 @@ const processor = async (job: { data: JudgeJobData }) => {
     );
 
     await submissionRunService.complete({
-      runId,
+      runId: ensuredRunId,
       status: 'completed',
       scoreCorrectness: runResult.summary.correctness,
       scoreEfficiency: runResult.summary.efficiency,
@@ -109,19 +120,50 @@ const processor = async (job: { data: JudgeJobData }) => {
       },
     );
 
-    return { submissionId, runId };
+    return { submissionId, runId: ensuredRunId };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Judge worker failed unexpectedly';
-    await submissionRunService.complete({
-      runId,
-      status: 'failed',
-      errorMessage: message,
-    });
-    await markSubmissionFailed(submissionId, message, runId);
-    return { submissionId };
+    try {
+      if (runId) {
+        await submissionRunService.complete({
+          runId,
+          status: 'failed',
+          errorMessage: message,
+        });
+      }
+    } catch {
+      // ignore run completion failure and still mark submission failed
+    }
+    await markSubmissionFailed(submissionId, message, runId ?? undefined);
+    throw error;
   }
 };
 
-createJudgeWorker(processor);
+const judgeWorker = createJudgeWorker(processor);
+
+if (judgeWorker) {
+  judgeWorker.on('active', (job) => {
+    console.log(
+      `[judge] active job_id=${job.id} submission_id=${job.data?.submissionId ?? 'unknown'}`,
+    );
+  });
+
+  judgeWorker.on('completed', (job) => {
+    console.log(
+      `[judge] completed job_id=${job.id} submission_id=${job.data?.submissionId ?? 'unknown'}`,
+    );
+  });
+
+  judgeWorker.on('failed', (job, error) => {
+    const submissionId = job?.data?.submissionId ?? 'unknown';
+    const message = error instanceof Error ? error.message : 'Unknown worker failure';
+    console.error(`[judge] failed job_id=${job?.id ?? 'unknown'} submission_id=${submissionId}: ${message}`);
+  });
+
+  judgeWorker.on('error', (error) => {
+    const message = error instanceof Error ? error.message : 'Unknown worker error';
+    console.error(`[judge] worker error: ${message}`);
+  });
+}
 
 console.log('Judge worker started (async real scoring).');
