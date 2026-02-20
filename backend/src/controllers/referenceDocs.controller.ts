@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { ReferenceDocsService } from '../services/referenceDocs.service';
+import { safeErrorMessage } from '../utils/safeErrorMessage';
 const referenceDocsService = new ReferenceDocsService();
 
 export class ReferenceDocsController {
@@ -23,7 +24,7 @@ export class ReferenceDocsController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to retrieve reference docs';
+      const message = safeErrorMessage(error, 'Failed to retrieve reference docs');
       
       return res.status(500).json({
         success: false,
@@ -45,7 +46,21 @@ export class ReferenceDocsController {
         });
       }
 
-      const doc = await referenceDocsService.createDoc(challenge_id, title, content);
+      const normalizedTitle = String(title).trim();
+      const normalizedContent = String(content).trim();
+      if (normalizedTitle.length === 0 || normalizedContent.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Title and content cannot be empty',
+          error: 'VALIDATION_FAILED',
+        });
+      }
+
+      const doc = await referenceDocsService.createDoc(
+        challenge_id,
+        normalizedTitle,
+        normalizedContent,
+      );
 
       return res.status(201).json({
         success: true,
@@ -54,12 +69,12 @@ export class ReferenceDocsController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create reference doc';
+      const message = safeErrorMessage(error, 'Failed to create reference doc');
       
       return res.status(400).json({
         success: false,
         message,
-        error: 'DOC_CREATION_FAILED'
+        error: 'DOC_CREATION_FAILED',
       });
     }
   }
