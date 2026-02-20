@@ -15,7 +15,7 @@ This revision adds Trust-Core behavior: seniority routing, constrained AI coach,
 | Frontend | Challenge UI, timer, offline autosave, AI Coach panel, dashboards |
 | Backend API | Auth, challenge assignment, submission lifecycle, scoring orchestration |
 | Judge Worker | Async execution of JS/Python submissions against test cases |
-| Proctoring Service | Session lifecycle, violations, heartbeat, ML analysis passthrough |
+| Proctoring Service | Session lifecycle, violations, heartbeat, event/snapshot ingestion, post-exam review trigger |
 | Database | Source of truth for users, challenges, submissions, runs, proctoring, work experience |
 | Redis/BullMQ | Queueing and retry behavior for judge jobs |
 
@@ -30,9 +30,15 @@ This revision adds Trust-Core behavior: seniority routing, constrained AI coach,
   - `evidence_links`
   - `verification_status`
   - `risk_score`
+- User profile model now includes:
+  - `avatar_url`, `headline`, `bio`, `location`
+  - `github_url`, `linkedin_url`, `portfolio_url`
 - AI Coach uses audited hint events:
   - table `ai_hint_events`
   - max 3 hints per challenge/session/user
+- Two-phase proctoring model:
+  - phase 1 (live): browser checks + batched events + sampled snapshots
+  - phase 2 (post-exam): async review summary from persisted evidence
 
 ## 4. Request/Data Flow
 1. User selects category and starts a challenge.
@@ -43,21 +49,28 @@ This revision adds Trust-Core behavior: seniority routing, constrained AI coach,
 6. Scoring service computes breakdown + trust updates.
 7. Dashboard surfaces score, seniority, and trusted experience summary.
 
-## 5. Offline and Deadline Flow
+## 5. Proctoring Architecture (Two-Phase Lite)
+1. Frontend performs lightweight live checks (tab/focus/device/audio-energy).
+2. Frontend batches events to `/api/proctoring/events/batch`.
+3. Frontend sends sampled or trigger-based evidence to `/api/proctoring/session/:sessionId/snapshot`.
+4. Backend enforces caps and persists event/snapshot evidence.
+5. Session end triggers async post-exam review job, which writes audit summary output.
+
+## 6. Offline and Deadline Flow
 1. Browser goes offline during active timed session.
 2. Timer continues in UI; code keeps autosaving locally.
 3. If timer expires offline, editor locks and pending auto-submit is staged.
 4. On reconnect, frontend auto-submits saved code.
 5. Backend accepts only within 15-minute grace after deadline.
 
-## 6. Security and Integrity
+## 7. Security and Integrity
 - JWT auth and role-based access control.
 - Sandbox execution for judged code.
 - Proctoring violations persisted with penalties.
 - AI Coach prevents full-solution output by policy.
 - Admin audit logs for sensitive operations.
 
-## 7. Deployment Shape
+## 8. Deployment Shape
 - Frontend: Render static service
 - Backend API: Render web service
 - Judge worker: Render worker

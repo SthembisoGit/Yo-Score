@@ -44,6 +44,14 @@
 ## Users
 ### `GET /api/users/me`
 - Auth required.
+- Returns extended profile fields:
+  - `avatar_url`
+  - `headline`
+  - `bio`
+  - `location`
+  - `github_url`
+  - `linkedin_url`
+  - `portfolio_url`
 
 ### `PUT /api/users/me`
 - Auth required.
@@ -164,6 +172,10 @@
 ### `GET /api/submissions/:submission_id`
 - Auth required.
 - Returns judge lifecycle, score breakdown, penalty info, run summary, tests summary, trust totals.
+- Includes `practice_feedback` array generated from:
+  - failed tests,
+  - score components,
+  - proctoring violations.
 
 ### `GET /api/submissions/:submission_id/runs`
 - Auth required.
@@ -192,6 +204,16 @@ All proctoring routes require auth.
   - `sessionId`
   - `deadline_at`
   - `duration_seconds`
+- `POST /api/proctoring/events/batch`
+  - Body: `session_id`, `events[]` (`event_type`, `severity`, optional `payload`, `timestamp`)
+  - Used for lightweight live-event buffering.
+  - Response includes accepted count and bounded queue status.
+- `POST /api/proctoring/session/:sessionId/snapshot`
+  - Binary JPEG/PNG body with trigger metadata:
+    - `X-Trigger-Type`
+    - `X-Snapshot-Timestamp` (optional)
+  - Server stores bounded snapshots per session and may reject oversized uploads.
+  - Intended for trigger-based or sampled evidence only (not continuous upload).
 
 ### Violations
 - `POST /api/proctoring/violation`

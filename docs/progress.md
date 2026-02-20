@@ -1,5 +1,34 @@
 # YoScore Development Progress
 
+## Release Hardening Checklist (Current Sprint)
+
+- [x] Developer challenge flow uses real backend submission states (queued/running/completed/failed).
+- [x] Challenge status indicators map to real progress states (`completed`, `in_progress`, `not_started`).
+- [x] Session timer/offline behavior remains enforced with local autosave and reconnect submit.
+- [x] Proctoring device enforcement supports pause/recovery without false camera-off on mobile minimize.
+- [x] Admin challenge management uses constrained category/difficulty values and validated duration inputs.
+- [x] Proctoring live flow now batches events and stores sampled snapshots with server caps.
+- [x] Post-exam async proctoring review summary is recorded for auditability.
+- [x] Profile model and APIs extended for MVP attributes (avatar URL + professional links).
+- [x] Submission results include deterministic practice guidance from run and proctoring evidence.
+- [x] Full release gate (backend + frontend + e2e + manual acceptance sweep) re-run after final doc sync.
+
+## Latest Verification Pass (2026-02-20)
+
+### Automated gate results
+- `backend`: `npm run build` passes.
+- `backend`: `node --test tests/api.smoke.test.js` assertions pass (4/4).
+- `backend`: `npm run test:judge-smoke` passes.
+- `frontend`: `npm run build` passes.
+- `frontend`: `npm run test` passes.
+- `frontend`: `npm run e2e` passes (admin flow + developer flow).
+
+### Alignment updates completed in this pass
+- API docs extended for proctoring batch and snapshot contracts (`docs/API.md`).
+- Architecture docs updated for two-phase proctoring and expanded profile model (`docs/Architecture.md`).
+- Runbook updated with Node memory and ML feature-flag guidance (`docs/RunStack.md`).
+- Academic UML and HTML content synced to two-phase proctoring + profile expansion.
+
 ## Latest Update (Stability + Real Scoring Seed, 2026-02-19)
 
 ### Critical runtime fixes completed
