@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { SubmissionService } from '../services/submission.service';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { safeErrorMessage } from '../utils/safeErrorMessage';
 
 const submissionService = new SubmissionService();
 
@@ -42,7 +43,7 @@ export class SubmissionController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to submit challenge';
+      const message = safeErrorMessage(error, 'Failed to submit challenge');
       
       return res.status(400).json({
         success: false,
@@ -79,7 +80,9 @@ export class SubmissionController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get submission results';
+      const message = safeErrorMessage(error, 'Failed to get submission results', [
+        'Submission not found',
+      ]);
       
       if (message.includes('not found')) {
         return res.status(404).json({
@@ -115,7 +118,7 @@ export class SubmissionController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get submissions';
+      const message = safeErrorMessage(error, 'Failed to get submissions');
       
       return res.status(400).json({
         success: false,
@@ -148,7 +151,7 @@ export class SubmissionController {
         data: runs,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get submission runs';
+      const message = safeErrorMessage(error, 'Failed to get submission runs', ['Submission not found']);
       const statusCode = message.includes('not found') ? 404 : 400;
       return res.status(statusCode).json({
         success: false,
@@ -185,8 +188,10 @@ export class SubmissionController {
         data: details,
       });
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to get submission run details';
+      const message = safeErrorMessage(error, 'Failed to get submission run details', [
+        'Submission not found',
+        'Run not found',
+      ]);
       const statusCode = message.includes('not found') ? 404 : 400;
       return res.status(statusCode).json({
         success: false,

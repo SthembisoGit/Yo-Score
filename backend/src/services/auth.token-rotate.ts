@@ -1,7 +1,9 @@
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
-import { query } from '../../db';
+import { query } from '../db';
 import { UserPayload } from './auth.service';
+
+const JWT_EXPIRES_IN = config.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'];
 
 export async function rotateToken(oldToken: string) {
   let payload: UserPayload;
@@ -31,7 +33,7 @@ export async function rotateToken(oldToken: string) {
       role: user.role
     },
     config.JWT_SECRET,
-    { expiresIn: 86400 } // same 24h
+    { expiresIn: JWT_EXPIRES_IN },
   );
 
   return { token: newToken };

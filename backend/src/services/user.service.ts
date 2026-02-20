@@ -49,10 +49,13 @@ export class UserService {
   }
 
   async updateUser(userId: string, data: UpdateUserData) {
-    if (data.email) {
+    const normalizedEmail =
+      typeof data.email === 'string' ? data.email.trim().toLowerCase() : data.email;
+
+    if (normalizedEmail) {
       const existing = await query(
-        'SELECT id FROM users WHERE email = $1 AND id != $2',
-        [data.email, userId]
+        'SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND id != $2',
+        [normalizedEmail, userId]
       );
 
       if (existing.rows.length > 0) {
@@ -70,9 +73,9 @@ export class UserService {
       paramCount++;
     }
 
-    if (data.email !== undefined) {
+    if (normalizedEmail !== undefined) {
       updates.push(`email = $${paramCount}`);
-      values.push(data.email);
+      values.push(normalizedEmail);
       paramCount++;
     }
 

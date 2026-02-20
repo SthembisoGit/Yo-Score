@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { AuthService } from '../services/auth.service';
+import { safeErrorMessage } from '../utils/safeErrorMessage';
 
 const authService = new AuthService();
 
@@ -7,16 +8,18 @@ export class AuthController {
   async signup(req: Request, res: Response) {
     try {
       const { name, email, password, role } = req.body;
+      const normalizedName = typeof name === 'string' ? name.trim() : '';
+      const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
 
       // Validate required fields
-      if (!name || !email || !password) {
+      if (!normalizedName || !normalizedEmail || !password) {
         return res.status(400).json({
           success: false,
           message: 'Name, email, and password are required'
         });
       }
 
-      const result = await authService.signup(name, email, password, role);
+      const result = await authService.signup(normalizedName, normalizedEmail, String(password), role);
 
       return res.status(201).json({
         success: true,
@@ -25,7 +28,7 @@ export class AuthController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Signup failed';
+      const message = safeErrorMessage(error, 'Signup failed', ['User already exists']);
       
       return res.status(400).json({
         success: false,
@@ -38,15 +41,16 @@ export class AuthController {
   async login(req: Request, res: Response) {
     try {
       const { email, password } = req.body;
+      const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
 
-      if (!email || !password) {
+      if (!normalizedEmail || !password) {
         return res.status(400).json({
           success: false,
           message: 'Email and password are required'
         });
       }
 
-      const result = await authService.login(email, password);
+      const result = await authService.login(normalizedEmail, String(password));
 
       return res.status(200).json({
         success: true,
@@ -55,7 +59,7 @@ export class AuthController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Login failed';
+      const message = safeErrorMessage(error, 'Login failed', ['Invalid credentials']);
       
       return res.status(401).json({
         success: false,
@@ -79,7 +83,7 @@ export class AuthController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Logout failed';
+      const message = safeErrorMessage(error, 'Logout failed');
       
       return res.status(500).json({
         success: false,

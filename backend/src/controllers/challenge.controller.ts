@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { ChallengeService } from '../services/challenge.service';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { coachService } from '../services/coach.service';
+import { safeErrorMessage } from '../utils/safeErrorMessage';
 
 const challengeService = new ChallengeService();
 
@@ -17,7 +18,7 @@ export class ChallengeController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to retrieve challenges';
+      const message = safeErrorMessage(error, 'Failed to retrieve challenges');
       
       return res.status(500).json({
         success: false,
@@ -47,7 +48,7 @@ export class ChallengeController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to retrieve challenge';
+      const message = safeErrorMessage(error, 'Failed to retrieve challenge', ['Challenge not found']);
       
       if (message.includes('not found')) {
         return res.status(404).json({
@@ -82,7 +83,7 @@ export class ChallengeController {
         data: challenge
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get next challenge';
+      const message = safeErrorMessage(error, 'Failed to get next challenge', ['No challenges available']);
       if (message.includes('No challenges available')) {
         return res.status(404).json({
           success: false,
@@ -134,7 +135,7 @@ export class ChallengeController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create challenge';
+      const message = safeErrorMessage(error, 'Failed to create challenge');
       
       return res.status(400).json({
         success: false,
@@ -189,7 +190,9 @@ export class ChallengeController {
         data,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to generate coach hint';
+      const message = safeErrorMessage(error, 'Failed to generate coach hint', [
+        'Hint limit reached for this challenge session.',
+      ]);
       const statusCode = message.includes('limit reached') ? 429 : 400;
       return res.status(statusCode).json({
         success: false,

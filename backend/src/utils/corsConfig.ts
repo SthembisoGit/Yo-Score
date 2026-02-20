@@ -34,7 +34,10 @@ export const getCorsConfig = (): CorsOptions => {
     }
   }
 
-  const allowRenderOrigins = (process.env.ALLOW_RENDER_ORIGINS ?? 'true').toLowerCase() === 'true';
+  const allowRenderOrigins = (
+    process.env.ALLOW_RENDER_ORIGINS ??
+    (process.env.NODE_ENV === 'development' ? 'true' : 'false')
+  ).toLowerCase() === 'true';
   const renderOriginRegex = /^https:\/\/[a-z0-9-]+\.onrender\.com$/i;
 
   return {
@@ -51,7 +54,7 @@ export const getCorsConfig = (): CorsOptions => {
         return;
       }
 
-      // Allow Render-hosted frontends by default for easier multi-service deployments.
+      // Optional Render wildcard support for multi-service deployments.
       if (allowRenderOrigins && renderOriginRegex.test(origin)) {
         callback(null, true);
         return;

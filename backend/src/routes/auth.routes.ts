@@ -1,7 +1,8 @@
-import { Router, Request } from 'express';
+import { Router } from 'express';
 import { AuthController } from '../controllers/auth.controller';
 import { authenticate } from '../middleware/auth.middleware'; 
 import { rotateToken } from '../services/auth.token-rotate';
+import { authRateLimiter } from '../middleware/rateLimit.middleware';
 
 declare global {
   namespace Express {
@@ -19,10 +20,10 @@ declare global {
 const router = Router();
 const authController = new AuthController();
 
-router.post('/signup', authController.signup.bind(authController));
-router.post('/login', authController.login.bind(authController));
+router.post('/signup', authRateLimiter, authController.signup.bind(authController));
+router.post('/login', authRateLimiter, authController.login.bind(authController));
 router.post('/logout', authenticate, authController.logout.bind(authController));
-router.post('/rotate', async (req, res) => {
+router.post('/rotate', authRateLimiter, async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -40,11 +41,10 @@ router.post('/rotate', async (req, res) => {
       data: result,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unauthorized';
     res.status(401).json({
       success: false,
       message: 'Unauthorized',
-      error: message,
+      error: 'UNAUTHORIZED',
     });
   }
 });
