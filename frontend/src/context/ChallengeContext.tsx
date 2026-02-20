@@ -4,6 +4,15 @@ import { challengeService } from '@/services/challengeService';
 import { dashboardService } from '@/services/dashboardService';
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard';
+export type ChallengeStatus = 'completed' | 'in_progress' | 'not_started';
+
+interface UserSubmissionSnapshot {
+  challenge_id: string;
+  status: 'pending' | 'graded' | 'failed';
+  score: number | null;
+  judge_status?: 'queued' | 'running' | 'completed' | 'failed';
+  submitted_at: string;
+}
 
 export interface Challenge {
   id: string;
@@ -14,6 +23,7 @@ export interface Challenge {
   description: string;
   duration: number;
   points: number;
+  status: ChallengeStatus;
   completed?: boolean;
   score?: number;
 }
@@ -33,14 +43,22 @@ interface ChallengeContextType {
 const ChallengeContext = createContext<ChallengeContextType | undefined>(undefined);
 
 // Helper function to map backend challenge to frontend format
-const mapBackendChallenge = (backendChallenge: any, completedSubmissions: any[]): Challenge => {
-  // Find if this challenge has a completed submission
-  const submission = completedSubmissions.find(
-    sub => sub.challenge_id === backendChallenge.challenge_id && sub.status === 'graded'
-  );
-  
-  const isCompleted = !!submission;
-  
+const mapBackendChallenge = (backendChallenge: any, submissions: UserSubmissionSnapshot[]): Challenge => {
+  const challengeSubmissions = submissions
+    .filter((sub) => sub.challenge_id === backendChallenge.challenge_id)
+    .sort(
+      (a, b) =>
+        new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime(),
+    );
+
+  const latestGraded = challengeSubmissions.find((sub) => sub.status === 'graded');
+  const latestSubmission = challengeSubmissions[0];
+  const status: ChallengeStatus = latestGraded
+    ? 'completed'
+    : latestSubmission
+      ? 'in_progress'
+      : 'not_started';
+
   // Map backend difficulty to frontend format
   const difficultyMap: Record<string, Difficulty> = {
     'easy': 'Easy',
@@ -83,8 +101,9 @@ const mapBackendChallenge = (backendChallenge: any, completedSubmissions: any[])
     description: backendChallenge.description || 'No description available.',
     duration: duration,
     points: points,
-    completed: isCompleted,
-    score: submission?.score
+    status,
+    completed: status === 'completed',
+    score: latestGraded?.score ?? undefined,
   };
 };
 
@@ -94,7 +113,7 @@ export function ChallengeProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCompletedSubmissions = async (): Promise<any[]> => {
+  const fetchUserSubmissions = async (): Promise<UserSubmissionSnapshot[]> => {
     const token = localStorage.getItem('yoScore_auth_token');
     if (!token) {
       return [];
@@ -102,7 +121,7 @@ export function ChallengeProvider({ children }: { children: ReactNode }) {
 
     try {
       const submissions = await dashboardService.getUserSubmissions();
-      return submissions.filter(sub => sub.status === 'graded');
+      return submissions;
     } catch (error) {
       console.error('Failed to fetch submissions:', error);
       return [];
@@ -114,15 +133,15 @@ export function ChallengeProvider({ children }: { children: ReactNode }) {
     setError(null);
     
     try {
-      // Fetch in parallel: challenges and completed submissions
-      const [backendChallenges, completedSubmissions] = await Promise.all([
+      // Fetch in parallel: challenges and submission history.
+      const [backendChallenges, submissions] = await Promise.all([
         challengeService.getAllChallenges(),
-        fetchCompletedSubmissions()
+        fetchUserSubmissions()
       ]);
       
       // Transform backend challenges to frontend format
       const mappedChallenges = backendChallenges.map(challenge => 
-        mapBackendChallenge(challenge, completedSubmissions)
+        mapBackendChallenge(challenge, submissions)
       );
       
       setChallenges(mappedChallenges);
@@ -137,9 +156,9 @@ export function ChallengeProvider({ children }: { children: ReactNode }) {
 
   const getAssignedChallenge = useCallback(async (category?: Category): Promise<Challenge> => {
     try {
-      const completedSubmissions = await fetchCompletedSubmissions();
+      const submissions = await fetchUserSubmissions();
       const backendChallenge = await challengeService.getNextChallenge(category);
-      return mapBackendChallenge(backendChallenge, completedSubmissions);
+      return mapBackendChallenge(backendChallenge, submissions);
     } catch (err) {
       console.error('Failed to get next challenge:', err);
       throw err;

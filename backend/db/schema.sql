@@ -6,6 +6,13 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     role VARCHAR(50) DEFAULT 'developer',
+    avatar_url TEXT,
+    headline VARCHAR(255),
+    bio TEXT,
+    location VARCHAR(255),
+    github_url TEXT,
+    linkedin_url TEXT,
+    portfolio_url TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -360,6 +367,48 @@ ALTER TABLE submissions
     ADD CONSTRAINT submissions_judge_run_id_fkey
     FOREIGN KEY (judge_run_id) REFERENCES submission_runs(id) ON DELETE SET NULL;
 
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS headline VARCHAR(255);
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS bio TEXT;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS location VARCHAR(255);
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS github_url TEXT;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS linkedin_url TEXT;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS portfolio_url TEXT;
+
+CREATE TABLE IF NOT EXISTS proctoring_event_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID REFERENCES proctoring_sessions(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    event_type VARCHAR(100) NOT NULL,
+    severity VARCHAR(20) NOT NULL DEFAULT 'low',
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS proctoring_snapshots (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID REFERENCES proctoring_sessions(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    trigger_type VARCHAR(100) NOT NULL,
+    image_data BYTEA NOT NULL,
+    bytes INTEGER NOT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
 INSERT INTO proctoring_settings (
     require_camera,
     require_microphone,
@@ -446,6 +495,10 @@ CREATE INDEX IF NOT EXISTS idx_proctoring_logs_session_id ON proctoring_logs(ses
 CREATE INDEX IF NOT EXISTS idx_proctoring_logs_user_id ON proctoring_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_proctoring_logs_submission_id ON proctoring_logs(submission_id);
 CREATE INDEX IF NOT EXISTS idx_proctoring_logs_timestamp ON proctoring_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_proctoring_event_logs_session_id ON proctoring_event_logs(session_id);
+CREATE INDEX IF NOT EXISTS idx_proctoring_event_logs_created_at ON proctoring_event_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_proctoring_snapshots_session_id ON proctoring_snapshots(session_id);
+CREATE INDEX IF NOT EXISTS idx_proctoring_snapshots_created_at ON proctoring_snapshots(created_at);
 
 CREATE INDEX IF NOT EXISTS idx_ml_analysis_session_id ON ml_analysis_results(session_id);
 CREATE INDEX IF NOT EXISTS idx_ml_analysis_type ON ml_analysis_results(analysis_type);

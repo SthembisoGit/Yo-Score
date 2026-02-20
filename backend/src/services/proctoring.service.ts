@@ -68,6 +68,17 @@ export interface ProctoringSessionStartResult {
   durationSeconds: number;
 }
 
+export interface ProctoringEventInput {
+  event_type: string;
+  severity: 'low' | 'medium' | 'high';
+  payload?: Record<string, unknown>;
+  timestamp?: string;
+}
+
+const MAX_EVENTS_PER_BATCH = 200;
+const MAX_SNAPSHOT_BYTES = 400 * 1024;
+const MAX_SNAPSHOTS_PER_SESSION = 40;
+
 export class ProctoringService {
   private violationWeights: Record<string, ProctoringViolation> = {
     tab_switch: {
@@ -87,6 +98,18 @@ export class ProctoringService {
       severity: 'high',
       description: 'Camera turned off or not available',
       penalty: 10,
+    },
+    microphone_off: {
+      type: 'microphone_off',
+      severity: 'high',
+      description: 'Microphone turned off or not available',
+      penalty: 10,
+    },
+    audio_off: {
+      type: 'audio_off',
+      severity: 'high',
+      description: 'Audio support unavailable',
+      penalty: 8,
     },
     multiple_faces: {
       type: 'multiple_faces',
@@ -202,6 +225,48 @@ export class ProctoringService {
          ADD COLUMN IF NOT EXISTS total_paused_seconds INTEGER DEFAULT 0`,
     );
 
+    await query(
+      `CREATE TABLE IF NOT EXISTS proctoring_event_logs (
+         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+         session_id UUID REFERENCES proctoring_sessions(id) ON DELETE CASCADE,
+         user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+         event_type VARCHAR(100) NOT NULL,
+         severity VARCHAR(20) NOT NULL DEFAULT 'low',
+         payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+         created_at TIMESTAMP DEFAULT NOW()
+       )`,
+    );
+
+    await query(
+      `CREATE TABLE IF NOT EXISTS proctoring_snapshots (
+         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+         session_id UUID REFERENCES proctoring_sessions(id) ON DELETE CASCADE,
+         user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+         trigger_type VARCHAR(100) NOT NULL,
+         image_data BYTEA NOT NULL,
+         bytes INTEGER NOT NULL,
+         metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+         created_at TIMESTAMP DEFAULT NOW()
+       )`,
+    );
+
+    await query(
+      `CREATE INDEX IF NOT EXISTS idx_proctoring_event_logs_session_id
+       ON proctoring_event_logs(session_id)`,
+    );
+    await query(
+      `CREATE INDEX IF NOT EXISTS idx_proctoring_event_logs_created_at
+       ON proctoring_event_logs(created_at)`,
+    );
+    await query(
+      `CREATE INDEX IF NOT EXISTS idx_proctoring_snapshots_session_id
+       ON proctoring_snapshots(session_id)`,
+    );
+    await query(
+      `CREATE INDEX IF NOT EXISTS idx_proctoring_snapshots_created_at
+       ON proctoring_snapshots(created_at)`,
+    );
+
     this.schemaEnsured = true;
   }
 
@@ -254,9 +319,14 @@ export class ProctoringService {
             paused_at = NULL,
             pause_reason = NULL,
             submission_id = $2
-        WHERE id = $1`,
+       WHERE id = $1`,
       [sessionId, submissionId ?? null],
     );
+
+    // Phase 2: async post-exam evidence review (non-blocking)
+    setImmediate(() => {
+      void this.runPostExamReview(sessionId);
+    });
   }
 
   async pauseSession(
@@ -421,6 +491,184 @@ export class ProctoringService {
         ? new Date(updated.rows[0].heartbeat_at).toISOString()
         : new Date().toISOString(),
     };
+  }
+
+  async ingestEventBatch(
+    sessionId: string,
+    userId: string,
+    events: ProctoringEventInput[],
+  ): Promise<{ accepted: number; status: 'active' | 'paused' | 'completed' }> {
+    await this.ensureSessionSchemaExtensions();
+
+    const sessionResult = await query(
+      `SELECT id, status
+       FROM proctoring_sessions
+       WHERE id = $1 AND user_id = $2`,
+      [sessionId, userId],
+    );
+    if (sessionResult.rows.length === 0) {
+      throw new Error('Session not found');
+    }
+
+    const validEvents = events
+      .slice(0, MAX_EVENTS_PER_BATCH)
+      .filter((event) => typeof event.event_type === 'string' && event.event_type.trim().length > 0)
+      .map((event) => ({
+        eventType: normalizeViolationType(event.event_type),
+        severity:
+          event.severity === 'high' || event.severity === 'medium' || event.severity === 'low'
+            ? event.severity
+            : 'low',
+        payload: event.payload ?? {},
+        timestamp: event.timestamp ? new Date(event.timestamp) : new Date(),
+      }))
+      .filter((event) => !Number.isNaN(event.timestamp.getTime()));
+
+    for (const event of validEvents) {
+      await query(
+        `INSERT INTO proctoring_event_logs
+           (session_id, user_id, event_type, severity, payload, created_at)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
+        [
+          sessionId,
+          userId,
+          event.eventType,
+          event.severity,
+          JSON.stringify(event.payload),
+          event.timestamp.toISOString(),
+        ],
+      );
+    }
+
+    return {
+      accepted: validEvents.length,
+      status: sessionResult.rows[0].status,
+    };
+  }
+
+  async storeSnapshot(
+    sessionId: string,
+    userId: string,
+    triggerType: string,
+    imageBuffer: Buffer,
+    metadata: Record<string, unknown> = {},
+  ): Promise<{ snapshot_id: string; bytes: number }> {
+    await this.ensureSessionSchemaExtensions();
+
+    if (!imageBuffer || imageBuffer.length === 0) {
+      throw new Error('Snapshot image data is required');
+    }
+
+    if (imageBuffer.length > MAX_SNAPSHOT_BYTES) {
+      throw new Error(`Snapshot exceeds ${MAX_SNAPSHOT_BYTES} bytes limit`);
+    }
+
+    const sessionResult = await query(
+      `SELECT id
+       FROM proctoring_sessions
+       WHERE id = $1 AND user_id = $2`,
+      [sessionId, userId],
+    );
+    if (sessionResult.rows.length === 0) {
+      throw new Error('Session not found');
+    }
+
+    const countResult = await query(
+      `SELECT COUNT(*)::int as count
+       FROM proctoring_snapshots
+       WHERE session_id = $1`,
+      [sessionId],
+    );
+    const currentCount = Number(countResult.rows[0]?.count ?? 0);
+    if (currentCount >= MAX_SNAPSHOTS_PER_SESSION) {
+      throw new Error('Snapshot limit reached for this session');
+    }
+
+    const result = await query(
+      `INSERT INTO proctoring_snapshots
+         (session_id, user_id, trigger_type, image_data, bytes, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+       RETURNING id, bytes`,
+      [
+        sessionId,
+        userId,
+        normalizeViolationType(triggerType || 'sampled_snapshot'),
+        imageBuffer,
+        imageBuffer.length,
+        JSON.stringify(metadata ?? {}),
+      ],
+    );
+
+    await query(
+      `INSERT INTO proctoring_event_logs
+         (session_id, user_id, event_type, severity, payload)
+       VALUES ($1, $2, 'snapshot_captured', 'low', $3::jsonb)`,
+      [
+        sessionId,
+        userId,
+        JSON.stringify({
+          trigger_type: normalizeViolationType(triggerType || 'sampled_snapshot'),
+          bytes: imageBuffer.length,
+        }),
+      ],
+    );
+
+    return {
+      snapshot_id: result.rows[0].id,
+      bytes: Number(result.rows[0].bytes),
+    };
+  }
+
+  private async runPostExamReview(sessionId: string): Promise<void> {
+    try {
+      await this.ensureSessionSchemaExtensions();
+
+      const [eventsResult, snapshotsResult] = await Promise.all([
+        query(
+          `SELECT severity, event_type
+           FROM proctoring_event_logs
+           WHERE session_id = $1`,
+          [sessionId],
+        ),
+        query(
+          `SELECT trigger_type, bytes
+           FROM proctoring_snapshots
+           WHERE session_id = $1`,
+          [sessionId],
+        ),
+      ]);
+
+      const eventCount = eventsResult.rows.length;
+      const highSeverityCount = eventsResult.rows.filter((row) => row.severity === 'high').length;
+      const mediumSeverityCount = eventsResult.rows.filter((row) => row.severity === 'medium').length;
+      const snapshotCount = snapshotsResult.rows.length;
+      const snapshotBytes = snapshotsResult.rows.reduce(
+        (sum, row) => sum + Number(row.bytes ?? 0),
+        0,
+      );
+
+      await this.logMLAnalysis(
+        sessionId,
+        'post_exam_review',
+        new Date().toISOString(),
+        {
+          event_count: eventCount,
+          high_severity_count: highSeverityCount,
+          medium_severity_count: mediumSeverityCount,
+          snapshot_count: snapshotCount,
+          snapshot_bytes: snapshotBytes,
+          top_events: eventsResult.rows
+            .reduce<Record<string, number>>((acc, row) => {
+              const type = String(row.event_type);
+              acc[type] = (acc[type] ?? 0) + 1;
+              return acc;
+            }, {}),
+        },
+        [],
+      );
+    } catch (error) {
+      console.error('Post-exam proctoring review failed:', error);
+    }
   }
 
   // Basic Violation Logging
@@ -701,7 +949,10 @@ export class ProctoringService {
 
     return result.rows.map((row) => ({
       ...row,
-      evidence_data: row.evidence_data ? JSON.parse(row.evidence_data) : null,
+      evidence_data:
+        typeof row.evidence_data === 'string'
+          ? JSON.parse(row.evidence_data)
+          : row.evidence_data ?? null,
     }));
   }
 
@@ -719,7 +970,7 @@ export class ProctoringService {
     const result = await query(sql, params);
     return result.rows.map((row) => ({
       ...row,
-      results: row.results ? JSON.parse(row.results) : null,
+      results: typeof row.results === 'string' ? JSON.parse(row.results) : row.results ?? null,
     }));
   }
 
@@ -773,9 +1024,24 @@ export class ProctoringService {
     }
 
     const session = sessionResult.rows[0];
-    const violations = await this.getSessionViolations(sessionId);
-    const mlAnalyses = await this.getMLAnalysisResults(sessionId);
-    const score = await this.calculateProctoringScore(sessionId);
+    const [violations, mlAnalyses, score, eventAggResult, snapshotAggResult] = await Promise.all([
+      this.getSessionViolations(sessionId),
+      this.getMLAnalysisResults(sessionId),
+      this.calculateProctoringScore(sessionId),
+      query(
+        `SELECT event_type, severity, COUNT(*)::int as count
+         FROM proctoring_event_logs
+         WHERE session_id = $1
+         GROUP BY event_type, severity`,
+        [sessionId],
+      ),
+      query(
+        `SELECT COUNT(*)::int as count, COALESCE(SUM(bytes), 0)::int as total_bytes
+         FROM proctoring_snapshots
+         WHERE session_id = $1`,
+        [sessionId],
+      ),
+    ]);
 
     const violationStats = {
       total: violations.length,
@@ -804,6 +1070,24 @@ export class ProctoringService {
       ),
     };
 
+    const eventStats = {
+      total: eventAggResult.rows.reduce((sum, row) => sum + Number(row.count ?? 0), 0),
+      byType: eventAggResult.rows.reduce((acc: Record<string, number>, row) => {
+        acc[row.event_type] = Number(row.count ?? 0);
+        return acc;
+      }, {}),
+      bySeverity: eventAggResult.rows.reduce((acc: Record<string, number>, row) => {
+        const severity = String(row.severity ?? 'low');
+        acc[severity] = (acc[severity] ?? 0) + Number(row.count ?? 0);
+        return acc;
+      }, {}),
+    };
+
+    const snapshotStats = {
+      total: Number(snapshotAggResult.rows[0]?.count ?? 0),
+      totalBytes: Number(snapshotAggResult.rows[0]?.total_bytes ?? 0),
+    };
+
     return {
       session,
       violations,
@@ -812,6 +1096,8 @@ export class ProctoringService {
       stats: {
         violations: violationStats,
         mlAnalyses: mlStats,
+        events: eventStats,
+        snapshots: snapshotStats,
       },
       duration: session.end_time
         ? this.calculateDuration(session.start_time, session.end_time)

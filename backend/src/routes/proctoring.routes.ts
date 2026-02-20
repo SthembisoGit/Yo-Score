@@ -17,6 +17,12 @@ router.post('/session/end', proctoringController.endSession.bind(proctoringContr
 router.post('/session/pause', proctoringController.pauseSession.bind(proctoringController));
 router.post('/session/resume', proctoringController.resumeSession.bind(proctoringController));
 router.post('/session/heartbeat', proctoringController.heartbeat.bind(proctoringController));
+router.post('/events/batch', proctoringController.ingestEventsBatch.bind(proctoringController));
+router.post(
+  '/session/:sessionId/snapshot',
+  express.raw({ type: ['image/jpeg', 'image/png', 'application/octet-stream'], limit: '2mb' }),
+  proctoringController.uploadSnapshot.bind(proctoringController),
+);
 router.get(
   '/session/:sessionId',
   proctoringController.getSessionDetails.bind(proctoringController),

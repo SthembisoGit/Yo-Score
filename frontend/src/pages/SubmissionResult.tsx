@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { AlertTriangle, CheckCircle, Clock, XCircle } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
@@ -19,9 +19,12 @@ export default function SubmissionResult() {
   const [submission, setSubmission] = useState<SubmissionResultData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
+  const [pollTimedOut, setPollTimedOut] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadSubmission = async () => {
+  const loadSubmission = useCallback(
+    async (enablePolling: boolean) => {
       if (!id) {
         setLoading(false);
         setError('Missing submission id');
@@ -29,28 +32,58 @@ export default function SubmissionResult() {
       }
 
       try {
+        setError(null);
         const initial = await submissionService.getSubmissionResult(id);
         setSubmission(initial);
+        setLastUpdatedAt(new Date().toISOString());
+        setLoading(false);
 
         const isPending =
           initial.status === 'pending' ||
           initial.judge_status === 'queued' ||
           initial.judge_status === 'running';
 
-        if (isPending) {
-          const polled = await submissionService.pollSubmissionStatus(id, 2000, 90);
-          setSubmission(polled);
+        if (!enablePolling || !isPending) {
+          setIsPolling(false);
+          return;
         }
+
+        setIsPolling(true);
+        setPollTimedOut(false);
+
+        let latest = initial;
+        for (let attempt = 0; attempt < 120; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          latest = await submissionService.getSubmissionResult(id);
+          setSubmission(latest);
+          setLastUpdatedAt(new Date().toISOString());
+
+          const stillPending =
+            latest.status === 'pending' ||
+            latest.judge_status === 'queued' ||
+            latest.judge_status === 'running';
+          if (!stillPending) {
+            setIsPolling(false);
+            return;
+          }
+        }
+
+        setPollTimedOut(true);
+        setIsPolling(false);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load submission';
         setError(message);
-      } finally {
         setLoading(false);
+        setIsPolling(false);
       }
-    };
+    },
+    [id],
+  );
 
-    void loadSubmission();
-  }, [id]);
+  useEffect(() => {
+    setLoading(true);
+    void loadSubmission(true);
+  }, [loadSubmission]);
 
   if (loading) {
     return (
@@ -116,6 +149,37 @@ export default function SubmissionResult() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
+            {(isJudgePending || pollTimedOut) && (
+              <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-medium">
+                    {submission.judge_status === 'queued'
+                      ? 'Submission queued for judging'
+                      : submission.judge_status === 'running'
+                        ? 'Judge is evaluating your code'
+                        : 'Submission is still processing'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {pollTimedOut
+                      ? 'This is taking longer than expected. You can refresh status manually.'
+                      : 'Status updates automatically while this page is open.'}
+                  </p>
+                  {lastUpdatedAt && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Last checked: {new Date(lastUpdatedAt).toLocaleTimeString()}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => void loadSubmission(false)}
+                  disabled={isPolling}
+                >
+                  {isPolling ? 'Checking...' : 'Refresh Status'}
+                </Button>
+              </div>
+            )}
+
             <div className="bg-card border border-border rounded-xl p-6">
               <h2 className="text-xl font-semibold mb-4">Score</h2>
               <div className="flex items-end justify-between">
@@ -187,6 +251,19 @@ export default function SubmissionResult() {
                 </p>
               )}
             </div>
+
+            {submission.practice_feedback && submission.practice_feedback.length > 0 && (
+              <div className="bg-card border border-border rounded-xl p-6">
+                <h3 className="text-lg font-semibold mb-4">What To Practice Next</h3>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  {submission.practice_feedback.map((item, index) => (
+                    <li key={`${index}-${item}`} className="rounded-md border border-border p-2">
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {submission.tests_summary && (
               <div className="bg-card border border-border rounded-xl p-6">

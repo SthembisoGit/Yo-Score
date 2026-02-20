@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Search, Filter, X, ChevronDown, Loader2 } from 'lucide-react';
+import { Search, Filter, X, Loader2 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { ChallengeCard } from '@/components/ChallengeCard';
 import { Input } from '@/components/ui/input';
@@ -7,12 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useChallenges, type Difficulty } from '@/context/ChallengeContext';
 import { useAuth, type Category } from '@/context/AuthContext';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import {
   Select,
   SelectContent,
@@ -22,8 +18,9 @@ import {
 } from '@/components/ui/select';
 
 export default function Challenges() {
-  const { challenges, isLoading, error, fetchChallenges } = useChallenges();
+  const { challenges, isLoading, error, fetchChallenges, getAssignedChallenge } = useChallenges();
   const { availableCategories } = useAuth();
+  const navigate = useNavigate();
   
   const categories: (Category | 'All')[] = ['All', ...availableCategories];
   const difficulties: (Difficulty | 'All')[] = ['All', 'Easy', 'Medium', 'Hard'];
@@ -33,6 +30,10 @@ export default function Challenges() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | 'All'>('All');
   const [isSearching, setIsSearching] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [assignmentCategory, setAssignmentCategory] = useState<Category>(
+    availableCategories[0] ?? 'Frontend',
+  );
+  const [isAssigning, setIsAssigning] = useState(false);
 
   // Debounced search
   useEffect(() => {
@@ -78,6 +79,27 @@ export default function Challenges() {
     if (selectedDifficulty !== 'All') count++;
     return count;
   }, [search, selectedCategory, selectedDifficulty]);
+
+  const startMatchedChallenge = useCallback(async () => {
+    setIsAssigning(true);
+    try {
+      const assigned = await getAssignedChallenge(assignmentCategory);
+      navigate(`/challenges/${assigned.id}`, {
+        state: {
+          assignedFromMatcher: true,
+          assignmentCategory,
+        },
+      });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'No matching challenge available for your current seniority.';
+      toast.error(message);
+    } finally {
+      setIsAssigning(false);
+    }
+  }, [assignmentCategory, getAssignedChallenge, navigate]);
 
   // Handle loading state
   if (isLoading) {
@@ -144,6 +166,37 @@ export default function Challenges() {
           <p className="text-muted-foreground">
             Test your skills across multiple domains and difficulty levels
           </p>
+        </div>
+
+        <div className="bg-card border border-border rounded-xl p-4 mb-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="font-medium">Start a Seniority-Matched Challenge</p>
+              <p className="text-sm text-muted-foreground">
+                Pick a category and YoScore assigns the next challenge for your level.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+              <Select
+                value={assignmentCategory}
+                onValueChange={(value: Category) => setAssignmentCategory(value)}
+              >
+                <SelectTrigger className="w-full sm:w-56">
+                  <SelectValue placeholder="Choose category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableCategories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={() => void startMatchedChallenge()} disabled={isAssigning}>
+                {isAssigning ? 'Assigning...' : 'Start Matched Challenge'}
+              </Button>
+            </div>
+          </div>
         </div>
 
         {/* Search and Filters Bar */}

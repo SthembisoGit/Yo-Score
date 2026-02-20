@@ -44,15 +44,99 @@ export class UserController {
       }
 
       const { name, email } = req.body;
+      const {
+        avatar_url,
+        headline,
+        bio,
+        location,
+        github_url,
+        linkedin_url,
+        portfolio_url,
+      } = req.body;
 
-      if (!name && !email) {
+      if (
+        name === undefined &&
+        email === undefined &&
+        avatar_url === undefined &&
+        headline === undefined &&
+        bio === undefined &&
+        location === undefined &&
+        github_url === undefined &&
+        linkedin_url === undefined &&
+        portfolio_url === undefined
+      ) {
         return res.status(400).json({
           success: false,
-          message: 'At least one field (name or email) is required'
+          message: 'At least one profile field is required'
         });
       }
 
-      const user = await userService.updateUser(req.user.id, { name, email });
+      const user = await userService.updateUser(req.user.id, {
+        name:
+          typeof name === 'string'
+            ? (name.trim() || undefined)
+            : undefined,
+        email:
+          typeof email === 'string'
+            ? (email.trim() || undefined)
+            : undefined,
+        avatar_url:
+          avatar_url === null
+            ? null
+            : avatar_url === ''
+            ? null
+            : typeof avatar_url === 'string'
+              ? avatar_url.trim()
+              : undefined,
+        headline:
+          headline === null
+            ? null
+            : headline === ''
+            ? null
+            : typeof headline === 'string'
+              ? headline.trim()
+              : undefined,
+        bio:
+          bio === null
+            ? null
+            : bio === ''
+            ? null
+            : typeof bio === 'string'
+              ? bio.trim()
+              : undefined,
+        location:
+          location === null
+            ? null
+            : location === ''
+            ? null
+            : typeof location === 'string'
+              ? location.trim()
+              : undefined,
+        github_url:
+          github_url === null
+            ? null
+            : github_url === ''
+            ? null
+            : typeof github_url === 'string'
+              ? github_url.trim()
+              : undefined,
+        linkedin_url:
+          linkedin_url === null
+            ? null
+            : linkedin_url === ''
+            ? null
+            : typeof linkedin_url === 'string'
+              ? linkedin_url.trim()
+              : undefined,
+        portfolio_url:
+          portfolio_url === null
+            ? null
+            : portfolio_url === ''
+            ? null
+            : typeof portfolio_url === 'string'
+              ? portfolio_url.trim()
+              : undefined,
+      });
 
       return res.status(200).json({
         success: true,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { ChevronRight, Loader2, AlertCircle, FileText } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { ProctoringModal } from '@/components/ProctoringModal';
@@ -12,6 +12,7 @@ import type { ProgrammingLanguage } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
 import ProctoringMonitor from '@/components/proctoring/ProctoringMonitor';
 import { useProctoring } from '@/hooks/useProctoring';
+import { challengeService } from '@/services/challengeService';
 
 interface ViolationEvent {
   type: string;
@@ -32,13 +33,14 @@ interface PauseStatePayload {
 export default function ChallengeDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, setPreferredLanguage, availableLanguages } = useAuth();
   
   const supportedLanguages = availableLanguages.filter(
     (lang) => ['JavaScript', 'Python'].includes(lang),
   );
 
-  const { challenge, referenceDocs, isLoading, error } = useChallengeData(id);
+  const { challenge, referenceDocs, docsError, refetchDocs, isLoading, error } = useChallengeData(id);
   const [showProctoringModal, setShowProctoringModal] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
@@ -69,7 +71,29 @@ export default function ChallengeDetail() {
     }
   };
 
-  const handleStartSession = () => {
+  const handleStartSession = async () => {
+    if (!id || !challenge) return;
+
+    const forcedCategory = (location.state as { assignmentCategory?: string } | null)?.assignmentCategory;
+    const category = forcedCategory || challenge.category;
+
+    try {
+      const assigned = await challengeService.getNextChallenge(category);
+      if (assigned.challenge_id !== id) {
+        toast('You were redirected to your assigned challenge for this category and seniority.');
+        navigate(`/challenges/${assigned.challenge_id}`, {
+          replace: true,
+          state: {
+            assignedFromMatcher: true,
+            assignmentCategory: category,
+          },
+        });
+        return;
+      }
+    } catch (assignmentError) {
+      console.warn('Assignment check failed, continuing with current challenge:', assignmentError);
+    }
+
     setShowProctoringModal(true);
   };
 
@@ -228,6 +252,8 @@ export default function ChallengeDetail() {
               pauseReason={pauseReason}
               deadlineAt={deadlineAt}
               durationSeconds={durationSeconds}
+              docsError={docsError}
+              onRetryDocs={refetchDocs}
             />
           </>
         )}

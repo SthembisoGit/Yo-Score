@@ -14,13 +14,33 @@ const difficultyColors = {
   Hard: 'bg-destructive/10 text-destructive',
 };
 
-const categoryColors = {
-  Frontend: 'border-l-primary',
-  Backend: 'border-l-foreground',
-  Security: 'border-l-destructive',
+const categoryColors: Record<string, string> = {
+  Frontend: 'text-blue-600',
+  Backend: 'text-slate-700 dark:text-slate-200',
+  Security: 'text-red-600',
+};
+
+const statusAccentClass: Record<Challenge['status'], string> = {
+  completed: 'border-l-green-500',
+  in_progress: 'border-l-blue-500',
+  not_started: 'border-l-border',
+};
+
+const statusBadgeClass: Record<Challenge['status'], string> = {
+  completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  in_progress: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  not_started: 'bg-muted text-muted-foreground',
+};
+
+const statusLabel: Record<Challenge['status'], string> = {
+  completed: 'Completed',
+  in_progress: 'In Progress',
+  not_started: 'Not Started',
 };
 
 export function ChallengeCard({ challenge, className }: ChallengeCardProps) {
+  const categoryTone = categoryColors[challenge.category] ?? 'text-muted-foreground';
+
   return (
     <Link
       to={`/challenges/${challenge.id}`}
@@ -29,13 +49,13 @@ export function ChallengeCard({ challenge, className }: ChallengeCardProps) {
         className
       )}
     >
-      <div className={cn('border-l-4', categoryColors[challenge.category])}>
+      <div className={cn('border-l-4', statusAccentClass[challenge.status])}>
         <div className="p-5">
           <div className="flex items-start justify-between gap-4 mb-3">
             <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
               {challenge.title}
             </h3>
-            {challenge.completed && (
+            {challenge.status === 'completed' && (
               <CheckCircle className="h-5 w-5 text-success flex-shrink-0" />
             )}
           </div>
@@ -45,7 +65,7 @@ export function ChallengeCard({ challenge, className }: ChallengeCardProps) {
           </p>
 
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-xs font-medium px-2 py-1 bg-muted rounded">
+            <span className={cn('text-xs font-medium px-2 py-1 bg-muted rounded', categoryTone)}>
               {challenge.category}
             </span>
             <span
@@ -55,6 +75,9 @@ export function ChallengeCard({ challenge, className }: ChallengeCardProps) {
               )}
             >
               {challenge.difficulty}
+            </span>
+            <span className={cn('text-xs font-medium px-2 py-1 rounded', statusBadgeClass[challenge.status])}>
+              {statusLabel[challenge.status]}
             </span>
           </div>
 

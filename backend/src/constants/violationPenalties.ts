@@ -2,6 +2,8 @@ export const DEFAULT_VIOLATION_PENALTY = 3;
 
 export const VIOLATION_PENALTIES: Record<string, number> = {
   camera_off: 8,
+  microphone_off: 8,
+  audio_off: 6,
   tab_switch: 4,
   screen_switch: 4,
   window_blur: 2,

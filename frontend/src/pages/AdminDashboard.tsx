@@ -20,6 +20,20 @@ import { toast } from 'react-hot-toast';
 
 type PublishStatus = 'draft' | 'published' | 'archived';
 
+const CATEGORY_OPTIONS = [
+  'Frontend',
+  'Backend',
+  'Security',
+  'IT Support',
+  'DevOps',
+  'Cloud Engineering',
+  'Data Science',
+  'Mobile Development',
+  'QA Testing',
+] as const;
+
+const DIFFICULTY_OPTIONS = ['easy', 'medium', 'hard'] as const;
+
 const defaultSettings: AdminProctoringSettings = {
   requireCamera: true,
   requireMicrophone: true,
@@ -46,11 +60,13 @@ export default function AdminDashboard() {
     title: '',
     description: '',
     category: 'Backend',
-    difficulty: 'Medium',
+    difficulty: 'medium',
     target_seniority: 'junior' as 'graduate' | 'junior' | 'mid' | 'senior',
-    duration_minutes: 45,
+    duration_minutes: '45',
     publish_status: 'draft' as PublishStatus,
   });
+  const [isCreatingChallenge, setIsCreatingChallenge] = useState(false);
+  const [challengeActionState, setChallengeActionState] = useState<Record<string, string>>({});
   const [selectedChallengeId, setSelectedChallengeId] = useState<string | null>(null);
   const [tests, setTests] = useState<AdminChallengeTestCase[]>([]);
   const [challengeDocs, setChallengeDocs] = useState<AdminChallengeDoc[]>([]);
@@ -113,6 +129,7 @@ export default function AdminDashboard() {
   }, []);
 
   const loadChallengeConfig = async (challengeId: string) => {
+    setChallengeActionState((prev) => ({ ...prev, [challengeId]: 'configure' }));
     try {
       const [testRows, js, py, docs] = await Promise.all([
         adminService.getChallengeTests(challengeId),
@@ -127,35 +144,60 @@ export default function AdminDashboard() {
       setSelectedChallengeId(challengeId);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load challenge config');
+    } finally {
+      setChallengeActionState((prev) => {
+        const next = { ...prev };
+        delete next[challengeId];
+        return next;
+      });
     }
   };
 
   const onCreateChallenge = async () => {
+    const parsedDuration = Number(newChallenge.duration_minutes);
+    if (!Number.isFinite(parsedDuration) || parsedDuration < 5 || parsedDuration > 300) {
+      toast.error('Duration must be between 5 and 300 minutes.');
+      return;
+    }
+
+    setIsCreatingChallenge(true);
     try {
-      await adminService.createChallenge(newChallenge);
+      await adminService.createChallenge({
+        ...newChallenge,
+        duration_minutes: Math.round(parsedDuration),
+      });
       toast.success('Challenge created');
       setNewChallenge({
         title: '',
         description: '',
         category: 'Backend',
-        difficulty: 'Medium',
+        difficulty: 'medium',
         target_seniority: 'junior',
-        duration_minutes: 45,
+        duration_minutes: '45',
         publish_status: 'draft',
       });
       await loadData();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create challenge');
+    } finally {
+      setIsCreatingChallenge(false);
     }
   };
 
   const onSetChallengeStatus = async (challengeId: string, publish_status: PublishStatus) => {
+    setChallengeActionState((prev) => ({ ...prev, [challengeId]: publish_status }));
     try {
       await adminService.setChallengeStatus(challengeId, publish_status);
       toast.success(`Challenge set to ${publish_status}`);
       await loadData();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to update challenge status');
+    } finally {
+      setChallengeActionState((prev) => {
+        const next = { ...prev };
+        delete next[challengeId];
+        return next;
+      });
     }
   };
 
@@ -273,11 +315,52 @@ export default function AdminDashboard() {
 
         <section className="rounded-xl border border-border bg-card p-4 space-y-3">
           <h2 className="font-semibold">Create Challenge</h2>
-          <input className="w-full rounded border px-2 py-1" placeholder="Title" value={newChallenge.title} onChange={(e) => setNewChallenge((p) => ({ ...p, title: e.target.value }))} />
-          <textarea className="w-full rounded border px-2 py-1" rows={2} placeholder="Description" value={newChallenge.description} onChange={(e) => setNewChallenge((p) => ({ ...p, description: e.target.value }))} />
+          <input
+            className="w-full rounded border px-2 py-1"
+            placeholder="Title"
+            value={newChallenge.title}
+            onChange={(e) => setNewChallenge((p) => ({ ...p, title: e.target.value }))}
+          />
+          <textarea
+            className="w-full rounded border px-2 py-1"
+            rows={2}
+            placeholder="Description"
+            value={newChallenge.description}
+            onChange={(e) => setNewChallenge((p) => ({ ...p, description: e.target.value }))}
+          />
           <div className="flex flex-wrap gap-2">
-            <input className="rounded border px-2 py-1" placeholder="Category" value={newChallenge.category} onChange={(e) => setNewChallenge((p) => ({ ...p, category: e.target.value }))} />
-            <input className="rounded border px-2 py-1" placeholder="Difficulty" value={newChallenge.difficulty} onChange={(e) => setNewChallenge((p) => ({ ...p, difficulty: e.target.value }))} />
+            <select
+              className="rounded border px-2 py-1"
+              value={newChallenge.category}
+              onChange={(e) =>
+                setNewChallenge((p) => ({
+                  ...p,
+                  category: e.target.value,
+                }))
+              }
+            >
+              {CATEGORY_OPTIONS.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+            <select
+              className="rounded border px-2 py-1"
+              value={newChallenge.difficulty}
+              onChange={(e) =>
+                setNewChallenge((p) => ({
+                  ...p,
+                  difficulty: e.target.value as 'easy' | 'medium' | 'hard',
+                }))
+              }
+            >
+              {DIFFICULTY_OPTIONS.map((difficulty) => (
+                <option key={difficulty} value={difficulty}>
+                  {difficulty}
+                </option>
+              ))}
+            </select>
             <select
               className="rounded border px-2 py-1"
               value={newChallenge.target_seniority}
@@ -303,11 +386,13 @@ export default function AdminDashboard() {
               onChange={(e) =>
                 setNewChallenge((p) => ({
                   ...p,
-                  duration_minutes: Number(e.target.value) || p.duration_minutes,
+                  duration_minutes: e.target.value,
                 }))
               }
             />
-            <Button onClick={() => void onCreateChallenge()}>Create</Button>
+            <Button onClick={() => void onCreateChallenge()} disabled={isCreatingChallenge}>
+              {isCreatingChallenge ? 'Creating...' : 'Create'}
+            </Button>
           </div>
         </section>
 
@@ -315,16 +400,48 @@ export default function AdminDashboard() {
           <h2 className="font-semibold">Challenges</h2>
           {challenges.map((c) => (
             <div key={c.challenge_id} className="rounded border p-3 text-sm">
+              {challengeActionState[c.challenge_id] && (
+                <p className="text-xs text-primary mb-1">
+                  Updating: {challengeActionState[c.challenge_id]}...
+                </p>
+              )}
               <p className="font-medium">{c.title}</p>
               <p className="text-muted-foreground">
-                {c.category} | {c.difficulty} | {c.target_seniority} | {c.duration_minutes}m | {c.publish_status}
+                {c.category} | {String(c.difficulty).toLowerCase()} | {c.target_seniority} | {c.duration_minutes}m | {c.publish_status}
               </p>
               <p className="text-muted-foreground">ready: {c.readiness.is_ready ? 'yes' : 'no'}</p>
               <div className="mt-2 flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => void onSetChallengeStatus(c.challenge_id, 'draft')}>Draft</Button>
-                <Button size="sm" onClick={() => void onSetChallengeStatus(c.challenge_id, 'published')} disabled={!c.readiness.is_ready}>Publish</Button>
-                <Button size="sm" variant="secondary" onClick={() => void onSetChallengeStatus(c.challenge_id, 'archived')}>Archive</Button>
-                <Button size="sm" variant="outline" onClick={() => void loadChallengeConfig(c.challenge_id)}>Configure</Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void onSetChallengeStatus(c.challenge_id, 'draft')}
+                  disabled={Boolean(challengeActionState[c.challenge_id])}
+                >
+                  Draft
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => void onSetChallengeStatus(c.challenge_id, 'published')}
+                  disabled={!c.readiness.is_ready || Boolean(challengeActionState[c.challenge_id])}
+                >
+                  Publish
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void onSetChallengeStatus(c.challenge_id, 'archived')}
+                  disabled={Boolean(challengeActionState[c.challenge_id])}
+                >
+                  Archive
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void loadChallengeConfig(c.challenge_id)}
+                  disabled={Boolean(challengeActionState[c.challenge_id])}
+                >
+                  Configure
+                </Button>
               </div>
             </div>
           ))}

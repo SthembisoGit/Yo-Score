@@ -8,10 +8,6 @@ import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
-from face_detector import FaceDetector
-from audio_analyzer import AudioAnalyzer
-from object_detector import ObjectDetector
-
 app = FastAPI(title="YoScore ML Proctoring Service")
 
 # CORS
@@ -32,11 +28,33 @@ def _safe_init(name: str, factory):
         print(f"[ml-service] {name} failed to initialize: {exc}")
         return None
 
+ENABLE_FACE_DETECTOR = os.getenv("ENABLE_FACE_DETECTOR", "true").lower() == "true"
+ENABLE_AUDIO_ANALYZER = os.getenv("ENABLE_AUDIO_ANALYZER", "false").lower() == "true"
+ENABLE_OBJECT_DETECTOR = os.getenv("ENABLE_OBJECT_DETECTOR", "false").lower() == "true"
+
+
+def _build_face_detector():
+    from face_detector import FaceDetector
+
+    return FaceDetector()
+
+
+def _build_audio_analyzer():
+    from audio_analyzer import AudioAnalyzer
+
+    return AudioAnalyzer()
+
+
+def _build_object_detector():
+    from object_detector import ObjectDetector
+
+    return ObjectDetector()
+
 
 # Initialize detectors (safe, do not crash process)
-face_detector = _safe_init("face detector", FaceDetector)
-audio_analyzer = _safe_init("audio analyzer", AudioAnalyzer)
-object_detector = _safe_init("object detector", ObjectDetector)
+face_detector = _safe_init("face detector", _build_face_detector) if ENABLE_FACE_DETECTOR else None
+audio_analyzer = _safe_init("audio analyzer", _build_audio_analyzer) if ENABLE_AUDIO_ANALYZER else None
+object_detector = _safe_init("object detector", _build_object_detector) if ENABLE_OBJECT_DETECTOR else None
 
 class AnalysisRequest(BaseModel):
     session_id: str
@@ -294,11 +312,17 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "ML Proctoring",
+        "mode": "two_phase_lite",
         "timestamp": datetime.utcnow().isoformat(),
         "detectors": {
             "face": bool(face_detector and face_detector.is_ready()),
             "audio": bool(audio_analyzer and audio_analyzer.is_ready()),
             "object": bool(object_detector and object_detector.is_ready())
+        },
+        "flags": {
+            "enable_face_detector": ENABLE_FACE_DETECTOR,
+            "enable_audio_analyzer": ENABLE_AUDIO_ANALYZER,
+            "enable_object_detector": ENABLE_OBJECT_DETECTOR,
         }
     }
 
