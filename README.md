@@ -98,6 +98,16 @@ python -m uvicorn app:app --host 0.0.0.0 --port 5000
 - `ENABLE_AUDIO_ANALYZER=false` (default on free tier)
 - `ENABLE_OBJECT_DETECTOR=false` (default on free tier)
 
+## Render SPA Routing Note
+
+If frontend refresh on nested routes (for example `/dashboard` or `/challenges/123`) returns `Not Found`, add a rewrite rule in the Render Static Site settings:
+
+- Source: `/*`
+- Destination: `/index.html`
+- Action: `Rewrite`
+
+This is also represented in `render.yaml` under the `yoscore-frontend` service routes.
+
 ## Testing
 
 ```bash

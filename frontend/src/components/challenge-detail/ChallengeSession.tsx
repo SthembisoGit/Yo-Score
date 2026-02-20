@@ -102,6 +102,7 @@ export const ChallengeSession = ({
 
   const canRequestHint = coachHints.length < 3 && Boolean(sessionId) && !isSessionEnded;
   const readOnlyEditor = isSubmitting || isSessionEnded || isSessionPaused || timeExpired;
+  const [lastClipboardWarningAt, setLastClipboardWarningAt] = useState<number>(0);
 
   const loadDraft = useCallback(() => {
     if (!draftKey) return;
@@ -350,6 +351,13 @@ export const ChallengeSession = ({
     setShowDocs(false);
   }, [isSessionEnded, timeExpired]);
 
+  const handleClipboardBlocked = useCallback(() => {
+    const now = Date.now();
+    if (now - lastClipboardWarningAt < 1200) return;
+    setLastClipboardWarningAt(now);
+    toast.error('Copy and paste are disabled during challenge solving.');
+  }, [lastClipboardWarningAt]);
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-180px)]">
       <div className="lg:w-1/3 flex flex-col">
@@ -568,6 +576,8 @@ export const ChallengeSession = ({
             onChange={setCode}
             className="h-full"
             readOnly={readOnlyEditor}
+            disableClipboardActions
+            onClipboardBlocked={handleClipboardBlocked}
           />
         </div>
 
