@@ -1,6 +1,7 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { DashboardService } from '../services/dashboard.service';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { safeErrorMessage } from '../utils/safeErrorMessage';
 
 const dashboardService = new DashboardService();
 
@@ -23,7 +24,7 @@ export class DashboardController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get dashboard data';
+      const message = safeErrorMessage(error, 'Failed to get dashboard data');
       
       return res.status(500).json({
         success: false,

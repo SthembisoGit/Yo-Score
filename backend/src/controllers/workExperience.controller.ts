@@ -1,6 +1,7 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { WorkExperienceService } from '../services/workExperience.service';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { safeErrorMessage } from '../utils/safeErrorMessage';
 
 const workExperienceService = new WorkExperienceService();
 
@@ -48,7 +49,7 @@ export class WorkExperienceController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to add work experience';
+      const message = safeErrorMessage(error, 'Failed to add work experience');
       const statusCode =
         /required|positive number|invalid/i.test(message) ? 400 : 500;
       
@@ -78,7 +79,7 @@ export class WorkExperienceController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get work experiences';
+      const message = safeErrorMessage(error, 'Failed to get work experiences');
       
       return res.status(500).json({
         success: false,

@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
-import { AuthService } from '../services/auth.service';
+import { AuthService, type UserPayload } from '../services/auth.service';
 
 const authService = new AuthService();
 
 export interface AuthenticatedRequest extends Request {
-  user?: any;
+  user?: UserPayload;
 }
 
 export const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -45,7 +45,7 @@ export const authorize = (...roles: string[]) => {
     }
 
     // Convert both to lowercase for consistent comparison
-    const userRole = req.user.role.toLowerCase();
+    const userRole = String(req.user.role).toLowerCase();
     const requiredRoles = roles.map(role => role.toLowerCase());
 
     if (!requiredRoles.includes(userRole)) {

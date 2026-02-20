@@ -18,6 +18,8 @@ initSentry();
 export function createApp() {
   const app = express();
 
+  app.set('trust proxy', 1);
+  app.set('query parser', 'simple');
   app.disable('x-powered-by');
   app.use(
     helmet({
@@ -67,7 +69,10 @@ export function createApp() {
       method: req.method,
     });
 
-    const message = err instanceof Error ? err.message : 'Unexpected server error';
+    const message =
+      config.NODE_ENV === 'development' && err instanceof Error
+        ? err.message
+        : 'Unexpected server error';
     return res.status(500).json({
       success: false,
       message,

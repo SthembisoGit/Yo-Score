@@ -1,7 +1,8 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { UserService } from '../services/user.service';
+import { safeErrorMessage } from '../utils/safeErrorMessage';
 
 const userService = new UserService();
 
@@ -24,7 +25,7 @@ export class UserController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get profile';
+      const message = safeErrorMessage(error, 'Failed to get profile', ['User not found']);
       
       return res.status(404).json({
         success: false,
@@ -145,7 +146,7 @@ export class UserController {
       });
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update profile';
+      const message = safeErrorMessage(error, 'Failed to update profile', ['Email already in use']);
       
       let status = 400;
       let errorCode = 'UPDATE_FAILED';

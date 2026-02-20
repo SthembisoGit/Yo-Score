@@ -4,6 +4,7 @@ import { challengeService } from '../services/challenge.service';
 import { challengeTestsService } from '../services/challengeTests.service';
 import { ReferenceDocsService } from '../services/referenceDocs.service';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { safeErrorMessage } from '../utils/safeErrorMessage';
 
 const referenceDocsService = new ReferenceDocsService();
 
@@ -13,7 +14,7 @@ export class AdminController {
       const data = await adminService.getDashboardSummary();
       return res.status(200).json({ success: true, message: 'Admin dashboard retrieved', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load admin dashboard';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(500).json({ success: false, message, error: 'ADMIN_DASHBOARD_FAILED' });
     }
   }
@@ -23,7 +24,7 @@ export class AdminController {
       const data = await adminService.listChallenges();
       return res.status(200).json({ success: true, message: 'Admin challenges retrieved', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to list challenges';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(500).json({ success: false, message, error: 'ADMIN_CHALLENGES_FAILED' });
     }
   }
@@ -56,7 +57,7 @@ export class AdminController {
       });
       return res.status(201).json({ success: true, message: 'Challenge created', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create challenge';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(400).json({ success: false, message, error: 'ADMIN_CHALLENGE_CREATE_FAILED' });
     }
   }
@@ -67,7 +68,7 @@ export class AdminController {
       const data = await adminService.updateChallenge(challenge_id, req.body);
       return res.status(200).json({ success: true, message: 'Challenge updated', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update challenge';
+      const message = safeErrorMessage(error, 'Request failed');
       const code = message.includes('not found') ? 404 : 400;
       return res.status(code).json({ success: false, message, error: 'ADMIN_CHALLENGE_UPDATE_FAILED' });
     }
@@ -83,7 +84,7 @@ export class AdminController {
       const data = await adminService.publishChallenge(challenge_id, publish_status);
       return res.status(200).json({ success: true, message: 'Challenge publish status updated', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update publish status';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(400).json({ success: false, message, error: 'ADMIN_CHALLENGE_PUBLISH_FAILED' });
     }
   }
@@ -94,7 +95,7 @@ export class AdminController {
       const data = await adminService.getChallengeReadiness(challenge_id);
       return res.status(200).json({ success: true, message: 'Challenge readiness retrieved', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to retrieve challenge readiness';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(400).json({ success: false, message, error: 'ADMIN_CHALLENGE_READINESS_FAILED' });
     }
   }
@@ -105,7 +106,7 @@ export class AdminController {
       const data = await challengeTestsService.listTestCases(challenge_id);
       return res.status(200).json({ success: true, message: 'Challenge tests retrieved', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to list challenge tests';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(400).json({ success: false, message, error: 'ADMIN_CHALLENGE_TESTS_FAILED' });
     }
   }
@@ -120,7 +121,7 @@ export class AdminController {
         data,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to upsert challenge test';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(400).json({ success: false, message, error: 'ADMIN_CHALLENGE_TEST_UPSERT_FAILED' });
     }
   }
@@ -135,7 +136,7 @@ export class AdminController {
         data: { test_id },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete challenge test';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(400).json({ success: false, message, error: 'ADMIN_CHALLENGE_TEST_DELETE_FAILED' });
     }
   }
@@ -147,7 +148,7 @@ export class AdminController {
       const data = await challengeTestsService.getBaseline(challenge_id, language);
       return res.status(200).json({ success: true, message: 'Challenge baseline retrieved', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get challenge baseline';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(400).json({ success: false, message, error: 'ADMIN_CHALLENGE_BASELINE_FAILED' });
     }
   }
@@ -158,7 +159,7 @@ export class AdminController {
       const data = await challengeTestsService.upsertBaseline(challenge_id, req.body);
       return res.status(200).json({ success: true, message: 'Challenge baseline updated', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update challenge baseline';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(400).json({ success: false, message, error: 'ADMIN_CHALLENGE_BASELINE_UPSERT_FAILED' });
     }
   }
@@ -169,7 +170,7 @@ export class AdminController {
       const data = await referenceDocsService.getDocsForChallenge(challenge_id);
       return res.status(200).json({ success: true, message: 'Challenge docs retrieved', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to list challenge docs';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(400).json({ success: false, message, error: 'ADMIN_CHALLENGE_DOCS_FAILED' });
     }
   }
@@ -184,7 +185,7 @@ export class AdminController {
       const data = await referenceDocsService.createDoc(challenge_id, title, content);
       return res.status(201).json({ success: true, message: 'Challenge doc created', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create challenge doc';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(400).json({ success: false, message, error: 'ADMIN_CHALLENGE_DOC_CREATE_FAILED' });
     }
   }
@@ -196,7 +197,7 @@ export class AdminController {
       const data = await adminService.listJudgeRuns(limit, status);
       return res.status(200).json({ success: true, message: 'Judge runs retrieved', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to list judge runs';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(500).json({ success: false, message, error: 'ADMIN_JUDGE_RUNS_FAILED' });
     }
   }
@@ -207,7 +208,7 @@ export class AdminController {
       const data = await adminService.getJudgeRunDetails(run_id);
       return res.status(200).json({ success: true, message: 'Judge run details retrieved', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get judge run';
+      const message = safeErrorMessage(error, 'Request failed');
       const code = message.includes('not found') ? 404 : 500;
       return res.status(code).json({ success: false, message, error: 'ADMIN_JUDGE_RUN_FAILED' });
     }
@@ -219,7 +220,7 @@ export class AdminController {
       const data = await adminService.retryJudgeRun(run_id);
       return res.status(202).json({ success: true, message: 'Judge retry queued', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to retry judge run';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(400).json({ success: false, message, error: 'ADMIN_JUDGE_RETRY_FAILED' });
     }
   }
@@ -229,7 +230,7 @@ export class AdminController {
       const data = await adminService.getJudgeHealth();
       return res.status(200).json({ success: true, message: 'Judge health retrieved', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get judge health';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(500).json({ success: false, message, error: 'ADMIN_JUDGE_HEALTH_FAILED' });
     }
   }
@@ -242,7 +243,7 @@ export class AdminController {
       const data = await adminService.listRecentProctoringSessions(limit, userId, challengeId);
       return res.status(200).json({ success: true, message: 'Proctoring sessions retrieved', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to list proctoring sessions';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(500).json({ success: false, message, error: 'ADMIN_PROCTORING_SESSIONS_FAILED' });
     }
   }
@@ -254,7 +255,7 @@ export class AdminController {
       const data = await adminService.getProctoringSummary(startDate, endDate);
       return res.status(200).json({ success: true, message: 'Proctoring summary retrieved', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get proctoring summary';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(500).json({ success: false, message, error: 'ADMIN_PROCTORING_SUMMARY_FAILED' });
     }
   }
@@ -265,7 +266,7 @@ export class AdminController {
       const data = await adminService.getProctoringSessionDetails(session_id);
       return res.status(200).json({ success: true, message: 'Proctoring session details retrieved', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get proctoring session details';
+      const message = safeErrorMessage(error, 'Request failed');
       const code = message.includes('not found') ? 404 : 500;
       return res.status(code).json({ success: false, message, error: 'ADMIN_PROCTORING_SESSION_FAILED' });
     }
@@ -276,17 +277,26 @@ export class AdminController {
       const data = await adminService.getProctoringSettings();
       return res.status(200).json({ success: true, message: 'Proctoring settings retrieved', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get proctoring settings';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(500).json({ success: false, message, error: 'ADMIN_PROCTORING_SETTINGS_FAILED' });
     }
   }
 
   async updateProctoringSettings(req: AuthenticatedRequest, res: Response) {
     try {
-      const data = await adminService.updateProctoringSettings(req.user.id, req.body);
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated',
+          error: 'UNAUTHORIZED',
+        });
+      }
+
+      const data = await adminService.updateProctoringSettings(userId, req.body);
       return res.status(200).json({ success: true, message: 'Proctoring settings updated', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update proctoring settings';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(400).json({ success: false, message, error: 'ADMIN_PROCTORING_SETTINGS_UPDATE_FAILED' });
     }
   }
@@ -296,22 +306,31 @@ export class AdminController {
       const data = await adminService.listUsers();
       return res.status(200).json({ success: true, message: 'Users retrieved', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to list users';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(500).json({ success: false, message, error: 'ADMIN_USERS_FAILED' });
     }
   }
 
   async updateUserRole(req: AuthenticatedRequest, res: Response) {
     try {
+      const adminUserId = req.user?.id;
+      if (!adminUserId) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated',
+          error: 'UNAUTHORIZED',
+        });
+      }
+
       const { user_id } = req.params;
       const { role } = req.body as { role?: 'developer' | 'recruiter' | 'admin' };
       if (!role) {
         return res.status(400).json({ success: false, message: 'role is required' });
       }
-      const data = await adminService.updateUserRole(req.user.id, user_id, role);
+      const data = await adminService.updateUserRole(adminUserId, user_id, role);
       return res.status(200).json({ success: true, message: 'User role updated', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update user role';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(400).json({ success: false, message, error: 'ADMIN_USER_ROLE_UPDATE_FAILED' });
     }
   }
@@ -322,7 +341,7 @@ export class AdminController {
       const data = await adminService.getAuditLogs(limit);
       return res.status(200).json({ success: true, message: 'Audit logs retrieved', data });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get audit logs';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(500).json({ success: false, message, error: 'ADMIN_AUDIT_LOGS_FAILED' });
     }
   }
@@ -337,7 +356,7 @@ export class AdminController {
         data,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get flagged work experience';
+      const message = safeErrorMessage(error, 'Request failed');
       return res.status(500).json({
         success: false,
         message,
@@ -346,3 +365,5 @@ export class AdminController {
     }
   }
 }
+
+

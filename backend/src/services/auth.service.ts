@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
-import { query } from '../../db';
+import { query } from '../db';
 
 export interface UserPayload {
     id: string;
@@ -10,12 +10,19 @@ export interface UserPayload {
     role: string;
 }
 
+const ALLOWED_SIGNUP_ROLES = new Set(['developer', 'recruiter']);
+const JWT_EXPIRES_IN = config.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'];
+
 export class AuthService {
     async signup(name: string, email: string, password: string, role: string = 'developer') {
+        const normalizedEmail = email.trim().toLowerCase();
+        const normalizedRole = role.trim().toLowerCase();
+        const safeRole = ALLOWED_SIGNUP_ROLES.has(normalizedRole) ? normalizedRole : 'developer';
+
         // Check if user already exists
         const existingUser = await query(
             'SELECT id FROM users WHERE email = $1',
-            [email]
+            [normalizedEmail]
         );
 
         if (existingUser.rows.length > 0) {
@@ -31,7 +38,7 @@ export class AuthService {
             `INSERT INTO users (name, email, password, role) 
        VALUES ($1, $2, $3, $4) 
        RETURNING id, name, email, role, created_at`,
-            [name, email, passwordHash, role]
+            [name.trim(), normalizedEmail, passwordHash, safeRole]
         );
 
         const user = result.rows[0];
@@ -56,10 +63,12 @@ export class AuthService {
     }
 
     async login(email: string, password: string) {
+        const normalizedEmail = email.trim().toLowerCase();
+
         // Find user
         const result = await query(
             'SELECT id, name, email, password, role FROM users WHERE email = $1',
-            [email]
+            [normalizedEmail]
         );
 
         if (result.rows.length === 0) {
@@ -105,7 +114,7 @@ export class AuthService {
         return jwt.sign(
             payload,
             config.JWT_SECRET,
-            { expiresIn: 86400 }
+            { expiresIn: JWT_EXPIRES_IN }
         );
     }
 
