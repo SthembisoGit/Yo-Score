@@ -57,8 +57,8 @@ export class SubmissionRunService {
            test_total = $7,
            runtime_ms = $8,
            memory_mb = $9,
-           stdout = CASE WHEN $10 IS NULL THEN NULL ELSE convert_to($10, 'UTF8') END,
-           stderr = CASE WHEN $11 IS NULL THEN NULL ELSE convert_to($11, 'UTF8') END,
+           stdout = convert_to($10::text, 'UTF8'),
+           stderr = convert_to($11::text, 'UTF8'),
            sandbox_exit_code = $12,
            error_message = $13,
            finished_at = NOW()

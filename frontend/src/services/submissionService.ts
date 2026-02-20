@@ -1,5 +1,11 @@
 import apiClient from './apiClient';
 import { unwrapData } from '@/lib/apiHelpers';
+import {
+  cacheSubmissionSnapshot,
+  isTerminalSubmissionState,
+  trackPendingSubmission,
+  untrackPendingSubmission,
+} from './pendingSubmissionStore';
 
 export interface SubmissionViolation {
   type: string;
@@ -120,17 +126,38 @@ class SubmissionService {
     }
 
     const response = await apiClient.post('/submissions', payload);
-    return unwrapData<{
+    const result = unwrapData<{
       submission_id: string;
       status: 'pending' | 'graded' | 'failed';
       judge_status: 'queued' | 'running' | 'completed' | 'failed';
       message: string;
     }>(response);
+
+    if (isTerminalSubmissionState(result.status, result.judge_status)) {
+      untrackPendingSubmission(result.submission_id);
+    } else {
+      trackPendingSubmission(result.submission_id);
+    }
+
+    return result;
   }
 
   async getSubmissionResult(submissionId: string): Promise<SubmissionResult> {
     const response = await apiClient.get(`/submissions/${submissionId}`);
-    return unwrapData<SubmissionResult>(response);
+    const result = unwrapData<SubmissionResult>(response);
+
+    cacheSubmissionSnapshot(submissionId, {
+      ...result,
+      cached_at: new Date().toISOString(),
+    });
+
+    if (isTerminalSubmissionState(result.status, result.judge_status)) {
+      untrackPendingSubmission(submissionId);
+    } else {
+      trackPendingSubmission(submissionId);
+    }
+
+    return result;
   }
 
   async getUserSubmissions(): Promise<UserSubmission[]> {

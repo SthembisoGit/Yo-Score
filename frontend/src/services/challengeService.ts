@@ -1,5 +1,10 @@
 import apiClient from './apiClient';
 import { unwrapData } from '@/lib/apiHelpers';
+import {
+  isTerminalSubmissionState,
+  trackPendingSubmission,
+  untrackPendingSubmission,
+} from './pendingSubmissionStore';
 
 export interface Challenge {
   challenge_id: string;
@@ -76,7 +81,15 @@ class ChallengeService {
     const payload: Record<string, unknown> = { challenge_id: challengeId, code, language };
     if (sessionId) payload.session_id = sessionId;
     const response = await apiClient.post('/submissions', payload);
-    return unwrapData<ChallengeSubmission>(response);
+    const submission = unwrapData<ChallengeSubmission>(response);
+
+    if (isTerminalSubmissionState(submission.status, submission.judge_status)) {
+      untrackPendingSubmission(submission.submission_id);
+    } else {
+      trackPendingSubmission(submission.submission_id);
+    }
+
+    return submission;
   }
 
   async getNextChallenge(category?: string): Promise<Challenge> {

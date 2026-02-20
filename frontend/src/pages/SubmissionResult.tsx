@@ -7,6 +7,7 @@ import {
   type SubmissionResult as SubmissionResultData,
 } from '@/services/submissionService';
 import { Button } from '@/components/ui/button';
+import { getCachedSubmissionSnapshot } from '@/services/pendingSubmissionStore';
 
 const trustLevelClass: Record<'Low' | 'Medium' | 'High', string> = {
   Low: 'text-red-600',
@@ -22,6 +23,7 @@ export default function SubmissionResult() {
   const [isPolling, setIsPolling] = useState(false);
   const [pollTimedOut, setPollTimedOut] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const [pollNotice, setPollNotice] = useState<string | null>(null);
 
   const loadSubmission = useCallback(
     async (enablePolling: boolean) => {
@@ -31,51 +33,77 @@ export default function SubmissionResult() {
         return;
       }
 
+      const cached = getCachedSubmissionSnapshot<SubmissionResultData>(id);
+      if (cached) {
+        setSubmission(cached);
+        setLoading(false);
+        setError(null);
+      }
+
+      let initial: SubmissionResultData | null = null;
       try {
         setError(null);
-        const initial = await submissionService.getSubmissionResult(id);
+        initial = await submissionService.getSubmissionResult(id);
         setSubmission(initial);
         setLastUpdatedAt(new Date().toISOString());
         setLoading(false);
-
-        const isPending =
-          initial.status === 'pending' ||
-          initial.judge_status === 'queued' ||
-          initial.judge_status === 'running';
-
-        if (!enablePolling || !isPending) {
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load submission';
+        if (!cached) {
+          setError(message);
+          setLoading(false);
           setIsPolling(false);
           return;
         }
+        setPollNotice('Using cached result while waiting for network recovery.');
+      }
 
-        setIsPolling(true);
-        setPollTimedOut(false);
+      const seed = initial ?? cached;
+      if (!seed) return;
 
-        let latest = initial;
-        for (let attempt = 0; attempt < 120; attempt += 1) {
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+      const isPending =
+        seed.status === 'pending' ||
+        seed.judge_status === 'queued' ||
+        seed.judge_status === 'running';
+
+      if (!enablePolling || !isPending) {
+        setIsPolling(false);
+        return;
+      }
+
+      setIsPolling(true);
+      setPollTimedOut(false);
+      setPollNotice(null);
+
+      let latest = seed;
+      for (let attempt = 0; attempt < 180; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        try {
           latest = await submissionService.getSubmissionResult(id);
           setSubmission(latest);
           setLastUpdatedAt(new Date().toISOString());
-
-          const stillPending =
-            latest.status === 'pending' ||
-            latest.judge_status === 'queued' ||
-            latest.judge_status === 'running';
-          if (!stillPending) {
-            setIsPolling(false);
-            return;
-          }
+          setPollNotice(null);
+        } catch {
+          setPollNotice(
+            navigator.onLine
+              ? 'Temporary network/server issue. Retrying...'
+              : 'You are offline. Waiting to reconnect and continue checking.',
+          );
+          continue;
         }
 
-        setPollTimedOut(true);
-        setIsPolling(false);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load submission';
-        setError(message);
-        setLoading(false);
-        setIsPolling(false);
+        const stillPending =
+          latest.status === 'pending' ||
+          latest.judge_status === 'queued' ||
+          latest.judge_status === 'running';
+        if (!stillPending) {
+          setIsPolling(false);
+          return;
+        }
       }
+
+      setPollTimedOut(true);
+      setIsPolling(false);
     },
     [id],
   );
@@ -169,6 +197,7 @@ export default function SubmissionResult() {
                       Last checked: {new Date(lastUpdatedAt).toLocaleTimeString()}
                     </p>
                   )}
+                  {pollNotice && <p className="text-xs text-muted-foreground mt-1">{pollNotice}</p>}
                 </div>
                 <Button
                   variant="outline"

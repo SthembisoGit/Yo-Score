@@ -21,6 +21,7 @@ import About from "./pages/About";
 import HowItWorks from "./pages/HowItWorks";
 import { AdminRoute } from "./components/guards/AdminRoute";
 import ConnectionTest from "./components/ConnectionTest";
+import { SubmissionStatusTracker } from "./components/SubmissionStatusTracker";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <SubmissionStatusTracker />
             <Routes>
               {/*<Route path="" element={<ConnectionTest />} />*/}
               <Route path="/" element={<Home />} />
