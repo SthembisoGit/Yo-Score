@@ -377,3 +377,54 @@ Last Updated: Judge runner & stack script added; build passing.
   - `/health` OK
   - `/api/analyze/face` returns `no_face` violation on blank frame
   - `/api/analyze/audio` responds correctly for silence/tone test payloads
+
+## Session Update - Production Security/Quality Hardening Audit
+
+### Security hardening completed
+- Auth hardening:
+  - `AuthService` now uses `src/db` connection module consistently (removed legacy `../../db` import use).
+  - Signup now normalizes email (`trim + lowercase`) and blocks privilege escalation by restricting self-signup roles to `developer|recruiter` (invalid role falls back to `developer`).
+  - JWT expiration now uses `JWT_EXPIRES_IN` config consistently for both login and rotate flow.
+- CORS hardening:
+  - Render wildcard origins are no longer enabled by default in production (`ALLOW_RENDER_ORIGINS` now defaults false outside development).
+- Rate limiting:
+  - Added in-memory rate limiter middleware (`backend/src/middleware/rateLimit.middleware.ts`).
+  - Applied to high-risk endpoints:
+    - `/api/auth/signup`, `/api/auth/login`, `/api/auth/rotate`
+    - `POST /api/submissions`
+    - High-frequency proctoring ingest/analyze endpoints
+- Error leakage reduction:
+  - Added `safeErrorMessage` utility and applied across core controllers.
+  - Replaced raw internal error exposures in proctoring responses with stable error codes.
+  - Global 500 handler now returns detailed error text only in development.
+- Input and payload validation:
+  - Proctoring snapshot/face/audio endpoints now validate payload size and binary format signatures (jpeg/png for image; webm/wav/ogg for audio).
+  - Challenge tests controller now validates required params and allowed baseline language values.
+
+### XSS and content-safety hardening
+- Reference docs are now sanitized server-side before store/return (`ReferenceDocsService`).
+- Reference docs are sanitized client-side before render (`frontend/src/lib/sanitizeHtml.ts`).
+- `ReferenceDocsPanel` now renders sanitized HTML only.
+
+### Performance/reliability improvements completed
+- Added `app.set('query parser', 'simple')` to reduce query-parser attack surface and simplify parsing behavior.
+- Added `app.set('trust proxy', 1)` for correct client IP behavior behind Render (needed for reliable rate-limiting).
+- Removed dead legacy middleware file: `backend/src/middleware/cors.js`.
+
+### Dependency and vulnerability pass
+- Upgraded `axios` in backend and frontend to `1.13.5`.
+- Backend vulnerability remediation:
+  - Added backend package overrides for `qs` and `minimatch`.
+  - `npm audit --omit=dev` now reports `0` backend vulnerabilities.
+- Frontend audit still reports high issues in dev tooling dependency chain (`tailwindcss -> sucrase -> glob/minimatch`), not runtime app code path.
+
+### Verification status (this session)
+- Backend build: pass (`npm run build`)
+- Backend API smoke tests: pass (`npm run test:api`)
+- Frontend build: pass (`npm run build`)
+- Frontend unit tests: pass (`npm run test`)
+- Judge smoke: failed in this environment due queue health timeout (`JUDGE_SMOKE_ERROR Queue health timeout after 10000ms`), indicating Redis/worker availability issue rather than compile/runtime code failure.
+
+### Notes
+- Behavior and UX flow were preserved; hardening focused on security, maintainability, and operational safety.
+- Remaining recommended follow-up: tighten dev-tooling vulnerability chain in frontend when safe upgrade path is validated for Tailwind/Sucrase toolchain.
