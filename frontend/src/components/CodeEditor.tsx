@@ -1,5 +1,12 @@
 // components/CodeEditor.tsx
-import { useState, useEffect, useRef } from 'react';
+import {
+  useState,
+  useEffect,
+  useRef,
+  type ClipboardEvent,
+  type DragEvent,
+  type KeyboardEvent,
+} from 'react';
 import { Play, RotateCcw, Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,6 +22,8 @@ interface CodeEditorProps {
   showLanguageSelector?: boolean;
   availableLanguages?: string[];
   onLanguageChange?: (language: string) => void;
+  disableClipboardActions?: boolean;
+  onClipboardBlocked?: (action: 'copy' | 'cut' | 'paste' | 'drop' | 'shortcut') => void;
 }
 
 // Language-specific default code templates
@@ -199,7 +208,9 @@ export function CodeEditor({
   readOnly = false,
   showLanguageSelector = false,
   availableLanguages = Object.keys(languageTemplates),
-  onLanguageChange
+  onLanguageChange,
+  disableClipboardActions = false,
+  onClipboardBlocked
 }: CodeEditorProps) {
   const [code, setCode] = useState(value || languageTemplates[language] || defaultTemplate);
   const [output, setOutput] = useState<string>('');
@@ -273,6 +284,39 @@ export function CodeEditor({
   const handleSubmit = () => {
     if (readOnly) return;
     onSubmit?.(code);
+  };
+
+  const blockClipboardAction = (action: 'copy' | 'cut' | 'paste' | 'drop' | 'shortcut') => {
+    onClipboardBlocked?.(action);
+  };
+
+  const handleClipboardEvent = (
+    event: ClipboardEvent<HTMLTextAreaElement>,
+    action: 'copy' | 'cut' | 'paste',
+  ) => {
+    if (!disableClipboardActions || readOnly) return;
+    event.preventDefault();
+    blockClipboardAction(action);
+  };
+
+  const handleDropEvent = (event: DragEvent<HTMLTextAreaElement>) => {
+    if (!disableClipboardActions || readOnly) return;
+    event.preventDefault();
+    blockClipboardAction('drop');
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!disableClipboardActions || readOnly) return;
+
+    const key = event.key.toLowerCase();
+    const isClipboardShortcut =
+      ((event.ctrlKey || event.metaKey) && (key === 'c' || key === 'x' || key === 'v')) ||
+      (event.shiftKey && key === 'insert');
+
+    if (isClipboardShortcut) {
+      event.preventDefault();
+      blockClipboardAction('shortcut');
+    }
   };
 
   // Auto-resize textarea
@@ -389,6 +433,11 @@ export function CodeEditor({
               ref={textareaRef}
               value={code}
               onChange={(e) => handleCodeChange(e.target.value)}
+              onCopy={(e) => handleClipboardEvent(e, 'copy')}
+              onCut={(e) => handleClipboardEvent(e, 'cut')}
+              onPaste={(e) => handleClipboardEvent(e, 'paste')}
+              onDrop={handleDropEvent}
+              onKeyDown={handleKeyDown}
               className="absolute inset-0 p-3 pl-4 font-mono text-sm bg-transparent resize-none focus:outline-none leading-6 text-foreground whitespace-pre overflow-hidden"
               spellCheck={false}
               readOnly={readOnly}
