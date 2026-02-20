@@ -37,7 +37,11 @@ YoScore deploys as:
 
 ## 4. Deploy Steps
 1. Push repository to git remote.
-2. In Render, apply `render.yaml` blueprint.
+2. In Render, create services manually (free plan compatible):
+   - Static Site for `frontend`
+   - Web Service for `backend`
+   - Worker for `backend` judge worker
+   - Web Service for `ml-service`
 3. Set all required env vars on each service.
 4. Run database migration:
    - `cd backend`

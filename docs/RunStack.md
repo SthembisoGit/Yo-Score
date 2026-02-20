@@ -2,6 +2,9 @@
 
 Prereqs
 - Redis URL (e.g., Upstash) in `backend/.env` as `REDIS_URL=...` plus `ENABLE_JUDGE=true`.
+- Set Node memory headroom (recommended for local build/test reliability):
+  - PowerShell: `$env:NODE_OPTIONS="--max-old-space-size=4096"`
+  - Bash: `export NODE_OPTIONS=--max-old-space-size=4096`
 - Set feature flags in `backend/.env`:
   - `STRICT_REAL_SCORING=true`
   - `ADMIN_PANEL_ENABLED=true`
@@ -13,6 +16,11 @@ Prereqs
   - `SENTRY_DSN=...`
   - `SENTRY_ENVIRONMENT=development`
   - `SENTRY_TRACES_SAMPLE_RATE=0.1`
+- Optional ML feature flags in `ml-service/.env` (free-tier safe defaults):
+  - `ENABLE_FACE_DETECTOR=true`
+  - `FACE_DETECTOR_BACKEND=opencv`
+  - `ENABLE_AUDIO_ANALYZER=false`
+  - `ENABLE_OBJECT_DETECTOR=false`
 - Docker Desktop running (only required if `JUDGE_RUNNER_MODE=docker`).
 - ML service deps (ffmpeg) installed.
 - Node/npm installed; backend and frontend already `npm install`.
