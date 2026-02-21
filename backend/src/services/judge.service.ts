@@ -1,6 +1,7 @@
 import { query } from '../db';
 import { enableJudge } from '../config';
-import { runnerService, type RunnerLanguage } from './runner.service';
+import { executionService } from './execution.service';
+import { normalizeLanguage, type SupportedLanguage } from '../constants/languages';
 
 export interface JudgeRunTestResult {
   testCaseId: string;
@@ -31,17 +32,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function normalizeLanguage(language: string): 'javascript' | 'python' {
-  const lower = language.toLowerCase();
-  if (lower === 'python' || lower === 'py') return 'python';
-  return 'javascript';
-}
-
-function runnerLanguage(language: string): RunnerLanguage {
-  return normalizeLanguage(language) === 'python' ? 'python' : 'node';
-}
-
-function computeStyleScore(language: 'javascript' | 'python', code: string): number {
+function computeStyleScore(language: SupportedLanguage, code: string): number {
   const trimmed = code.trim();
   if (!trimmed.length) return 0;
 
@@ -55,17 +46,20 @@ function computeStyleScore(language: 'javascript' | 'python', code: string): num
   if (veryLongLines > 0) score -= 1;
   if (veryLongLines > 5) score -= 1;
 
-  if (language === 'javascript') {
-    const hasFunction = /\bfunction\b|=>/.test(trimmed);
-    if (!hasFunction) score -= 1;
-    const excessiveConsole = (trimmed.match(/console\.log/g) ?? []).length > 3;
-    if (excessiveConsole) score -= 1;
-  } else {
-    const hasFunction = /\bdef\s+\w+\s*\(/.test(trimmed);
-    if (!hasFunction) score -= 1;
-    const excessivePrint = (trimmed.match(/\bprint\s*\(/g) ?? []).length > 3;
-    if (excessivePrint) score -= 1;
-  }
+  const excessiveLogs =
+    (trimmed.match(/console\.log|\bprint\s*\(|System\.out\.println|fmt\.Println|Console\.WriteLine|std::cout/g) ??
+      []).length > 3;
+  if (excessiveLogs) score -= 1;
+
+  const functionPatterns: Record<SupportedLanguage, RegExp> = {
+    javascript: /\bfunction\b|=>/,
+    python: /\bdef\s+\w+\s*\(/,
+    java: /\b(public|private|protected)?\s*(static\s+)?[\w<>\[\]]+\s+\w+\s*\(/,
+    cpp: /\b\w[\w:\<\>\*&\s]*\s+\w+\s*\(/,
+    go: /\bfunc\s+\w+\s*\(/,
+    csharp: /\b(public|private|protected|internal)?\s*(static\s+)?[\w<>\[\]]+\s+\w+\s*\(/,
+  };
+  if (!functionPatterns[language].test(trimmed)) score -= 1;
 
   return clamp(score, 0, 5);
 }
@@ -151,16 +145,74 @@ export class JudgeService {
       points: Number(row.points ?? 1),
     }));
 
-    const run = await runnerService.runCode(runnerLanguage(normalizedLanguage), code, tests);
+    const detailedTests: JudgeRunTestResult[] = [];
+    let runtimeMsTotal = 0;
+    let memoryMbMax = 0;
+    let infrastructureErrorCount = 0;
 
-    const detailedTests: JudgeRunTestResult[] = run.testResults.map((result) => ({
-      testCaseId: result.id,
-      status: result.status,
-      runtimeMs: result.runtime_ms,
-      output: result.output,
-      error: result.error,
-      pointsAwarded: result.points_awarded,
-    }));
+    for (const test of tests) {
+      try {
+        const run = await executionService.runCode({
+          language: normalizedLanguage,
+          code,
+          stdin: test.input,
+          limits: {
+            timeoutMs: test.timeout_ms,
+            memoryMb: test.memory_mb,
+          },
+        });
+
+        runtimeMsTotal += Number(run.runtime_ms ?? 0);
+        memoryMbMax = Math.max(memoryMbMax, Math.ceil(Number(run.memory_kb ?? 0) / 1024));
+
+        const output = String(run.stdout ?? '').trim();
+        if (run.timed_out) {
+          detailedTests.push({
+            testCaseId: test.id,
+            status: 'error',
+            runtimeMs: Number(run.runtime_ms ?? test.timeout_ms),
+            output,
+            error: `Execution timed out after ${test.timeout_ms}ms`,
+            pointsAwarded: 0,
+          });
+          continue;
+        }
+
+        if (run.exit_code !== 0) {
+          detailedTests.push({
+            testCaseId: test.id,
+            status: 'error',
+            runtimeMs: Number(run.runtime_ms ?? 0),
+            output,
+            error: String(run.stderr || `Process exited with code ${run.exit_code}`).trim(),
+            pointsAwarded: 0,
+          });
+          continue;
+        }
+
+        const passed = output === String(test.expected_output ?? '').trim();
+        detailedTests.push({
+          testCaseId: test.id,
+          status: passed ? 'passed' : 'failed',
+          runtimeMs: Number(run.runtime_ms ?? 0),
+          output,
+          pointsAwarded: passed ? test.points : 0,
+        });
+      } catch (error) {
+        infrastructureErrorCount += 1;
+        detailedTests.push({
+          testCaseId: test.id,
+          status: 'error',
+          runtimeMs: 0,
+          output: '',
+          error:
+            error instanceof Error
+              ? `Execution provider unavailable: ${error.message}`
+              : 'Execution provider unavailable',
+          pointsAwarded: 0,
+        });
+      }
+    }
 
     const totalPoints = tests.reduce((sum, test) => sum + test.points, 0) || 1;
     const earnedPoints = detailedTests.reduce((sum, test) => sum + test.pointsAwarded, 0);
@@ -181,11 +233,12 @@ export class JudgeService {
         style,
         testPassed: detailedTests.filter((test) => test.status === 'passed').length,
         testTotal: detailedTests.length,
-        runtimeMs: run.runtime_ms,
-        memoryMb: run.memory_mb,
+        runtimeMs: runtimeMsTotal,
+        memoryMb: memoryMbMax,
       },
       tests: detailedTests,
-      infrastructureError: detectInfrastructureError(detailedTests),
+      infrastructureError:
+        infrastructureErrorCount === tests.length ? 'Judge execution provider unavailable.' : detectInfrastructureError(detailedTests),
     };
   }
 }

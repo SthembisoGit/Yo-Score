@@ -26,7 +26,7 @@ export interface Submission {
   user_id: string;
   challenge_id: string;
   session_id?: string | null;
-  language?: 'javascript' | 'python';
+  language?: 'javascript' | 'python' | 'java' | 'cpp' | 'go' | 'csharp';
   code: string;
   score: number | null;
   judge_status?: 'queued' | 'running' | 'completed' | 'failed';

@@ -29,6 +29,15 @@ export interface RunnerResult {
   memory_mb: number;
 }
 
+export interface RunnerAdhocResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  timedOut: boolean;
+  runtimeMs: number;
+  memoryMb: number;
+}
+
 function languageConfig(language: RunnerLanguage) {
   if (language === 'python') {
     return { image: 'python:3.11-alpine', filename: 'solution.py', runCmd: 'python solution.py' };
@@ -382,6 +391,95 @@ export class RunnerService {
     }
 
     return results;
+  }
+
+  async runAdhoc(
+    language: RunnerLanguage,
+    code: string,
+    stdin: string,
+    timeoutMs: number,
+  ): Promise<RunnerAdhocResult> {
+    const cfg = languageConfig(language);
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'run-'));
+    const codePath = path.join(tmpDir, cfg.filename);
+    fs.writeFileSync(codePath, code, 'utf-8');
+
+    let backend = await this.resolveExecutionBackend();
+    let result: CommandResult;
+
+    try {
+      if (backend === 'docker') {
+        const args = [
+          'run',
+          '--rm',
+          '--network',
+          'none',
+          '-m',
+          '256m',
+          '-v',
+          `${normalizeDockerVolumePath(tmpDir)}:/app`,
+          '-w',
+          '/app',
+          '--cpus=0.5',
+          '--pull=never',
+          cfg.image,
+          'sh',
+          '-c',
+          cfg.runCmd,
+        ];
+
+        result = await runCommand('docker', args, {
+          cwd: tmpDir,
+          stdin,
+          timeoutMs,
+        });
+
+        if (result.exitCode !== 0 && isDockerUnavailableMessage(result.stderr || result.stdout)) {
+          backend = 'local';
+        }
+      }
+
+      if (backend === 'local') {
+        let command = 'node';
+        const args = [cfg.filename];
+
+        if (language === 'python') {
+          const runtime = await this.resolvePythonRuntime();
+          if (!runtime) {
+            return {
+              stdout: '',
+              stderr: 'Python runtime is unavailable on this worker',
+              exitCode: 1,
+              timedOut: false,
+              runtimeMs: 0,
+              memoryMb: 0,
+            };
+          }
+          command = runtime;
+        }
+
+        result = await runCommand(command, args, {
+          cwd: tmpDir,
+          stdin,
+          timeoutMs,
+        });
+      }
+
+      return {
+        stdout: result!.stdout,
+        stderr: result!.stderr,
+        exitCode: result!.exitCode,
+        timedOut: result!.timedOut,
+        runtimeMs: result!.durationMs,
+        memoryMb: 0,
+      };
+    } finally {
+      try {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      } catch {
+        // ignore cleanup errors
+      }
+    }
   }
 }
 

@@ -101,6 +101,14 @@ export const submissionRateLimiter = createRateLimiter({
   keyPrefix: 'submission',
 });
 
+export const codeRunRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 45,
+  message: 'Code run rate limit reached. Please wait and retry.',
+  code: 'CODE_RUN_RATE_LIMIT',
+  keyPrefix: 'code-run',
+});
+
 export const proctoringIngestRateLimiter = createRateLimiter({
   windowMs: 60 * 1000,
   max: 300,
@@ -108,4 +116,3 @@ export const proctoringIngestRateLimiter = createRateLimiter({
   code: 'PROCTORING_RATE_LIMIT',
   keyPrefix: 'proctoring',
 });
-
