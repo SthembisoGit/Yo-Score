@@ -27,6 +27,92 @@ test('admin can open dashboard and publish a ready challenge', async ({ page }) 
     });
   });
 
+  await page.route('**/api/auth/rotate', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        message: 'Rotated',
+        data: {
+          token: 'admin-token-rotated',
+        },
+      }),
+    });
+  });
+
+  await page.route('**/api/challenges', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        message: 'Challenges',
+        data: [],
+      }),
+    });
+  });
+
+  await page.route('**/api/submissions', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        message: 'Submissions',
+        data: [],
+      }),
+    });
+  });
+
+  await page.route('**/api/dashboard/me', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        message: 'Dashboard',
+        data: {
+          total_score: 42,
+          trust_level: 'Medium',
+          seniority_band: 'junior',
+          category_scores: {},
+          challenge_progress: [],
+        },
+      }),
+    });
+  });
+
+  await page.route('**/api/users/me', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        message: 'Profile',
+        data: {
+          user_id: 'u-admin-1',
+          name: 'Admin User',
+          email: 'admin@example.com',
+          role: 'admin',
+          created_at: new Date().toISOString(),
+        },
+      }),
+    });
+  });
+
+  await page.route('**/api/users/me/work-experience', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        message: 'Work experience',
+        data: [],
+      }),
+    });
+  });
+
   await page.route('**/api/admin/dashboard', async (route) => {
     await route.fulfill({
       status: 200,
@@ -46,7 +132,7 @@ test('admin can open dashboard and publish a ready challenge', async ({ page }) 
     });
   });
 
-  await page.route('**/api/admin/challenges', async (route) => {
+  await page.route('**/api/admin/challenges**', async (route) => {
     if (route.request().method() === 'GET') {
       await route.fulfill({
         status: 200,
@@ -64,6 +150,7 @@ test('admin can open dashboard and publish a ready challenge', async ({ page }) 
               target_seniority: 'junior',
               duration_minutes: 45,
               publish_status: 'draft',
+              supported_languages: ['javascript', 'python'],
               readiness: {
                 has_tests: true,
                 baseline_languages: ['javascript', 'python'],
@@ -223,7 +310,8 @@ test('admin can open dashboard and publish a ready challenge', async ({ page }) 
 
   await page.goto('/admin');
 
-  await expect(page.getByRole('heading', { name: /admin dashboard/i })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByText('Loading admin data...')).toBeHidden({ timeout: 20_000 });
   await expect(page.getByText('Two Sum')).toBeVisible();
   await page.getByRole('button', { name: 'Publish' }).first().click();
   await expect.poll(() => publishCalls).toBe(1);
