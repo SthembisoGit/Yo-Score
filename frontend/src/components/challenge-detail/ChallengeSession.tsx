@@ -111,7 +111,7 @@ export const ChallengeSession = ({
       python: `def solution(input_data):\n    # Your code here\n    return input_data\n\nprint(solution("test"))`,
       java: `import java.io.*;\n\npublic class Main {\n    static String solution(String input) {\n        // Your code here\n        return input.trim();\n    }\n\n    public static void main(String[] args) throws Exception {\n        String input = new String(System.in.readAllBytes());\n        System.out.print(solution(input));\n    }\n}`,
       cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nstring solution(const string& input) {\n    // Your code here\n    return input;\n}\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    string input((istreambuf_iterator<char>(cin)), istreambuf_iterator<char>());\n    cout << solution(input);\n    return 0;\n}`,
-      go: `package main\n\nimport (\n    \"fmt\"\n    \"io\"\n    \"os\"\n)\n\nfunc solution(input string) string {\n    // Your code here\n    return input\n}\n\nfunc main() {\n    data, _ := io.ReadAll(os.Stdin)\n    fmt.Print(solution(string(data)))\n}`,
+      go: `package main\n\nimport (\n    "fmt"\n    "io"\n    "os"\n)\n\nfunc solution(input string) string {\n    // Your code here\n    return input\n}\n\nfunc main() {\n    data, _ := io.ReadAll(os.Stdin)\n    fmt.Print(solution(string(data)))\n}`,
       csharp: `using System;\nusing System.IO;\n\npublic class Program\n{\n    static string Solution(string input)\n    {\n        // Your code here\n        return input.Trim();\n    }\n\n    public static void Main()\n    {\n        string input = Console.In.ReadToEnd();\n        Console.Write(Solution(input));\n    }\n}`,
     };
 
