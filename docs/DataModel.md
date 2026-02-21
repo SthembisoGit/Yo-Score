@@ -29,7 +29,7 @@ Key fields:
 - `target_seniority` (`graduate|junior|mid|senior`)
 - `duration_minutes`
 - `publish_status` (`draft|published|archived`)
-- `created_by`, `created_at`, `updated_at`
+- `created_at`, `updated_at`
 
 ### 2.3 Challenge Test and Baseline Objects
 Purpose: judge correctness and efficiency references.
@@ -45,7 +45,7 @@ Purpose: user solution attempts and final components.
 Key fields:
 - `id`, `user_id`, `challenge_id`
 - `code`
-- `language` (`javascript|python`)
+- `language` (`javascript|python|java|cpp|go|csharp`)
 - `status` (`pending|graded|failed`)
 - `judge_status` (`queued|running|completed|failed`)
 - `judge_run_id`, `judge_error`
@@ -57,6 +57,7 @@ Key fields:
   - `component_work_experience`
   - `component_penalty`
 - `score`, `submitted_at`, `graded_at`
+- `score`, `submitted_at`
 
 ### 2.5 Submission Runs
 Purpose: detailed async judge execution history.
@@ -138,5 +139,5 @@ Table:
 
 ## 5. Notes for Release 1
 - Coding assessments only.
-- JavaScript and Python only for judge execution.
+- Judge execution supports JavaScript, Python, Java, C++, Go, and C#.
 - Non-coding item entities (MCQ/explanations/scenarios) are deferred to Release 1.1.

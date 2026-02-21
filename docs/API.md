@@ -98,7 +98,11 @@
 
 ### `POST /api/challenges`
 - Admin only.
-- Supports `target_seniority` and `duration_minutes`.
+- Supports:
+  - `target_seniority`
+  - `duration_minutes`
+  - `supported_languages` (`javascript|python|java|cpp|go|csharp`)
+  - `starter_templates` (per-language starter code object)
 
 ### `POST /api/challenges/:challenge_id/coach-hint`
 - Auth required.
@@ -130,11 +134,47 @@
 ### `DELETE /api/challenges/:challenge_id/tests/:test_id`
 - Admin only.
 
-### `GET /api/challenges/:challenge_id/baseline?language=javascript|python`
+### `GET /api/challenges/:challenge_id/baseline?language=javascript|python|java|cpp|go|csharp`
 - Admin only.
 
 ### `PUT /api/challenges/:challenge_id/baseline`
 - Admin only.
+
+## Code Run (Editor Terminal)
+### `POST /api/code/run`
+- Auth required.
+- Rate limited.
+- Body:
+```json
+{
+  "language": "java",
+  "code": "public class Main { public static void main(String[] args){ System.out.println(\"ok\"); } }",
+  "stdin": "",
+  "challenge_id": "optional-uuid"
+}
+```
+- Returns:
+```json
+{
+  "success": true,
+  "message": "Code executed",
+  "data": {
+    "language": "java",
+    "stdout": "ok\n",
+    "stderr": "",
+    "exit_code": 0,
+    "timed_out": false,
+    "runtime_ms": 221,
+    "memory_kb": 0,
+    "truncated": false,
+    "provider": "onecompiler",
+    "error_class": null
+  }
+}
+```
+- Providers:
+  - `local` for `javascript|python`
+  - `onecompiler` for `java|cpp|go|csharp`
 
 ## Submissions (Async Judge Lifecycle)
 ### `POST /api/submissions`
@@ -143,7 +183,7 @@
 ```json
 {
   "challenge_id": "uuid",
-  "language": "javascript",
+  "language": "javascript|python|java|cpp|go|csharp",
   "code": "function solve(input) { return input; }",
   "session_id": "optional-proctoring-session-id"
 }

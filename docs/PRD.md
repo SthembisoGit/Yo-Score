@@ -15,7 +15,7 @@ YoScore addresses both by combining judged code execution, proctoring behavior, 
 ## 3. Goals and Non-Goals
 ### 3.1 Goals (Release 1)
 - Deliver category and seniority-aware challenge assignment.
-- Enforce real judged scoring (JavaScript and Python only).
+- Enforce real judged scoring for six languages: JavaScript, Python, Java, C++, Go, and C#.
 - Enforce timed proctored sessions with offline continuity.
 - Provide constrained AI Coach (concept guidance only, max 3 hints).
 - Include work-experience evidence and low-admin risk checks.
@@ -24,7 +24,6 @@ YoScore addresses both by combining judged code execution, proctoring behavior, 
 ### 3.2 Non-Goals (Release 1)
 - Non-coding assessment engine (MCQ, explanation grading, scenario rubric scoring).
 - CV analysis and soft-skill intelligence.
-- Additional judge languages beyond JavaScript and Python.
 - Full recruiter portal.
 
 ## 4. User Personas
@@ -83,11 +82,13 @@ YoScore addresses both by combining judged code execution, proctoring behavior, 
 - FR-09: Backend enforces deadline plus 15-minute grace.
 - FR-10: Submission lifecycle transitions queued -> running -> completed or failed.
 - FR-11: Judge persists run summary and per-test outcomes.
+- FR-11a: Submission language supports `javascript|python|java|cpp|go|csharp`.
 - FR-12: AI Coach returns constrained hints and rejects further hints after three requests.
 - FR-13: Work experience accepts evidence links and computes risk status.
 - FR-14: Trust score excludes flagged or rejected experience records.
 - FR-15: Dashboard displays trust score, seniority band, and experience contribution summary.
 - FR-16: Admin can view flagged experience records for audit.
+- FR-17: Editor supports real code run with stdin and terminal output via `/api/code/run`.
 
 ## 8. Non-Functional Requirements
 - NFR-01 Security: JWT auth, RBAC, hashed passwords, protected admin endpoints.
@@ -112,6 +113,7 @@ YoScore addresses both by combining judged code execution, proctoring behavior, 
 - `GET /api/challenges/next?category=...`
 - `POST /api/proctoring/session/start` returns deadline metadata.
 - `POST /api/submissions` enforces deadline + grace when session is linked.
+- `POST /api/code/run` executes code with real runtime output.
 - `POST /api/challenges/:challenge_id/coach-hint` for constrained hints.
 - `POST /api/users/me/work-experience` accepts `evidence_links`.
 - `GET /api/dashboard/me` includes seniority and trusted-experience summary.

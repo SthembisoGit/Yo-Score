@@ -13,6 +13,50 @@
 - [x] Submission results include deterministic practice guidance from run and proctoring evidence.
 - [x] Full release gate (backend + frontend + e2e + manual acceptance sweep) re-run after final doc sync.
 
+## Latest Update (MVP Language Expansion Continuation, 2026-02-21)
+
+### Execution and judging alignment
+- Extended judged language support to six languages:
+  - `javascript`, `python`, `java`, `cpp`, `go`, `csharp`.
+- Added unified execution provider layer:
+  - local runner for JavaScript/Python.
+  - OneCompiler provider for Java/C++/Go/C#.
+- Added real editor execution API:
+  - `POST /api/code/run` with stdin support and terminal-style output contract.
+- Added run endpoint rate limit and bounded execution safeguards (code size/stdin size/timeout/output truncation).
+- Preserved async judge lifecycle (`queued|running|completed|failed`) with real run metadata.
+
+### Challenge/admin alignment
+- Extended challenge/admin contracts for:
+  - `supported_languages`
+  - `starter_templates`
+- Added readiness verification script:
+  - `backend/scripts/verify-challenge-readiness.js`
+- Expanded easy challenge seed set with:
+  - multi-category and multi-seniority tasks.
+  - AI-bug-fix style tasks.
+  - per-challenge baseline seeding for all supported languages.
+- Added 30-day auto-assignment cooldown exclusion for recently graded challenges.
+
+### Profile trust and avatar improvements
+- Kept trust score hydration tied to dashboard/profile fetch on auth restore/login (prevents stale zero score after refresh).
+- Replaced URL-only avatar workflow with file upload flow in profile:
+  - upload validation (type and max 2MB size),
+  - Supabase Storage upload,
+  - persisted `avatar_url` update via existing profile API.
+- Added frontend env docs for avatar upload:
+  - `VITE_SUPABASE_URL`
+  - `VITE_SUPABASE_ANON_KEY`
+  - `VITE_SUPABASE_AVATAR_BUCKET`
+
+### Verification (this pass)
+- `backend`: `NODE_OPTIONS=--max-old-space-size=6144 npm run build` passes.
+- `backend`: `npm run test:api` passes.
+- `backend`: `npm run test:judge-smoke` passes.
+- `frontend`: `npx tsc --noEmit` passes.
+- `frontend`: `NODE_OPTIONS=--max-old-space-size=6144 npm run build` passes.
+- `frontend`: `npm run test -- --run` passes.
+
 ## Latest Update (Proctoring Accuracy Redesign, 2026-02-21)
 
 ### Backend proctoring redesign completed
