@@ -1,5 +1,6 @@
 import { Queue, Worker, JobsOptions } from 'bullmq';
 import { config, enableJudge } from '../config';
+import type { SupportedLanguage } from '../constants/languages';
 
 const connection = { url: config.REDIS_URL || 'redis://127.0.0.1:6379' };
 
@@ -52,7 +53,7 @@ export type JudgeJobData = {
   challengeId: string;
   userId: string;
   code: string;
-  language: 'javascript' | 'python';
+  language: SupportedLanguage;
   sessionId?: string | null;
 };
 

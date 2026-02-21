@@ -1,4 +1,5 @@
 import { query } from '../db';
+import { normalizeLanguage, type SupportedLanguage } from '../constants/languages';
 
 export interface TestCaseInput {
   name: string;
@@ -19,11 +20,8 @@ export interface BaselineInput {
 }
 
 export class ChallengeTestsService {
-  private normalizeLanguage(language: string): 'javascript' | 'python' {
-    const lower = language.toLowerCase();
-    if (lower === 'python' || lower === 'py') return 'python';
-    if (lower === 'javascript' || lower === 'js' || lower === 'node') return 'javascript';
-    throw new Error('Unsupported baseline language. Allowed: javascript, python');
+  private normalizeLanguage(language: string): SupportedLanguage {
+    return normalizeLanguage(language);
   }
 
   async listTestCases(challengeId: string) {

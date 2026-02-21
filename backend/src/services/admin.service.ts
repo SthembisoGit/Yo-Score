@@ -57,6 +57,7 @@ export class AdminService {
     difficulty?: string;
     target_seniority?: 'graduate' | 'junior' | 'mid' | 'senior';
     duration_minutes?: number;
+    supported_languages?: Array<'javascript' | 'python' | 'java' | 'cpp' | 'go' | 'csharp'>;
   }) {
     return challengeService.updateChallenge(challengeId, data);
   }

@@ -4,6 +4,7 @@ import { judgeService } from './services/judge.service';
 import { submissionRunService } from './services/submissionRun.service';
 import { scoringService } from './services/scoring.service';
 import { query } from './db';
+import { normalizeLanguage } from './constants/languages';
 
 async function markSubmissionFailed(submissionId: string, error: string, runId?: string) {
   await query(
@@ -22,7 +23,7 @@ const processor = async (job: Job<JudgeJobData>) => {
   let runId: string | null = null;
 
   try {
-    const normalizedLanguage = language.toLowerCase() === 'python' ? 'python' : 'javascript';
+    const normalizedLanguage = normalizeLanguage(language);
 
     await query(
       `UPDATE submissions

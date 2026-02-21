@@ -1,12 +1,17 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-const EASY_CHALLENGES = [
+const ALL_LANGUAGES = ['javascript', 'python', 'java', 'cpp', 'go', 'csharp'];
+
+const CHALLENGES = [
   {
     title: 'Frontend: Sum Two Integers',
     category: 'Frontend',
+    difficulty: 'easy',
+    seniority: 'graduate',
+    duration: 20,
     description:
-      'Read two integers from stdin and print their sum.\nInput: two integers separated by space or newline.\nOutput: a single integer.',
+      'Read two integers from stdin and print their sum.\nInput: two integers separated by space or newline.\nOutput: one integer.',
     tests: [
       { input: '2 3\n', output: '5' },
       { input: '-4 9\n', output: '5' },
@@ -16,8 +21,11 @@ const EASY_CHALLENGES = [
   {
     title: 'Backend: Sum 1 to N',
     category: 'Backend',
+    difficulty: 'easy',
+    seniority: 'graduate',
+    duration: 25,
     description:
-      'Read an integer n from stdin and print the sum of numbers from 1 to n.\nInput: one integer n.\nOutput: sum(1..n).',
+      'Read integer n and print sum(1..n).',
     tests: [
       { input: '1\n', output: '1' },
       { input: '5\n', output: '15' },
@@ -25,32 +33,27 @@ const EASY_CHALLENGES = [
     ],
   },
   {
-    title: 'Security: Count Vowels',
+    title: 'Security: Validate Password Strength',
     category: 'Security',
+    difficulty: 'medium',
+    seniority: 'junior',
+    duration: 30,
     description:
-      'Read a line from stdin and print how many vowels it contains.\nVowels: a, e, i, o, u (case-insensitive).',
+      'Read a password string and print STRONG if length >= 8 and it contains upper, lower, digit, and special char. Otherwise print WEAK.',
     tests: [
-      { input: 'hello\n', output: '2' },
-      { input: 'YOScore\n', output: '3' },
-      { input: 'bcdf\n', output: '0' },
-    ],
-  },
-  {
-    title: 'IT Support: Print Exact Name',
-    category: 'IT Support',
-    description:
-      'Ignore any input and print exactly: YoScore\nOutput must match case and spelling.',
-    tests: [
-      { input: '\n', output: 'YoScore' },
-      { input: 'anything\n', output: 'YoScore' },
-      { input: '123 456\n', output: 'YoScore' },
+      { input: 'YoScore@2026\n', output: 'STRONG' },
+      { input: 'password\n', output: 'WEAK' },
+      { input: 'A1@aaaa\n', output: 'WEAK' },
     ],
   },
   {
     title: 'DevOps: Reverse String',
     category: 'DevOps',
+    difficulty: 'easy',
+    seniority: 'graduate',
+    duration: 20,
     description:
-      'Read one line from stdin and print it reversed.\nKeep spaces and symbols in the reversed output.',
+      'Read one line and print it reversed.',
     tests: [
       { input: 'hello\n', output: 'olleh' },
       { input: 'Yo Score\n', output: 'erocS oY' },
@@ -60,8 +63,11 @@ const EASY_CHALLENGES = [
   {
     title: 'Cloud Engineering: FizzBuzz Single',
     category: 'Cloud Engineering',
+    difficulty: 'easy',
+    seniority: 'graduate',
+    duration: 20,
     description:
-      'Read one integer n and print:\nFizzBuzz if divisible by 3 and 5,\nFizz if divisible by 3,\nBuzz if divisible by 5,\notherwise print n.',
+      'Read integer n and print FizzBuzz/Fizz/Buzz/or n.',
     tests: [
       { input: '3\n', output: 'Fizz' },
       { input: '10\n', output: 'Buzz' },
@@ -72,8 +78,11 @@ const EASY_CHALLENGES = [
   {
     title: 'Data Science: Minimum of N Numbers',
     category: 'Data Science',
+    difficulty: 'medium',
+    seniority: 'junior',
+    duration: 35,
     description:
-      'Read integer n, then read n integers, and print the minimum value.\nInput can be space-separated or newline-separated.',
+      'Read n then n integers and print the minimum.',
     tests: [
       { input: '5\n9 3 7 1 8\n', output: '1' },
       { input: '3\n-2 -5 -1\n', output: '-5' },
@@ -83,8 +92,11 @@ const EASY_CHALLENGES = [
   {
     title: 'Mobile Development: Even or Odd',
     category: 'Mobile Development',
+    difficulty: 'easy',
+    seniority: 'graduate',
+    duration: 15,
     description:
-      'Read one integer and print EVEN if it is even, otherwise print ODD.',
+      'Read one integer and print EVEN if even else ODD.',
     tests: [
       { input: '4\n', output: 'EVEN' },
       { input: '9\n', output: 'ODD' },
@@ -94,15 +106,103 @@ const EASY_CHALLENGES = [
   {
     title: 'QA Testing: Max of Three Numbers',
     category: 'QA Testing',
+    difficulty: 'easy',
+    seniority: 'graduate',
+    duration: 20,
     description:
-      'Read three integers and print the largest one.',
+      'Read three integers and print the largest.',
     tests: [
       { input: '1 5 3\n', output: '5' },
       { input: '-1 -5 -3\n', output: '-1' },
       { input: '10 10 7\n', output: '10' },
     ],
   },
+  {
+    title: 'Backend: Frequency Map (AI Fix)',
+    category: 'Backend',
+    difficulty: 'medium',
+    seniority: 'junior',
+    duration: 40,
+    description:
+      'AI-generated code often forgets to trim input and counts spaces incorrectly.\nRead one line and print key:value pairs for letter frequency in alphabetical order (ignore spaces, case-insensitive).',
+    tests: [
+      { input: 'aA b\n', output: 'a:2,b:1' },
+      { input: 'YoScore\n', output: 'c:1,e:1,o:2,r:1,s:1,y:1' },
+      { input: 'bbb aaa\n', output: 'a:3,b:3' },
+    ],
+  },
+  {
+    title: 'Frontend: Balanced Brackets',
+    category: 'Frontend',
+    difficulty: 'hard',
+    seniority: 'mid',
+    duration: 45,
+    description:
+      'Read a string of brackets ()[]{} and print VALID if balanced else INVALID.',
+    tests: [
+      { input: '([]){}\n', output: 'VALID' },
+      { input: '([)]\n', output: 'INVALID' },
+      { input: '((()))\n', output: 'VALID' },
+    ],
+  },
+  {
+    title: 'Security: SQL Injection Pattern Scan (AI Fix)',
+    category: 'Security',
+    difficulty: 'hard',
+    seniority: 'mid',
+    duration: 45,
+    description:
+      'Read one line query input and print BLOCK if it contains common injection markers (--, ;--, OR 1=1, UNION SELECT), else ALLOW.',
+    tests: [
+      { input: "name='john' OR 1=1\n", output: 'BLOCK' },
+      { input: 'SELECT * FROM users WHERE id=4\n', output: 'ALLOW' },
+      { input: 'UNION SELECT password FROM users\n', output: 'BLOCK' },
+    ],
+  },
+  {
+    title: 'Cloud Engineering: Retry Backoff Calculator',
+    category: 'Cloud Engineering',
+    difficulty: 'hard',
+    seniority: 'senior',
+    duration: 50,
+    description:
+      'Read base delay b and retries r. Print exponential backoff sequence b*2^i for i in [0,r-1], comma-separated.',
+    tests: [
+      { input: '100 4\n', output: '100,200,400,800' },
+      { input: '50 1\n', output: '50' },
+      { input: '10 3\n', output: '10,20,40' },
+    ],
+  },
+  {
+    title: 'DevOps: Parse Log Severity Counts',
+    category: 'DevOps',
+    difficulty: 'medium',
+    seniority: 'junior',
+    duration: 35,
+    description:
+      'Read n then n log lines. Count lines containing INFO, WARN, ERROR and print INFO:x,WARN:y,ERROR:z.',
+    tests: [
+      { input: '4\nINFO ok\nWARN disk\nERROR fail\nINFO done\n', output: 'INFO:2,WARN:1,ERROR:1' },
+      { input: '2\nDEBUG hi\nTRACE no\n', output: 'INFO:0,WARN:0,ERROR:0' },
+      { input: '3\nERROR a\nERROR b\nWARN c\n', output: 'INFO:0,WARN:1,ERROR:2' },
+    ],
+  },
 ];
+
+async function ensureBaselines(client, challengeId) {
+  for (const language of ALL_LANGUAGES) {
+    await client.query(
+      `INSERT INTO challenge_baselines (challenge_id, language, runtime_ms, memory_mb, lint_rules, updated_at)
+       VALUES ($1, $2, 2500, 256, '{}'::jsonb, NOW())
+       ON CONFLICT (challenge_id, language) DO UPDATE
+       SET runtime_ms = EXCLUDED.runtime_ms,
+           memory_mb = EXCLUDED.memory_mb,
+           lint_rules = EXCLUDED.lint_rules,
+           updated_at = NOW()`,
+      [challengeId, language],
+    );
+  }
+}
 
 async function upsertChallenge(client, spec) {
   const existing = await client.query(
@@ -116,21 +216,21 @@ async function upsertChallenge(client, spec) {
     await client.query(
       `UPDATE challenges
        SET description = $2,
-           difficulty = 'easy',
-           target_seniority = 'graduate',
-           duration_minutes = 20,
+           difficulty = $3,
+           target_seniority = $4,
+           duration_minutes = $5,
            publish_status = 'published',
            updated_at = NOW()
        WHERE id = $1`,
-      [challengeId, spec.description],
+      [challengeId, spec.description, spec.difficulty, spec.seniority, spec.duration],
     );
   } else {
     const inserted = await client.query(
       `INSERT INTO challenges
          (title, description, category, difficulty, target_seniority, duration_minutes, publish_status)
-       VALUES ($1, $2, $3, 'easy', 'graduate', 20, 'published')
+       VALUES ($1, $2, $3, $4, $5, $6, 'published')
        RETURNING id`,
-      [spec.title, spec.description, spec.category],
+      [spec.title, spec.description, spec.category, spec.difficulty, spec.seniority, spec.duration],
     );
     challengeId = inserted.rows[0].id;
   }
@@ -142,33 +242,12 @@ async function upsertChallenge(client, spec) {
     await client.query(
       `INSERT INTO challenge_test_cases
          (challenge_id, name, input, expected_output, is_hidden, points, timeout_ms, memory_mb, order_index)
-       VALUES ($1, $2, $3, $4, false, 1, 4000, 256, $5)`,
+       VALUES ($1, $2, $3, $4, true, 1, 5000, 256, $5)`,
       [challengeId, `case-${index + 1}`, test.input, test.output, index],
     );
   }
 
-  await client.query(
-    `INSERT INTO challenge_baselines (challenge_id, language, runtime_ms, memory_mb, lint_rules, updated_at)
-     VALUES ($1, 'javascript', 1200, 256, '{}'::jsonb, NOW())
-     ON CONFLICT (challenge_id, language) DO UPDATE
-     SET runtime_ms = EXCLUDED.runtime_ms,
-         memory_mb = EXCLUDED.memory_mb,
-         lint_rules = EXCLUDED.lint_rules,
-         updated_at = NOW()`,
-    [challengeId],
-  );
-
-  await client.query(
-    `INSERT INTO challenge_baselines (challenge_id, language, runtime_ms, memory_mb, lint_rules, updated_at)
-     VALUES ($1, 'python', 1400, 256, '{}'::jsonb, NOW())
-     ON CONFLICT (challenge_id, language) DO UPDATE
-     SET runtime_ms = EXCLUDED.runtime_ms,
-         memory_mb = EXCLUDED.memory_mb,
-         lint_rules = EXCLUDED.lint_rules,
-         updated_at = NOW()`,
-    [challengeId],
-  );
-
+  await ensureBaselines(client, challengeId);
   return challengeId;
 }
 
@@ -191,20 +270,46 @@ async function main() {
   try {
     await client.query('BEGIN');
 
-    const createdOrUpdated = [];
-    for (const challenge of EASY_CHALLENGES) {
+    const seeded = [];
+    for (const challenge of CHALLENGES) {
       const id = await upsertChallenge(client, challenge);
-      createdOrUpdated.push({ id, title: challenge.title, category: challenge.category });
+      seeded.push({ id, title: challenge.title, category: challenge.category, difficulty: challenge.difficulty });
     }
 
-    await client.query('COMMIT');
+    const demotedResult = await client.query(
+      `UPDATE challenges c
+       SET publish_status = 'draft',
+           updated_at = NOW()
+       WHERE c.publish_status = 'published'
+         AND (
+           NOT EXISTS (
+             SELECT 1
+             FROM challenge_test_cases t
+             WHERE t.challenge_id = c.id
+           )
+           OR EXISTS (
+             SELECT 1
+             FROM unnest($1::text[]) AS required(language)
+             WHERE NOT EXISTS (
+               SELECT 1
+               FROM challenge_baselines b
+               WHERE b.challenge_id = c.id
+                 AND LOWER(b.language) = required.language
+             )
+           )
+         )`,
+      [ALL_LANGUAGES],
+    );
 
+    await client.query('COMMIT');
     console.log(
       JSON.stringify(
         {
           success: true,
-          count: createdOrUpdated.length,
-          challenges: createdOrUpdated,
+          count: seeded.length,
+          languages: ALL_LANGUAGES,
+          demoted_unready_published: Number(demotedResult.rowCount ?? 0),
+          challenges: seeded,
         },
         null,
         2,
@@ -213,7 +318,7 @@ async function main() {
   } catch (error) {
     await client.query('ROLLBACK');
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`Failed to seed easy challenges: ${message}`);
+    console.error(`Failed to seed challenges: ${message}`);
     process.exit(1);
   } finally {
     client.release();

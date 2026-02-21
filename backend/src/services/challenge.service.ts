@@ -4,6 +4,11 @@ import {
   getSeniorityBandFromMonths,
   type SeniorityBand,
 } from '../utils/seniority';
+import {
+  normalizeLanguage,
+  SUPPORTED_LANGUAGES,
+  type SupportedLanguage,
+} from '../constants/languages';
 
 export type ChallengePublishStatus = 'draft' | 'published' | 'archived';
 
@@ -16,6 +21,8 @@ export interface Challenge {
   target_seniority: SeniorityBand;
   duration_minutes: number;
   publish_status: ChallengePublishStatus;
+  supported_languages: SupportedLanguage[];
+  starter_templates: Record<SupportedLanguage, string>;
   created_at: Date;
   updated_at: Date;
 }
@@ -28,6 +35,7 @@ export interface CreateChallengeInput {
   target_seniority?: SeniorityBand;
   duration_minutes?: number;
   publish_status?: ChallengePublishStatus;
+  supported_languages?: SupportedLanguage[];
 }
 
 export interface UpdateChallengeInput {
@@ -37,6 +45,7 @@ export interface UpdateChallengeInput {
   difficulty?: string;
   target_seniority?: SeniorityBand;
   duration_minutes?: number;
+  supported_languages?: SupportedLanguage[];
 }
 
 export interface ChallengeReadiness {
@@ -66,27 +75,157 @@ export class ChallengeService {
               FROM challenge_test_cases t
               WHERE t.challenge_id = ${prefix}id
             )
-            AND EXISTS (
+            AND ${SUPPORTED_LANGUAGES.map(
+              (language, index) => `EXISTS (
               SELECT 1
-              FROM challenge_baselines b_js
-              WHERE b_js.challenge_id = ${prefix}id
-                AND b_js.language = 'javascript'
-            )
-            AND EXISTS (
-              SELECT 1
-              FROM challenge_baselines b_py
-              WHERE b_py.challenge_id = ${prefix}id
-                AND b_py.language = 'python'
-            )`;
+              FROM challenge_baselines b_${index}
+              WHERE b_${index}.challenge_id = ${prefix}id
+                AND b_${index}.language = '${language}'
+            )`,
+            ).join('\n            AND ')}`;
+  }
+
+  private getDefaultStarterTemplate(language: SupportedLanguage): string {
+    if (language === 'python') {
+      return `def solve(input_data):
+    # parse input_data and return result
+    return input_data
+
+if __name__ == "__main__":
+    import sys
+    data = sys.stdin.read()
+    print(solve(data))`;
+    }
+    if (language === 'java') {
+      return `import java.io.*;
+
+public class Main {
+    static String solve(String input) {
+        // parse input and return output
+        return input.trim();
+    }
+
+    public static void main(String[] args) throws Exception {
+        String input = new String(System.in.readAllBytes());
+        System.out.print(solve(input));
+    }
+}`;
+    }
+    if (language === 'cpp') {
+      return `#include <bits/stdc++.h>
+using namespace std;
+
+string solve(const string& input) {
+    // parse input and return output
+    return input;
+}
+
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+    string input((istreambuf_iterator<char>(cin)), istreambuf_iterator<char>());
+    cout << solve(input);
+    return 0;
+}`;
+    }
+    if (language === 'go') {
+      return `package main
+
+import (
+    "fmt"
+    "io"
+    "os"
+)
+
+func solve(input string) string {
+    // parse input and return output
+    return input
+}
+
+func main() {
+    data, _ := io.ReadAll(os.Stdin)
+    fmt.Print(solve(string(data)))
+}`;
+    }
+    if (language === 'csharp') {
+      return `using System;
+using System.IO;
+
+public class Program
+{
+    static string Solve(string input)
+    {
+        // parse input and return output
+        return input.Trim();
+    }
+
+    public static void Main()
+    {
+        string input = Console.In.ReadToEnd();
+        Console.Write(Solve(input));
+    }
+}`;
+    }
+    return `function solve(input) {
+  // parse input and return output
+  return input.trim();
+}
+
+const fs = require('fs');
+const input = fs.readFileSync(0, 'utf8');
+process.stdout.write(String(solve(input)));`;
+  }
+
+  private normalizeSupportedLanguages(languages?: SupportedLanguage[]): SupportedLanguage[] {
+    const normalized = (languages ?? SUPPORTED_LANGUAGES)
+      .map((language) => normalizeLanguage(language))
+      .filter((value, index, arr) => arr.indexOf(value) === index);
+
+    return normalized.length > 0 ? normalized : [...SUPPORTED_LANGUAGES];
+  }
+
+  private buildStarterTemplates(
+    supportedLanguages: SupportedLanguage[],
+  ): Record<SupportedLanguage, string> {
+    return SUPPORTED_LANGUAGES.reduce((acc, language) => {
+      acc[language] = this.getDefaultStarterTemplate(language);
+      return acc;
+    }, {} as Record<SupportedLanguage, string>);
+  }
+
+  private async syncChallengeBaselinesForLanguages(
+    challengeId: string,
+    supportedLanguages?: SupportedLanguage[],
+  ) {
+    const normalizedLanguages = this.normalizeSupportedLanguages(supportedLanguages);
+    await query(
+      `DELETE FROM challenge_baselines
+       WHERE challenge_id = $1
+         AND language <> ALL($2::text[])`,
+      [challengeId, normalizedLanguages],
+    );
+
+    for (const language of normalizedLanguages) {
+      await query(
+        `INSERT INTO challenge_baselines (challenge_id, language, runtime_ms, memory_mb, lint_rules, updated_at)
+         VALUES ($1, $2, 2000, 256, '{}'::jsonb, NOW())
+         ON CONFLICT (challenge_id, language) DO NOTHING`,
+        [challengeId, language],
+      );
+    }
   }
 
   private async getAllChallengesLegacy(options: GetChallengeOptions = {}) {
     const readyOnly = options.readyOnly ?? false;
     const where = readyOnly ? `WHERE ${this.getReadinessSql('c')}` : '';
     const result = await query(
-      `SELECT c.id, c.title, c.description, c.category, c.difficulty, c.created_at, c.updated_at
+      `SELECT c.id, c.title, c.description, c.category, c.difficulty,
+              COALESCE(array_agg(DISTINCT b.language) FILTER (WHERE b.language IS NOT NULL), '{}'::text[]) AS baseline_languages,
+              c.created_at, c.updated_at
        FROM challenges c
+       LEFT JOIN challenge_baselines b ON b.challenge_id = c.id
        ${where}
+       GROUP BY c.id
        ORDER BY c.created_at DESC`,
     );
 
@@ -107,9 +246,13 @@ export class ChallengeService {
 
     try {
       const result = await query(
-        `SELECT c.id, c.title, c.description, c.category, c.difficulty, c.target_seniority, c.duration_minutes, c.publish_status, c.created_at, c.updated_at
+        `SELECT c.id, c.title, c.description, c.category, c.difficulty, c.target_seniority, c.duration_minutes, c.publish_status,
+                COALESCE(array_agg(DISTINCT b.language) FILTER (WHERE b.language IS NOT NULL), '{}'::text[]) AS baseline_languages,
+                c.created_at, c.updated_at
          FROM challenges c
+         LEFT JOIN challenge_baselines b ON b.challenge_id = c.id
          ${where}
+         GROUP BY c.id
          ORDER BY c.created_at DESC`,
       );
 
@@ -135,8 +278,11 @@ export class ChallengeService {
 
     try {
       const result = await query(
-        `SELECT c.id, c.title, c.description, c.category, c.difficulty, c.target_seniority, c.duration_minutes, c.publish_status, c.created_at, c.updated_at
+        `SELECT c.id, c.title, c.description, c.category, c.difficulty, c.target_seniority, c.duration_minutes, c.publish_status,
+                COALESCE(array_agg(DISTINCT b.language) FILTER (WHERE b.language IS NOT NULL), '{}'::text[]) AS baseline_languages,
+                c.created_at, c.updated_at
          FROM challenges c
+         LEFT JOIN challenge_baselines b ON b.challenge_id = c.id
          WHERE ${conditions.join(' AND ')}`,
         [challengeId],
       );
@@ -156,8 +302,11 @@ export class ChallengeService {
         legacyConditions.push(this.getReadinessSql('c'));
       }
       const legacyResult = await query(
-        `SELECT c.id, c.title, c.description, c.category, c.difficulty, c.created_at, c.updated_at
+        `SELECT c.id, c.title, c.description, c.category, c.difficulty,
+                COALESCE(array_agg(DISTINCT b.language) FILTER (WHERE b.language IS NOT NULL), '{}'::text[]) AS baseline_languages,
+                c.created_at, c.updated_at
          FROM challenges c
+         LEFT JOIN challenge_baselines b ON b.challenge_id = c.id
          WHERE ${legacyConditions.join(' AND ')}`,
         [challengeId],
       );
@@ -202,8 +351,11 @@ export class ChallengeService {
     try {
       const result = await query(
         `SELECT c.id, c.title, c.description, c.category, c.difficulty,
-                c.target_seniority, c.duration_minutes, c.publish_status, c.created_at, c.updated_at
+                c.target_seniority, c.duration_minutes, c.publish_status,
+                COALESCE(array_agg(DISTINCT b.language) FILTER (WHERE b.language IS NOT NULL), '{}'::text[]) AS baseline_languages,
+                c.created_at, c.updated_at
          FROM challenges c
+         LEFT JOIN challenge_baselines b ON b.challenge_id = c.id
          WHERE c.publish_status = 'published'
            AND c.target_seniority = ANY($2::text[])
            AND ${this.getReadinessSql('c')}
@@ -214,7 +366,9 @@ export class ChallengeService {
              WHERE s.challenge_id = c.id
                AND s.user_id = $1
                AND s.status = 'graded'
+               AND s.submitted_at >= NOW() - INTERVAL '30 days'
            )
+         GROUP BY c.id
          ORDER BY array_position($2::text[], c.target_seniority), RANDOM()
          LIMIT 1`,
         params,
@@ -234,8 +388,11 @@ export class ChallengeService {
       if (category) legacyParams.push(category);
 
       const legacyResult = await query(
-        `SELECT c.id, c.title, c.description, c.category, c.difficulty, c.created_at, c.updated_at
+        `SELECT c.id, c.title, c.description, c.category, c.difficulty,
+                COALESCE(array_agg(DISTINCT b.language) FILTER (WHERE b.language IS NOT NULL), '{}'::text[]) AS baseline_languages,
+                c.created_at, c.updated_at
          FROM challenges c
+         LEFT JOIN challenge_baselines b ON b.challenge_id = c.id
          WHERE ${this.getReadinessSql('c')}
            ${legacyCategoryFilter}
            AND NOT EXISTS (
@@ -244,7 +401,9 @@ export class ChallengeService {
              WHERE s.challenge_id = c.id
                AND s.user_id = $1
                AND s.status = 'graded'
+               AND s.submitted_at >= NOW() - INTERVAL '30 days'
            )
+         GROUP BY c.id
          ORDER BY RANDOM()
          LIMIT 1`,
         legacyParams,
@@ -274,7 +433,12 @@ export class ChallengeService {
       ],
     );
 
-    return this.mapRowToChallenge(result.rows[0]);
+    const challenge = this.mapRowToChallenge({
+      ...result.rows[0],
+      baseline_languages: [],
+    });
+    await this.syncChallengeBaselinesForLanguages(challenge.challenge_id, data.supported_languages);
+    return this.getChallengeById(challenge.challenge_id, { includeUnpublished: true });
   }
 
   async updateChallenge(challengeId: string, data: UpdateChallengeInput) {
@@ -307,25 +471,35 @@ export class ChallengeService {
       values.push(data.duration_minutes);
     }
 
-    if (updates.length === 0) {
+    const shouldSyncLanguages = data.supported_languages !== undefined;
+
+    if (updates.length === 0 && !shouldSyncLanguages) {
       throw new Error('No fields to update');
     }
 
-    updates.push('updated_at = NOW()');
-    values.push(challengeId);
+    let updatedChallengeId = challengeId;
+    if (updates.length > 0) {
+      updates.push('updated_at = NOW()');
+      values.push(challengeId);
 
-    const result = await query(
-      `UPDATE challenges
-       SET ${updates.join(', ')}
-       WHERE id = $${idx}
-       RETURNING id, title, description, category, difficulty, target_seniority, duration_minutes, publish_status, created_at, updated_at`,
-      values,
-    );
+      const result = await query(
+        `UPDATE challenges
+         SET ${updates.join(', ')}
+         WHERE id = $${idx}
+         RETURNING id`,
+        values,
+      );
 
-    if (result.rows.length === 0) {
-      throw new Error('Challenge not found');
+      if (result.rows.length === 0) {
+        throw new Error('Challenge not found');
+      }
+      updatedChallengeId = String(result.rows[0].id);
     }
-    return this.mapRowToChallenge(result.rows[0]);
+
+    if (shouldSyncLanguages) {
+      await this.syncChallengeBaselinesForLanguages(updatedChallengeId, data.supported_languages);
+    }
+    return this.getChallengeById(updatedChallengeId, { includeUnpublished: true });
   }
 
   async setPublishStatus(challengeId: string, status: ChallengePublishStatus) {
@@ -365,9 +539,9 @@ export class ChallengeService {
 
     const hasTests = Number(testsResult.rows[0]?.count ?? 0) > 0;
     const baselineLanguages = baselinesResult.rows
-      .map((row) => String(row.language).toLowerCase())
+      .map((row) => normalizeLanguage(String(row.language)))
       .filter((value, index, arr) => arr.indexOf(value) === index);
-    const required = ['javascript', 'python'];
+    const required = [...SUPPORTED_LANGUAGES];
     const missingLanguages = required.filter((lang) => !baselineLanguages.includes(lang));
 
     return {
@@ -380,6 +554,14 @@ export class ChallengeService {
   }
 
   private mapRowToChallenge(row: Record<string, unknown>): Challenge {
+    const baselineLanguages = Array.isArray(row.baseline_languages)
+      ? (row.baseline_languages
+          .map((language) => normalizeLanguage(String(language)))
+          .filter((value, index, arr) => arr.indexOf(value) === index) as SupportedLanguage[])
+      : [];
+    const supportedLanguages =
+      baselineLanguages.length > 0 ? baselineLanguages : [...SUPPORTED_LANGUAGES];
+
     return {
       challenge_id: String(row.id),
       title: String(row.title),
@@ -389,6 +571,8 @@ export class ChallengeService {
       target_seniority: (String(row.target_seniority ?? 'junior') as SeniorityBand),
       duration_minutes: Number(row.duration_minutes ?? 45),
       publish_status: (row.publish_status as ChallengePublishStatus) ?? 'published',
+      supported_languages: supportedLanguages,
+      starter_templates: this.buildStarterTemplates(supportedLanguages),
       created_at: row.created_at as Date,
       updated_at: row.updated_at as Date,
     };

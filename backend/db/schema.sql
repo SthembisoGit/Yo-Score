@@ -378,7 +378,7 @@ ALTER TABLE submissions
 
 ALTER TABLE submissions
     ADD CONSTRAINT submissions_language_chk
-    CHECK (language IN ('javascript', 'python'));
+    CHECK (language IN ('javascript', 'python', 'java', 'cpp', 'go', 'csharp'));
 
 ALTER TABLE submissions
     DROP CONSTRAINT IF EXISTS submissions_judge_status_chk;

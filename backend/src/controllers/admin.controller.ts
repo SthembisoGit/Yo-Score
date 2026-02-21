@@ -39,6 +39,7 @@ export class AdminController {
         target_seniority,
         duration_minutes,
         publish_status,
+        supported_languages,
       } = req.body;
       if (!title || !description || !category || !difficulty) {
         return res.status(400).json({
@@ -54,6 +55,7 @@ export class AdminController {
         target_seniority,
         duration_minutes,
         publish_status,
+        supported_languages,
       });
       return res.status(201).json({ success: true, message: 'Challenge created', data });
     } catch (error) {
