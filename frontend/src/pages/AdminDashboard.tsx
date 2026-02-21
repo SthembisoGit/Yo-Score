@@ -17,6 +17,11 @@ import {
   type AdminUser,
 } from '@/services/adminService';
 import { toast } from 'react-hot-toast';
+import {
+  CODE_TO_DISPLAY,
+  SUPPORTED_LANGUAGE_CODES,
+  type SupportedLanguageCode,
+} from '@/constants/languages';
 
 type PublishStatus = 'draft' | 'published' | 'archived';
 
@@ -43,6 +48,15 @@ const defaultSettings: AdminProctoringSettings = {
   autoPauseOnViolation: false,
 };
 
+const createDefaultBaselineMap = () =>
+  SUPPORTED_LANGUAGE_CODES.reduce(
+    (acc, language) => {
+      acc[language] = { runtime_ms: 2000, memory_mb: 256 };
+      return acc;
+    },
+    {} as Record<SupportedLanguageCode, { runtime_ms: number; memory_mb: number }>,
+  );
+
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<AdminDashboardSummary | null>(null);
@@ -64,6 +78,7 @@ export default function AdminDashboard() {
     target_seniority: 'junior' as 'graduate' | 'junior' | 'mid' | 'senior',
     duration_minutes: '45',
     publish_status: 'draft' as PublishStatus,
+    supported_languages: [...SUPPORTED_LANGUAGE_CODES] as SupportedLanguageCode[],
   });
   const [isCreatingChallenge, setIsCreatingChallenge] = useState(false);
   const [challengeActionState, setChallengeActionState] = useState<Record<string, string>>({});
@@ -80,8 +95,7 @@ export default function AdminDashboard() {
     title: 'Reference Guide',
     content: '',
   });
-  const [jsBaseline, setJsBaseline] = useState({ runtime_ms: 2000, memory_mb: 256 });
-  const [pyBaseline, setPyBaseline] = useState({ runtime_ms: 2000, memory_mb: 256 });
+  const [baselines, setBaselines] = useState(createDefaultBaselineMap);
 
   const loadData = async () => {
     setLoading(true);
@@ -131,16 +145,33 @@ export default function AdminDashboard() {
   const loadChallengeConfig = async (challengeId: string) => {
     setChallengeActionState((prev) => ({ ...prev, [challengeId]: 'configure' }));
     try {
-      const [testRows, js, py, docs] = await Promise.all([
+      const [testRows, docs] = await Promise.all([
         adminService.getChallengeTests(challengeId),
-        adminService.getChallengeBaseline(challengeId, 'javascript'),
-        adminService.getChallengeBaseline(challengeId, 'python'),
         adminService.listChallengeDocs(challengeId),
       ]);
+      const challenge = challenges.find((item) => item.challenge_id === challengeId);
+      const supportedLanguages =
+        challenge?.supported_languages?.length
+          ? challenge.supported_languages
+          : [...SUPPORTED_LANGUAGE_CODES];
+      const baselineRows = await Promise.all(
+        supportedLanguages.map((language) =>
+          adminService.getChallengeBaseline(challengeId, language),
+        ),
+      );
+
+      const nextBaselines = createDefaultBaselineMap();
+      for (const baseline of baselineRows) {
+        if (!baseline) continue;
+        nextBaselines[baseline.language] = {
+          runtime_ms: Number(baseline.runtime_ms),
+          memory_mb: Number(baseline.memory_mb),
+        };
+      }
+
       setTests(testRows);
       setChallengeDocs(docs);
-      if (js) setJsBaseline({ runtime_ms: Number(js.runtime_ms), memory_mb: Number(js.memory_mb) });
-      if (py) setPyBaseline({ runtime_ms: Number(py.runtime_ms), memory_mb: Number(py.memory_mb) });
+      setBaselines(nextBaselines);
       setSelectedChallengeId(challengeId);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load challenge config');
@@ -159,6 +190,10 @@ export default function AdminDashboard() {
       toast.error('Duration must be between 5 and 300 minutes.');
       return;
     }
+    if (newChallenge.supported_languages.length === 0) {
+      toast.error('Select at least one supported language.');
+      return;
+    }
 
     setIsCreatingChallenge(true);
     try {
@@ -175,6 +210,7 @@ export default function AdminDashboard() {
         target_seniority: 'junior',
         duration_minutes: '45',
         publish_status: 'draft',
+        supported_languages: [...SUPPORTED_LANGUAGE_CODES],
       });
       await loadData();
     } catch (error) {
@@ -213,9 +249,9 @@ export default function AdminDashboard() {
     }
   };
 
-  const onSaveBaseline = async (language: 'javascript' | 'python') => {
+  const onSaveBaseline = async (language: SupportedLanguageCode) => {
     if (!selectedChallengeId) return;
-    const baseline = language === 'javascript' ? jsBaseline : pyBaseline;
+    const baseline = baselines[language];
     try {
       await adminService.upsertChallengeBaseline(selectedChallengeId, { language, ...baseline });
       toast.success(`${language} baseline saved`);
@@ -394,6 +430,34 @@ export default function AdminDashboard() {
               {isCreatingChallenge ? 'Creating...' : 'Create'}
             </Button>
           </div>
+          <div className="rounded border p-3">
+            <p className="mb-2 text-sm font-medium">Supported languages</p>
+            <div className="flex flex-wrap gap-3">
+              {SUPPORTED_LANGUAGE_CODES.map((language) => {
+                const isChecked = newChallenge.supported_languages.includes(language);
+                return (
+                  <label key={language} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(event) => {
+                        setNewChallenge((previous) => {
+                          const next = event.target.checked
+                            ? [...previous.supported_languages, language]
+                            : previous.supported_languages.filter((item) => item !== language);
+                          return {
+                            ...previous,
+                            supported_languages: Array.from(new Set(next)),
+                          };
+                        });
+                      }}
+                    />
+                    {CODE_TO_DISPLAY[language]}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         </section>
 
         <section className="rounded-xl border border-border bg-card p-4 space-y-3">
@@ -408,6 +472,9 @@ export default function AdminDashboard() {
               <p className="font-medium">{c.title}</p>
               <p className="text-muted-foreground">
                 {c.category} | {String(c.difficulty).toLowerCase()} | {c.target_seniority} | {c.duration_minutes}m | {c.publish_status}
+              </p>
+              <p className="text-muted-foreground">
+                languages: {c.supported_languages.map((language) => CODE_TO_DISPLAY[language]).join(', ')}
               </p>
               <p className="text-muted-foreground">ready: {c.readiness.is_ready ? 'yes' : 'no'}</p>
               <div className="mt-2 flex flex-wrap gap-2">
@@ -450,19 +517,43 @@ export default function AdminDashboard() {
         {selectedChallengeId && (
           <section className="rounded-xl border border-border bg-card p-4 space-y-3">
             <h2 className="font-semibold">Challenge Config ({selectedChallengeId})</h2>
-            <div className="grid gap-2 md:grid-cols-2">
-              <div className="rounded border p-3 space-y-2">
-                <p className="font-medium">JavaScript baseline</p>
-                <input type="number" className="w-full rounded border px-2 py-1" value={jsBaseline.runtime_ms} onChange={(e) => setJsBaseline((p) => ({ ...p, runtime_ms: Number(e.target.value) || p.runtime_ms }))} />
-                <input type="number" className="w-full rounded border px-2 py-1" value={jsBaseline.memory_mb} onChange={(e) => setJsBaseline((p) => ({ ...p, memory_mb: Number(e.target.value) || p.memory_mb }))} />
-                <Button size="sm" onClick={() => void onSaveBaseline('javascript')}>Save JS Baseline</Button>
-              </div>
-              <div className="rounded border p-3 space-y-2">
-                <p className="font-medium">Python baseline</p>
-                <input type="number" className="w-full rounded border px-2 py-1" value={pyBaseline.runtime_ms} onChange={(e) => setPyBaseline((p) => ({ ...p, runtime_ms: Number(e.target.value) || p.runtime_ms }))} />
-                <input type="number" className="w-full rounded border px-2 py-1" value={pyBaseline.memory_mb} onChange={(e) => setPyBaseline((p) => ({ ...p, memory_mb: Number(e.target.value) || p.memory_mb }))} />
-                <Button size="sm" onClick={() => void onSaveBaseline('python')}>Save Python Baseline</Button>
-              </div>
+            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+              {SUPPORTED_LANGUAGE_CODES.map((language) => (
+                <div key={language} className="rounded border p-3 space-y-2">
+                  <p className="font-medium">{CODE_TO_DISPLAY[language]} baseline</p>
+                  <input
+                    type="number"
+                    className="w-full rounded border px-2 py-1"
+                    value={baselines[language].runtime_ms}
+                    onChange={(e) =>
+                      setBaselines((previous) => ({
+                        ...previous,
+                        [language]: {
+                          ...previous[language],
+                          runtime_ms: Number(e.target.value) || previous[language].runtime_ms,
+                        },
+                      }))
+                    }
+                  />
+                  <input
+                    type="number"
+                    className="w-full rounded border px-2 py-1"
+                    value={baselines[language].memory_mb}
+                    onChange={(e) =>
+                      setBaselines((previous) => ({
+                        ...previous,
+                        [language]: {
+                          ...previous[language],
+                          memory_mb: Number(e.target.value) || previous[language].memory_mb,
+                        },
+                      }))
+                    }
+                  />
+                  <Button size="sm" onClick={() => void onSaveBaseline(language)}>
+                    Save {CODE_TO_DISPLAY[language]}
+                  </Button>
+                </div>
+              ))}
             </div>
             <div className="rounded border p-3 space-y-2">
               <p className="font-medium">Add test</p>

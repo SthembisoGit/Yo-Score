@@ -5,6 +5,7 @@ import {
   trackPendingSubmission,
   untrackPendingSubmission,
 } from './pendingSubmissionStore';
+import type { SupportedLanguageCode } from '@/constants/languages';
 
 export interface Challenge {
   challenge_id: string;
@@ -15,6 +16,8 @@ export interface Challenge {
   target_seniority?: 'graduate' | 'junior' | 'mid' | 'senior';
   duration_minutes?: number;
   publish_status?: 'draft' | 'published' | 'archived';
+  supported_languages?: SupportedLanguageCode[];
+  starter_templates?: Record<SupportedLanguageCode, string>;
   created_at: string;
   updated_at: string;
   estimated_time?: number;
@@ -34,6 +37,26 @@ export interface ChallengeSubmission {
   judge_status: 'queued' | 'running' | 'completed' | 'failed';
   message: string;
   session_id?: string;
+}
+
+export interface RunCodeRequest {
+  language: SupportedLanguageCode;
+  code: string;
+  stdin?: string;
+  challenge_id?: string;
+}
+
+export interface RunCodeResponse {
+  language: SupportedLanguageCode;
+  stdout: string;
+  stderr: string;
+  exit_code: number;
+  timed_out: boolean;
+  runtime_ms: number;
+  memory_kb: number;
+  truncated: boolean;
+  provider: 'local' | 'onecompiler';
+  error_class?: 'compile' | 'runtime' | 'timeout' | 'infrastructure';
 }
 
 export interface CoachHintResponse {
@@ -75,7 +98,7 @@ class ChallengeService {
   async submitChallenge(
     challengeId: string,
     code: string,
-    language: 'javascript' | 'python',
+    language: SupportedLanguageCode,
     sessionId?: string
   ): Promise<ChallengeSubmission> {
     const payload: Record<string, unknown> = { challenge_id: challengeId, code, language };
@@ -101,7 +124,7 @@ class ChallengeService {
   async getCoachHint(input: {
     challengeId: string;
     sessionId?: string;
-    language: 'javascript' | 'python';
+    language: SupportedLanguageCode;
     code: string;
     hintIndex?: number;
   }): Promise<CoachHintResponse> {
@@ -112,6 +135,11 @@ class ChallengeService {
       hint_index: input.hintIndex,
     });
     return unwrapData<CoachHintResponse>(response);
+  }
+
+  async runCode(input: RunCodeRequest): Promise<RunCodeResponse> {
+    const response = await apiClient.post('/code/run', input);
+    return unwrapData<RunCodeResponse>(response);
   }
 }
 

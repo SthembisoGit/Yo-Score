@@ -321,12 +321,13 @@ class ProctoringService {
   async analyzeAudio(sessionId: string, audio: Blob, durationMs: number): Promise<AudioMonitorResult | null> {
     try {
       const arrayBuffer = await audio.arrayBuffer();
+      const contentType = audio.type && audio.type.trim().length > 0 ? audio.type : 'application/octet-stream';
       const response = await apiClient.post(
         `/proctoring/analyze-audio?sessionId=${sessionId}&timestamp=${encodeURIComponent(new Date().toISOString())}&durationMs=${durationMs}`,
         arrayBuffer,
         {
           headers: {
-            'Content-Type': 'audio/webm',
+            'Content-Type': contentType,
           },
         }
       );

@@ -62,7 +62,7 @@ export interface Submission {
   submission_id: string;
   challenge_id: string;
   challenge_title?: string;
-  language?: 'javascript' | 'python';
+  language?: 'javascript' | 'python' | 'java' | 'cpp' | 'go' | 'csharp';
   score: number | null;
   status: 'pending' | 'graded' | 'failed';
   judge_status?: 'queued' | 'running' | 'completed' | 'failed';
