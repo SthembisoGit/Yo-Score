@@ -85,6 +85,7 @@ export interface SessionHeartbeatResponse {
   status: 'active' | 'paused' | 'completed';
   pauseReason: string | null;
   heartbeatAt: string;
+  riskState?: 'observe' | 'warn' | 'elevated' | 'paused';
 }
 
 export interface ProctoringEventInput {
@@ -92,6 +93,11 @@ export interface ProctoringEventInput {
   severity: 'low' | 'medium' | 'high';
   payload?: Record<string, unknown>;
   timestamp?: string;
+  sequence_id?: number;
+  client_ts?: string;
+  confidence?: number;
+  duration_ms?: number;
+  model_version?: string;
 }
 
 class ProctoringService {
@@ -201,17 +207,40 @@ class ProctoringService {
   /**
    * Check if proctoring service is available
    */
-  async healthCheck(): Promise<{ status: 'healthy' | 'unhealthy'; message: string; degraded?: boolean }> {
+  async healthCheck(): Promise<{
+    status: 'healthy' | 'unhealthy';
+    message: string;
+    degraded?: boolean;
+    capabilities?: {
+      face_live: boolean;
+      audio_live: boolean;
+      deep_review_available: boolean;
+      browser_consensus: boolean;
+    };
+    degraded_reasons?: string[];
+  }> {
     try {
       const response = await apiClient.get('/proctoring/health');
-      const data = unwrapData<{ database: boolean; mlService: boolean }>(response);
-      const degraded = !data.mlService;
+      const data = unwrapData<{
+        database: boolean;
+        mlService: boolean;
+        capabilities?: {
+          face_live: boolean;
+          audio_live: boolean;
+          deep_review_available: boolean;
+          browser_consensus: boolean;
+        };
+        degraded_reasons?: string[];
+      }>(response);
+      const degraded = !data.mlService || (Array.isArray(data.degraded_reasons) && data.degraded_reasons.length > 0);
       return {
         status: data.database ? 'healthy' : 'unhealthy',
         message: degraded
           ? 'Proctoring API is available but ML analysis is degraded.'
           : 'Proctoring service is available',
-        degraded
+        degraded,
+        capabilities: data.capabilities,
+        degraded_reasons: Array.isArray(data.degraded_reasons) ? data.degraded_reasons : [],
       };
     } catch {
       return {
@@ -381,9 +410,19 @@ class ProctoringService {
   async batchEvents(
     sessionId: string,
     events: ProctoringEventInput[],
-  ): Promise<{ accepted: number; status: 'active' | 'paused' | 'completed' }> {
+    sequenceStart?: number,
+  ): Promise<{
+    accepted: number;
+    status: 'active' | 'paused' | 'completed';
+    risk_state: 'observe' | 'warn' | 'elevated' | 'paused';
+    risk_score: number;
+    pause_recommended: boolean;
+    liveness_required: boolean;
+    reasons: string[];
+  }> {
     const response = await apiClient.post('/proctoring/events/batch', {
       session_id: sessionId,
+      sequence_start: sequenceStart,
       events,
     });
     return unwrapData(response);
@@ -394,7 +433,7 @@ class ProctoringService {
     snapshot: Blob,
     triggerType: string,
     metadata: Record<string, unknown> = {},
-  ): Promise<{ snapshot_id: string; bytes: number }> {
+  ): Promise<{ snapshot_id: string; bytes: number; expires_at?: string }> {
     const arrayBuffer = await snapshot.arrayBuffer();
     const response = await apiClient.post(
       `/proctoring/session/${sessionId}/snapshot?trigger_type=${encodeURIComponent(
@@ -408,6 +447,35 @@ class ProctoringService {
         },
       },
     );
+    return unwrapData(response);
+  }
+
+  async getSessionRisk(sessionId: string): Promise<{
+    risk_state: 'observe' | 'warn' | 'elevated' | 'paused';
+    risk_score: number;
+    pause_recommended: boolean;
+    liveness_required: boolean;
+    reasons: string[];
+  }> {
+    const response = await apiClient.get(`/proctoring/session/${sessionId}/risk`);
+    return unwrapData(response);
+  }
+
+  async livenessCheck(
+    sessionId: string,
+    payload?: { response_action?: string },
+  ): Promise<{
+    required?: boolean;
+    challenge_id?: string;
+    expected_action?: 'turn_left' | 'turn_right' | 'look_up' | 'look_down' | 'blink_once';
+    prompt?: string;
+    expires_at?: string;
+    verified?: boolean;
+    message?: string;
+    risk_state?: 'observe' | 'warn' | 'elevated' | 'paused';
+    liveness_required?: boolean;
+  }> {
+    const response = await apiClient.post(`/proctoring/session/${sessionId}/liveness-check`, payload ?? {});
     return unwrapData(response);
   }
 }

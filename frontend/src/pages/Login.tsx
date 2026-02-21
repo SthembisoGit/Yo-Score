@@ -7,6 +7,47 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
 import { authService } from '@/services/authService';
 
+interface ApiLikeErrorShape {
+  message?: unknown;
+  status?: unknown;
+  response?: {
+    message?: unknown;
+    status?: unknown;
+    data?: {
+      message?: unknown;
+    };
+  };
+}
+
+const getLoginErrorDetails = (
+  err: unknown,
+): {
+  message: string;
+  statusCode?: number;
+} => {
+  if (!err || typeof err !== 'object') {
+    return { message: '' };
+  }
+
+  const parsed = err as ApiLikeErrorShape;
+  const statusFromResponse =
+    typeof parsed.response?.status === 'number' ? parsed.response.status : undefined;
+  const statusCode = typeof parsed.status === 'number' ? parsed.status : statusFromResponse;
+
+  const messageFromResponse =
+    typeof parsed.response?.message === 'string'
+      ? parsed.response.message
+      : typeof parsed.response?.data?.message === 'string'
+        ? parsed.response.data.message
+        : '';
+  const message =
+    typeof parsed.message === 'string'
+      ? parsed.message
+      : messageFromResponse;
+
+  return { message, statusCode };
+};
+
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -65,15 +106,16 @@ export default function Login() {
 
     try {
       await login(email, password);
-      const validated = await authService.validateToken().catch(() => ({ valid: false }));
-      if (validated.valid && validated.user?.role === 'admin') {
+      const validated = await authService
+        .validateToken()
+        .catch(() => ({ valid: false, user: undefined }));
+      if (validated.valid && 'user' in validated && validated.user?.role === 'admin') {
         navigate('/admin');
       } else {
         navigate('/dashboard');
       }
-    } catch (err: any) {
-      const backendError = err.message || err.response?.message || '';
-      const statusCode = err.status;
+    } catch (err: unknown) {
+      const { message: backendError, statusCode } = getLoginErrorDetails(err);
 
       let displayError = 'Login failed. Please check your credentials.';
 

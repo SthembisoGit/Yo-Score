@@ -34,10 +34,20 @@ interface PauseStatePayload {
   missingDevices: MissingDevices;
 }
 
+type NativeFaceDetection = { boundingBox?: DOMRectReadOnly };
+type NativeFaceDetectorConstructor = new (options: {
+  fastMode?: boolean;
+  maxDetectedFaces?: number;
+}) => {
+  detect: (canvas: HTMLCanvasElement) => Promise<NativeFaceDetection[]>;
+};
+
 const FRAME_CAPTURE_INTERVAL = 3000;
 const AUDIO_CHUNK_DURATION = 10000;
+const AUDIO_SAMPLE_INTERVAL = 600;
 const CAMERA_CHECK_INTERVAL = 1000;
 const HEARTBEAT_INTERVAL = 5000;
+const RISK_POLL_INTERVAL = 4000;
 const EVENT_FLUSH_INTERVAL = 8000;
 const ALERT_TIMEOUT_MS = 30000;
 const DEFAULT_COOLDOWN_MS = 10000;
@@ -49,6 +59,7 @@ const NO_FACE_STREAK_THRESHOLD = 4;
 const MAX_EVENT_BUFFER = 100;
 const SNAPSHOT_INTERVAL_MS = 25000;
 const SNAPSHOT_SAMPLE_RATE = 0.18;
+const MODEL_VERSION = 'browser-v2-consensus';
 const EMPTY_MISSING: MissingDevices = { camera: false, microphone: false, audio: false };
 const isSameMissingState = (a: MissingDevices, b: MissingDevices) =>
   a.camera === b.camera &&
@@ -67,6 +78,11 @@ const ProctoringMonitor: React.FC<Props> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioAnalyserRef = useRef<AnalyserNode | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const audioSampleBufferRef = useRef<Uint8Array | null>(null);
+  const nativeFaceDetectorRef = useRef<InstanceType<NativeFaceDetectorConstructor> | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const cooldownRef = useRef<Record<string, number>>({});
   const noFaceStreakRef = useRef(0);
@@ -81,12 +97,17 @@ const ProctoringMonitor: React.FC<Props> = ({
   const audioReadyRef = useRef(false);
   const mlDegradedRef = useRef(false);
   const eventBufferRef = useRef<ProctoringEventInput[]>([]);
+  const eventSequenceRef = useRef(0);
+  const speechStreakMsRef = useRef(0);
   const lastSnapshotAtRef = useRef(0);
+  const lastRiskPauseReasonRef = useRef('');
 
   const frameIntervalRef = useRef<NodeJS.Timeout>();
   const audioIntervalRef = useRef<NodeJS.Timeout>();
   const cameraCheckIntervalRef = useRef<NodeJS.Timeout>();
   const heartbeatIntervalRef = useRef<NodeJS.Timeout>();
+  const riskPollIntervalRef = useRef<NodeJS.Timeout>();
+  const audioSampleIntervalRef = useRef<NodeJS.Timeout>();
   const eventsFlushIntervalRef = useRef<NodeJS.Timeout>();
 
   const [cameraReady, setCameraReady] = useState(false);
@@ -103,6 +124,15 @@ const ProctoringMonitor: React.FC<Props> = ({
     'Align your face in view. Slight left/right/up/down movement is fine.',
   );
   const [mlDegraded, setMlDegraded] = useState(false);
+  const [riskState, setRiskState] = useState<'observe' | 'warn' | 'elevated' | 'paused'>('observe');
+  const [livenessChallenge, setLivenessChallenge] = useState<{
+    challengeId: string;
+    prompt: string;
+    expiresAt: string;
+    expectedAction: 'turn_left' | 'turn_right' | 'look_up' | 'look_down' | 'blink_once';
+  } | null>(null);
+  const [livenessAction, setLivenessAction] = useState<'turn_left' | 'turn_right' | 'look_up' | 'look_down' | 'blink_once'>('turn_left');
+  const [isVerifyingLiveness, setIsVerifyingLiveness] = useState(false);
   const [position, setPosition] = useState({ x: window.innerWidth - 340, y: 20 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -190,27 +220,28 @@ const ProctoringMonitor: React.FC<Props> = ({
   );
 
   const queueEvent = useCallback((event: ProctoringEventInput) => {
+    eventSequenceRef.current += 1;
+    const sequenceId = event.sequence_id ?? eventSequenceRef.current;
     const next = [
       ...eventBufferRef.current,
       {
         ...event,
+        sequence_id: sequenceId,
+        client_ts: event.client_ts || new Date().toISOString(),
+        confidence:
+          typeof event.confidence === 'number'
+            ? Math.max(0, Math.min(1, event.confidence))
+            : 0.5,
+        duration_ms:
+          typeof event.duration_ms === 'number' && Number.isFinite(event.duration_ms)
+            ? Math.max(0, Math.floor(event.duration_ms))
+            : 0,
+        model_version: event.model_version || MODEL_VERSION,
         timestamp: event.timestamp || new Date().toISOString(),
       },
     ];
     eventBufferRef.current = next.slice(-MAX_EVENT_BUFFER);
   }, []);
-
-  const flushEventBuffer = useCallback(async () => {
-    if (eventBufferRef.current.length === 0) return;
-    const payload = [...eventBufferRef.current];
-    eventBufferRef.current = [];
-    try {
-      await proctoringService.batchEvents(sessionId, payload);
-    } catch (error) {
-      console.error('Failed to flush proctoring event buffer:', error);
-      eventBufferRef.current = [...payload, ...eventBufferRef.current].slice(-MAX_EVENT_BUFFER);
-    }
-  }, [sessionId]);
 
   const uploadSnapshot = useCallback(
     async (triggerType: string, metadata: Record<string, unknown>) => {
@@ -271,8 +302,27 @@ const ProctoringMonitor: React.FC<Props> = ({
   );
 
   const triggerViolation = useCallback(
-    (type: string, description: string, message: string, severity: 'low' | 'medium' | 'high', cooldownMs = DEFAULT_COOLDOWN_MS) => {
+    (
+      type: string,
+      description: string,
+      message: string,
+      severity: 'low' | 'medium' | 'high',
+      cooldownMs = DEFAULT_COOLDOWN_MS,
+      options?: { persist?: boolean; confidence?: number; durationMs?: number },
+    ) => {
       if (!canTrigger(type, cooldownMs)) return;
+      const confidence =
+        typeof options?.confidence === 'number'
+          ? Math.max(0, Math.min(1, options.confidence))
+          : severity === 'high'
+            ? 0.9
+            : severity === 'medium'
+              ? 0.7
+              : 0.5;
+      const durationMs =
+        typeof options?.durationMs === 'number' && Number.isFinite(options.durationMs)
+          ? Math.max(0, Math.floor(options.durationMs))
+          : 0;
       queueEvent({
         event_type: type,
         severity,
@@ -280,14 +330,18 @@ const ProctoringMonitor: React.FC<Props> = ({
           description,
           source: 'frontend-live',
         },
+        confidence,
+        duration_ms: durationMs,
       });
       if (severity === 'high') {
-        void uploadSnapshot(type, { description, severity });
+        void uploadSnapshot(type, { description, severity, confidence, duration_ms: durationMs, risk_state: riskState });
       }
-      void logViolation(type, description);
+      if (options?.persist !== false) {
+        void logViolation(type, description);
+      }
       addAlert(message, severity);
     },
-    [addAlert, canTrigger, logViolation, queueEvent, uploadSnapshot],
+    [addAlert, canTrigger, logViolation, queueEvent, riskState, uploadSnapshot],
   );
 
   const buildMissingDevices = useCallback(
@@ -306,6 +360,10 @@ const ProctoringMonitor: React.FC<Props> = ({
       missing: MissingDevices,
       syncWithBackend = true,
     ) => {
+      const previousPaused = pausedRef.current;
+      const previousReason = pauseReason;
+      const previousMissing = missingDevicesRef.current;
+
       setIsPaused(paused);
       setPauseReason(reason);
       setMissingDevices(missing);
@@ -320,10 +378,63 @@ const ProctoringMonitor: React.FC<Props> = ({
         }
       } catch (error) {
         console.error('Failed syncing pause state with backend:', error);
+        setIsPaused(previousPaused);
+        setPauseReason(previousReason);
+        setMissingDevices(previousMissing);
+        onPauseStateChange?.({
+          isPaused: previousPaused,
+          reason: previousReason,
+          missingDevices: previousMissing,
+        });
+        if (!paused && error instanceof Error && error.message.toLowerCase().includes('liveness')) {
+          addAlert('Complete liveness verification before resuming.', 'medium');
+        }
       }
     },
-    [onPauseStateChange, sessionId],
+    [addAlert, onPauseStateChange, pauseReason, sessionId],
   );
+
+  const flushEventBuffer = useCallback(async () => {
+    if (eventBufferRef.current.length === 0) return;
+    const payload = [...eventBufferRef.current];
+    eventBufferRef.current = [];
+    try {
+      const sequenceStart =
+        typeof payload[0]?.sequence_id === 'number' ? payload[0].sequence_id : undefined;
+      await proctoringService.batchEvents(sessionId, payload, sequenceStart);
+      const response = await proctoringService.getSessionRisk(sessionId).catch(() => null);
+      if (!response) return;
+
+      setRiskState(response.risk_state);
+      if (
+        response.pause_recommended &&
+        !pausedRef.current &&
+        response.risk_state === 'paused'
+      ) {
+        const reasonDetail =
+          response.reasons?.[0] || 'high-risk behavior detected by consensus policy.';
+        const reason = `Consensus risk pause: ${reasonDetail}`;
+        lastRiskPauseReasonRef.current = reason;
+        await applyPauseState(true, reason, missingDevicesRef.current);
+        if (response.liveness_required) {
+          const issued = await proctoringService.livenessCheck(sessionId).catch(() => null);
+          if (issued?.challenge_id && issued.prompt && issued.expires_at) {
+            const action = issued.expected_action || 'turn_left';
+            setLivenessAction(action);
+            setLivenessChallenge({
+              challengeId: issued.challenge_id,
+              prompt: issued.prompt,
+              expiresAt: issued.expires_at,
+              expectedAction: action,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to flush proctoring event buffer:', error);
+      eventBufferRef.current = [...payload, ...eventBufferRef.current].slice(-MAX_EVENT_BUFFER);
+    }
+  }, [applyPauseState, sessionId]);
 
   const checkAudioSupport = useCallback(async () => {
     const audioContextClass =
@@ -421,6 +532,142 @@ const ProctoringMonitor: React.FC<Props> = ({
     setFaceGuidance('Face detected. Keep your face visible; natural movement is okay.');
   }, []);
 
+  const initializeNativeFaceDetector = useCallback(() => {
+    const Detector = (window as Window & { FaceDetector?: NativeFaceDetectorConstructor })
+      .FaceDetector;
+    if (!Detector) {
+      nativeFaceDetectorRef.current = null;
+      return false;
+    }
+
+    try {
+      nativeFaceDetectorRef.current = new Detector({
+        fastMode: true,
+        maxDetectedFaces: 2,
+      });
+      return true;
+    } catch {
+      nativeFaceDetectorRef.current = null;
+      return false;
+    }
+  }, []);
+
+  const detectFacesLocally = useCallback(async (): Promise<FaceMonitorResult | null> => {
+    if (!videoRef.current || !canvasRef.current || !nativeFaceDetectorRef.current) return null;
+    const video = videoRef.current;
+    if (video.videoWidth === 0 || video.videoHeight === 0) return null;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+
+    try {
+      const detected = await nativeFaceDetectorRef.current.detect(canvas);
+      const faceCount = Array.isArray(detected) ? detected.length : 0;
+      const largest = Array.isArray(detected)
+        ? detected.reduce<{ boundingBox?: DOMRectReadOnly } | null>((best, face) => {
+            if (!face?.boundingBox) return best;
+            if (!best?.boundingBox) return face;
+            const currentArea = face.boundingBox.width * face.boundingBox.height;
+            const bestArea = best.boundingBox.width * best.boundingBox.height;
+            return currentArea > bestArea ? face : best;
+          }, null)
+        : null;
+
+      const box = largest?.boundingBox;
+      const normalizedBox = box
+        ? {
+            x_center: (box.x + box.width / 2) / canvas.width,
+            y_center: (box.y + box.height / 2) / canvas.height,
+            width: box.width / canvas.width,
+            height: box.height / canvas.height,
+          }
+        : undefined;
+
+      return {
+        face_count: faceCount,
+        face_box: normalizedBox,
+        gaze_direction: normalizedBox
+          ? {
+              looking_away: Math.abs(normalizedBox.x_center - 0.5) > 0.18,
+              direction:
+                normalizedBox.x_center < 0.42
+                  ? 'left'
+                  : normalizedBox.x_center > 0.58
+                    ? 'right'
+                    : 'center',
+              confidence: 0.72,
+            }
+          : undefined,
+        eyes_closed: false,
+        face_coverage: 0,
+        confidence: faceCount > 0 ? 0.8 : 0.5,
+        has_face: faceCount > 0,
+      };
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const setupAudioEnergySampler = useCallback(
+    (stream: MediaStream) => {
+      const AudioContextCtor =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextCtor) return;
+
+      audioContextRef.current?.close().catch(() => undefined);
+      const context = new AudioContextCtor();
+      audioContextRef.current = context;
+      const source = context.createMediaStreamSource(stream);
+      audioSourceRef.current = source;
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.2;
+      source.connect(analyser);
+      audioAnalyserRef.current = analyser;
+      audioSampleBufferRef.current = new Uint8Array(analyser.fftSize);
+
+      if (audioSampleIntervalRef.current) clearInterval(audioSampleIntervalRef.current);
+      audioSampleIntervalRef.current = setInterval(() => {
+        if (pausedRef.current || !audioAnalyserRef.current || !audioSampleBufferRef.current) return;
+        audioAnalyserRef.current.getByteTimeDomainData(audioSampleBufferRef.current);
+        let sumSquares = 0;
+        for (let i = 0; i < audioSampleBufferRef.current.length; i += 1) {
+          const centered = (audioSampleBufferRef.current[i] - 128) / 128;
+          sumSquares += centered * centered;
+        }
+        const rms = Math.sqrt(sumSquares / audioSampleBufferRef.current.length);
+        if (rms >= 0.055) {
+          speechStreakMsRef.current += AUDIO_SAMPLE_INTERVAL;
+        } else {
+          speechStreakMsRef.current = Math.max(0, speechStreakMsRef.current - AUDIO_SAMPLE_INTERVAL);
+        }
+
+        if (speechStreakMsRef.current >= 2200) {
+          triggerViolation(
+            'speech_detected',
+            'Sustained speech energy detected by browser VAD',
+            'Speech detected. Please work in silence.',
+            'medium',
+            15000,
+            {
+              persist: false,
+              confidence: Math.min(0.95, 0.5 + rms * 5),
+              durationMs: speechStreakMsRef.current,
+            },
+          );
+          speechStreakMsRef.current = 0;
+        }
+      }, AUDIO_SAMPLE_INTERVAL);
+    },
+    [triggerViolation],
+  );
+
   const setupAudioRecorder = useCallback(
     (stream: MediaStream) => {
       if (stream.getAudioTracks().length === 0 || typeof MediaRecorder === 'undefined') {
@@ -450,38 +697,57 @@ const ProctoringMonitor: React.FC<Props> = ({
           audioChunksRef.current = [];
           const durationMs = Date.now() - lastAudioChunkTimeRef.current;
           lastAudioChunkTimeRef.current = Date.now();
-          const result = await proctoringService.analyzeAudio(sessionId, blob, durationMs);
-          let speechDetected = Boolean(result?.has_speech);
-          if (!speechDetected && (mlDegradedRef.current || Boolean(result?.error))) {
-            speechDetected = await estimateSpeechFromAudio(blob);
-          }
+          const localSpeechDetected = await estimateSpeechFromAudio(blob);
+          let remoteResult = null as Awaited<
+            ReturnType<typeof proctoringService.analyzeAudio>
+          > | null;
 
-          if (speechDetected) {
+          if (localSpeechDetected) {
             triggerViolation(
               'speech_detected',
-              'Speech detected during session',
+              'Speech detected by browser VAD during session',
               'Speech detected. Please work in silence.',
               'medium',
               15000,
+              {
+                persist: false,
+                confidence: 0.72,
+                durationMs,
+              },
             );
+
+            if (!mlDegradedRef.current) {
+              remoteResult = await proctoringService.analyzeAudio(sessionId, blob, durationMs);
+            }
           }
-          if (!result) return;
-          if (result.voice_count > 1) {
+
+          if (!remoteResult) return;
+          if (remoteResult.voice_count > 1) {
             triggerViolation(
               'multiple_voices',
-              `Multiple voices detected (${result.voice_count})`,
-              `Multiple voices detected (${result.voice_count}).`,
+              `Multiple voices detected (${remoteResult.voice_count})`,
+              `Multiple voices detected (${remoteResult.voice_count}).`,
               'high',
               20000,
+              {
+                persist: false,
+                confidence: Math.max(0.75, Number(remoteResult.speech_confidence || 0.75)),
+                durationMs,
+              },
             );
           }
-          if (result.suspicious_keywords.length > 0) {
+          if (remoteResult.suspicious_keywords.length > 0) {
             triggerViolation(
               'suspicious_conversation',
-              `Suspicious keywords: ${result.suspicious_keywords.join(', ')}`,
+              `Suspicious keywords: ${remoteResult.suspicious_keywords.join(', ')}`,
               'Suspicious conversation detected.',
               'high',
               20000,
+              {
+                persist: false,
+                confidence: 0.82,
+                durationMs,
+              },
             );
           }
         };
@@ -515,11 +781,13 @@ const ProctoringMonitor: React.FC<Props> = ({
       previewVideoRef.current.srcObject = stream;
       await previewVideoRef.current.play().catch(() => undefined);
     }
+    initializeNativeFaceDetector();
+    setupAudioEnergySampler(stream);
     setupAudioRecorder(stream);
     setCameraReady(true);
     setMicReady(stream.getAudioTracks().length > 0);
     await checkAudioSupport();
-  }, [checkAudioSupport, setupAudioRecorder]);
+  }, [checkAudioSupport, initializeNativeFaceDetector, setupAudioEnergySampler, setupAudioRecorder]);
 
   const checkRequiredDevices = useCallback(async () => {
     const stream = mediaStreamRef.current;
@@ -540,8 +808,11 @@ const ProctoringMonitor: React.FC<Props> = ({
 
     const missing = buildMissingDevices(cameraOn, micOn, audioOn);
     const hasMissing = missing.camera || missing.microphone || missing.audio;
+    const blockedByRiskPause =
+      (typeof pauseReason === 'string' && pauseReason.startsWith('Consensus risk pause:')) ||
+      Boolean(livenessChallenge);
     if (!hasMissing) {
-      if (pausedRef.current) {
+      if (pausedRef.current && !blockedByRiskPause) {
         await applyPauseState(false, '', EMPTY_MISSING);
       }
       return;
@@ -573,12 +844,97 @@ const ProctoringMonitor: React.FC<Props> = ({
       payload: { reason, missing },
     });
     await applyPauseState(true, reason, missing);
-  }, [applyPauseState, buildMissingDevices, isSameMissingState, queueEvent, triggerViolation]);
+  }, [applyPauseState, buildMissingDevices, livenessChallenge, pauseReason, queueEvent, triggerViolation]);
+
+  const applyFaceSignal = useCallback(
+    (result: FaceMonitorResult, source: 'browser' | 'ml') => {
+      updateFaceGuidance(result);
+      if (result.face_count === 0) {
+        noFaceStreakRef.current += 1;
+        if (noFaceStreakRef.current >= NO_FACE_STREAK_THRESHOLD) {
+          triggerViolation(
+            'no_face',
+            `No face detected in consecutive frames (${source})`,
+            'No face detected. Keep your face visible.',
+            'medium',
+            12000,
+            {
+              persist: false,
+              confidence: Math.max(0.65, Number(result.confidence || 0.65)),
+              durationMs: noFaceStreakRef.current * FRAME_CAPTURE_INTERVAL,
+            },
+          );
+        }
+      } else {
+        noFaceStreakRef.current = 0;
+      }
+
+      if (result.face_count > 1) {
+        triggerViolation(
+          'multiple_faces',
+          `Multiple faces detected (${result.face_count})`,
+          `Multiple faces detected (${result.face_count}).`,
+          'high',
+          15000,
+          {
+            persist: false,
+            confidence: Math.max(0.78, Number(result.confidence || 0.78)),
+            durationMs: FRAME_CAPTURE_INTERVAL,
+          },
+        );
+      }
+
+      const now = Date.now();
+      if (result.gaze_direction?.looking_away) {
+        if (!lookAwayStartRef.current) lookAwayStartRef.current = now;
+        lookAwayEventsRef.current = [...lookAwayEventsRef.current, now].filter((ts) => now - ts <= LOOK_AWAY_WINDOW_MS);
+        if (lookAwayEventsRef.current.length >= LOOK_AWAY_THRESHOLD) {
+          triggerViolation(
+            'looking_away',
+            'Looked away repeatedly within one minute',
+            'You are looking away too frequently.',
+            'medium',
+            30000,
+            {
+              persist: false,
+              confidence: Math.max(0.65, Number(result.gaze_direction?.confidence || 0.65)),
+              durationMs: LOOK_AWAY_WINDOW_MS,
+            },
+          );
+          lookAwayEventsRef.current = [];
+        }
+        if (lookAwayStartRef.current && now - lookAwayStartRef.current >= LOOK_AWAY_CONTINUOUS_MS) {
+          triggerViolation(
+            'looking_away',
+            'Looked away continuously for over one minute',
+            'You looked away for too long.',
+            'high',
+            60000,
+            {
+              persist: false,
+              confidence: Math.max(0.72, Number(result.gaze_direction?.confidence || 0.72)),
+              durationMs: now - lookAwayStartRef.current,
+            },
+          );
+          lookAwayStartRef.current = now;
+        }
+      } else {
+        lookAwayStartRef.current = null;
+      }
+    },
+    [triggerViolation, updateFaceGuidance],
+  );
 
   const captureAndAnalyzeFrame = useCallback(async () => {
     if (pausedRef.current || !videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     if (video.videoWidth === 0 || video.videoHeight === 0) return;
+    const local = await detectFacesLocally();
+    if (local) {
+      applyFaceSignal(local, 'browser');
+      return;
+    }
+
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -592,37 +948,9 @@ const ProctoringMonitor: React.FC<Props> = ({
         setFaceGuidance('Face analysis unavailable. Keep your face visible.');
         return;
       }
-
-      updateFaceGuidance(result);
-      if (result.face_count === 0) {
-        noFaceStreakRef.current += 1;
-        if (noFaceStreakRef.current >= NO_FACE_STREAK_THRESHOLD) {
-          triggerViolation('no_face', 'No face detected in consecutive frames', 'No face detected. Keep your face visible.', 'medium', 12000);
-        }
-      } else {
-        noFaceStreakRef.current = 0;
-      }
-      if (result.face_count > 1) {
-        triggerViolation('multiple_faces', `Multiple faces detected (${result.face_count})`, `Multiple faces detected (${result.face_count}).`, 'high', 15000);
-      }
-
-      const now = Date.now();
-      if (result.gaze_direction?.looking_away) {
-        if (!lookAwayStartRef.current) lookAwayStartRef.current = now;
-        lookAwayEventsRef.current = [...lookAwayEventsRef.current, now].filter((ts) => now - ts <= LOOK_AWAY_WINDOW_MS);
-        if (lookAwayEventsRef.current.length >= LOOK_AWAY_THRESHOLD) {
-          triggerViolation('looking_away', 'Looked away repeatedly within one minute', 'You are looking away too frequently.', 'medium', 30000);
-          lookAwayEventsRef.current = [];
-        }
-        if (lookAwayStartRef.current && now - lookAwayStartRef.current >= LOOK_AWAY_CONTINUOUS_MS) {
-          triggerViolation('looking_away', 'Looked away continuously for over one minute', 'You looked away for too long.', 'high', 60000);
-          lookAwayStartRef.current = now;
-        }
-      } else {
-        lookAwayStartRef.current = null;
-      }
-    }, 'image/jpeg', 0.85);
-  }, [sessionId, triggerViolation, updateFaceGuidance]);
+      applyFaceSignal(result, 'ml');
+    }, 'image/jpeg', 0.82);
+  }, [applyFaceSignal, detectFacesLocally, sessionId]);
 
   const sendHeartbeat = useCallback(async () => {
     try {
@@ -634,13 +962,50 @@ const ProctoringMonitor: React.FC<Props> = ({
         windowFocused: document.hasFocus() && !document.hidden,
         timestamp: new Date().toISOString(),
       });
+      if (status.riskState) {
+        setRiskState(status.riskState);
+      }
       if (status.status === 'paused' && !pausedRef.current) {
-        await applyPauseState(true, status.pauseReason || 'Session paused by server', buildMissingDevices(cameraReadyRef.current, micReadyRef.current, audioReadyRef.current), false);
+        const reason = status.pauseReason || 'Session paused by server';
+        if (reason.startsWith('Consensus risk pause:')) {
+          lastRiskPauseReasonRef.current = reason;
+        }
+        await applyPauseState(true, reason, buildMissingDevices(cameraReadyRef.current, micReadyRef.current, audioReadyRef.current), false);
       }
     } catch (error) {
       console.error('Failed to send heartbeat:', error);
     }
   }, [applyPauseState, buildMissingDevices, sessionId]);
+
+  const pollRiskState = useCallback(async () => {
+    try {
+      const risk = await proctoringService.getSessionRisk(sessionId);
+      setRiskState(risk.risk_state);
+
+      if (risk.risk_state === 'paused' && risk.pause_recommended && !pausedRef.current) {
+        const reasonDetail = risk.reasons?.[0] || 'session paused by consensus proctoring policy';
+        const reason = `Consensus risk pause: ${reasonDetail}`;
+        lastRiskPauseReasonRef.current = reason;
+        await applyPauseState(true, reason, missingDevicesRef.current);
+      }
+
+      if (risk.liveness_required && !livenessChallenge) {
+        const issued = await proctoringService.livenessCheck(sessionId).catch(() => null);
+        if (issued?.challenge_id && issued.prompt && issued.expires_at) {
+          const action = issued.expected_action || 'turn_left';
+          setLivenessAction(action);
+          setLivenessChallenge({
+            challengeId: issued.challenge_id,
+            prompt: issued.prompt,
+            expiresAt: issued.expires_at,
+            expectedAction: action,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to poll session risk:', error);
+    }
+  }, [applyPauseState, livenessChallenge, sessionId]);
 
   const startProctoring = useCallback(async () => {
     await restartStream();
@@ -693,9 +1058,10 @@ const ProctoringMonitor: React.FC<Props> = ({
     }, AUDIO_CHUNK_DURATION);
     cameraCheckIntervalRef.current = setInterval(() => void checkRequiredDevices(), CAMERA_CHECK_INTERVAL);
     heartbeatIntervalRef.current = setInterval(() => void sendHeartbeat(), HEARTBEAT_INTERVAL);
+    riskPollIntervalRef.current = setInterval(() => void pollRiskState(), RISK_POLL_INTERVAL);
     eventsFlushIntervalRef.current = setInterval(() => void flushEventBuffer(), EVENT_FLUSH_INTERVAL);
     return removeEvents;
-  }, [captureAndAnalyzeFrame, checkRequiredDevices, flushEventBuffer, restartStream, sendHeartbeat, triggerViolation]);
+  }, [captureAndAnalyzeFrame, checkRequiredDevices, flushEventBuffer, pollRiskState, restartStream, sendHeartbeat, triggerViolation]);
 
   useEffect(() => {
     void proctoringService.healthCheck().then((health) => {
@@ -711,6 +1077,7 @@ const ProctoringMonitor: React.FC<Props> = ({
 
   useEffect(() => {
     let removeEvents: (() => void) | undefined;
+    const activeAlertTimeouts = alertTimeoutsRef.current;
     void startProctoring()
       .then((cleanup) => {
         removeEvents = cleanup;
@@ -725,6 +1092,8 @@ const ProctoringMonitor: React.FC<Props> = ({
       if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
       if (cameraCheckIntervalRef.current) clearInterval(cameraCheckIntervalRef.current);
       if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
+      if (riskPollIntervalRef.current) clearInterval(riskPollIntervalRef.current);
+      if (audioSampleIntervalRef.current) clearInterval(audioSampleIntervalRef.current);
       if (eventsFlushIntervalRef.current) clearInterval(eventsFlushIntervalRef.current);
       removeEvents?.();
       if (mediaRecorderRef.current?.state !== 'inactive') {
@@ -733,8 +1102,14 @@ const ProctoringMonitor: React.FC<Props> = ({
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       }
+      audioSourceRef.current?.disconnect();
+      audioSourceRef.current = null;
+      audioAnalyserRef.current = null;
+      audioSampleBufferRef.current = null;
+      void audioContextRef.current?.close().catch(() => undefined);
+      audioContextRef.current = null;
       void flushEventBuffer();
-      Object.keys(alertTimeoutsRef.current).forEach((id) => clearAlertTimer(id));
+      Object.keys(activeAlertTimeouts).forEach((id) => clearAlertTimer(id));
     };
   }, [addAlert, clearAlertTimer, flushEventBuffer, startProctoring]);
 
@@ -770,6 +1145,50 @@ const ProctoringMonitor: React.FC<Props> = ({
     }
   }, [addAlert, checkAudioSupport, checkRequiredDevices, queueEvent, restartStream, sendHeartbeat]);
 
+  const requestLivenessChallenge = useCallback(async () => {
+    try {
+      const issued = await proctoringService.livenessCheck(sessionId);
+      if (issued.challenge_id && issued.prompt && issued.expires_at) {
+        const action = issued.expected_action || 'turn_left';
+        setLivenessAction(action);
+        setLivenessChallenge({
+          challengeId: issued.challenge_id,
+          prompt: issued.prompt,
+          expiresAt: issued.expires_at,
+          expectedAction: action,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to request liveness challenge:', error);
+      addAlert('Unable to start liveness challenge. Try again.', 'medium');
+    }
+  }, [addAlert, sessionId]);
+
+  const verifyLiveness = useCallback(async () => {
+    if (!livenessChallenge) return;
+    setIsVerifyingLiveness(true);
+    try {
+      const result = await proctoringService.livenessCheck(sessionId, {
+        response_action: livenessAction,
+      });
+      if (result.verified) {
+        setLivenessChallenge(null);
+        setRiskState(result.risk_state || 'observe');
+        if (pausedRef.current && !missingDevices.camera && !missingDevices.microphone && !missingDevices.audio) {
+          await applyPauseState(false, '', EMPTY_MISSING);
+        }
+        toast.success('Liveness verified. You may continue.');
+      } else {
+        addAlert(result.message || 'Liveness check failed.', 'medium');
+      }
+    } catch (error) {
+      console.error('Failed to verify liveness challenge:', error);
+      addAlert('Liveness verification failed. Try again.', 'medium');
+    } finally {
+      setIsVerifyingLiveness(false);
+    }
+  }, [addAlert, applyPauseState, livenessAction, livenessChallenge, missingDevices.audio, missingDevices.camera, missingDevices.microphone, sessionId]);
+
   const handleDragStart = (event: React.MouseEvent) => {
     if ((event.target as HTMLElement).closest('button')) return;
     setIsDragging(true);
@@ -799,7 +1218,11 @@ const ProctoringMonitor: React.FC<Props> = ({
     };
   }, [handleDrag, handleDragEnd, isDragging]);
 
-  const canResume = !missingDevices.camera && !missingDevices.microphone && !missingDevices.audio;
+  const requiresLiveness =
+    Boolean(livenessChallenge) ||
+    (typeof pauseReason === 'string' && pauseReason.startsWith('Consensus risk pause:'));
+  const canResume =
+    !missingDevices.camera && !missingDevices.microphone && !missingDevices.audio && !requiresLiveness;
 
   return (
     <>
@@ -834,13 +1257,62 @@ const ProctoringMonitor: React.FC<Props> = ({
       {isPaused && (
         <div className="fixed inset-0 z-[80] bg-black/65 flex items-center justify-center p-4">
           <div className="w-full max-w-lg bg-card border border-border rounded-xl shadow-xl p-5 space-y-4">
-            <h3 className="text-lg font-semibold">Session Paused</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Session Paused</h3>
+              <span className="text-xs px-2 py-1 rounded bg-muted text-foreground">
+                Risk: {riskState}
+              </span>
+            </div>
             <p className="text-sm text-muted-foreground">{pauseReason || 'Required proctoring device is missing.'}</p>
             <div className="space-y-2">
               <button onClick={() => void requestRecovery('camera')} disabled={!missingDevices.camera || isRecovering !== null} className="w-full px-3 py-2 rounded border border-border text-sm hover:bg-muted disabled:opacity-60">Turn on camera</button>
               <button onClick={() => void requestRecovery('microphone')} disabled={!missingDevices.microphone || isRecovering !== null} className="w-full px-3 py-2 rounded border border-border text-sm hover:bg-muted disabled:opacity-60">Turn on microphone</button>
               <button onClick={() => void requestRecovery('audio')} disabled={!missingDevices.audio || isRecovering !== null} className="w-full px-3 py-2 rounded border border-border text-sm hover:bg-muted disabled:opacity-60">Enable audio</button>
             </div>
+            {(requiresLiveness || livenessChallenge) && (
+              <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/30">
+                <p className="text-sm font-medium">Liveness verification required</p>
+                {livenessChallenge ? (
+                  <>
+                    <p className="text-xs text-muted-foreground">{livenessChallenge.prompt}</p>
+                    <select
+                      value={livenessAction}
+                      onChange={(event) => setLivenessAction(event.target.value as typeof livenessAction)}
+                      className="w-full rounded border border-border bg-background px-2 py-1 text-sm"
+                    >
+                      <option value="turn_left">Turn left</option>
+                      <option value="turn_right">Turn right</option>
+                      <option value="look_up">Look up</option>
+                      <option value="look_down">Look down</option>
+                      <option value="blink_once">Blink once</option>
+                    </select>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => void verifyLiveness()}
+                        disabled={isVerifyingLiveness}
+                        className="flex-1 px-3 py-2 rounded bg-primary text-primary-foreground text-sm disabled:opacity-60"
+                      >
+                        {isVerifyingLiveness ? 'Verifying...' : 'Verify liveness'}
+                      </button>
+                      <button
+                        onClick={() => void requestLivenessChallenge()}
+                        disabled={isVerifyingLiveness}
+                        className="px-3 py-2 rounded border border-border text-sm hover:bg-muted disabled:opacity-60"
+                      >
+                        New challenge
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => void requestLivenessChallenge()}
+                    className="w-full px-3 py-2 rounded border border-border text-sm hover:bg-muted"
+                  >
+                    Start liveness check
+                  </button>
+                )}
+              </div>
+            )}
             <div className="flex gap-2">
               <button onClick={() => void requestRecovery('all')} disabled={isRecovering !== null} className="px-3 py-2 rounded border border-border text-sm hover:bg-muted disabled:opacity-60 flex items-center gap-2">
                 <RefreshCw className={`h-4 w-4 ${isRecovering ? 'animate-spin' : ''}`} />
@@ -869,6 +1341,9 @@ const ProctoringMonitor: React.FC<Props> = ({
                   <p className="text-xs text-muted-foreground">Session: {sessionId.substring(0, 8)}...</p>
                 </div>
               </div>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-muted text-foreground capitalize">
+                {riskState}
+              </span>
               <button onClick={() => setIsMinimized(true)} className="text-muted-foreground hover:text-foreground p-1">
                 <Minimize2 className="h-4 w-4" />
               </button>
@@ -894,7 +1369,7 @@ const ProctoringMonitor: React.FC<Props> = ({
             <div className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
               <p>- Camera and microphone must stay on</p>
               <p>- Session pauses automatically on device-off</p>
-              <p>- Face and audio analysis active</p>
+              <p>- Browser-first face/audio checks with consensus policy</p>
               {mlDegraded && <p>- ML analysis currently degraded</p>}
             </div>
           </div>

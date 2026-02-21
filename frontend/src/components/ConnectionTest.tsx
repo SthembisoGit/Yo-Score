@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 
 const ConnectionTest: React.FC = () => {
   const [status, setStatus] = useState<string>('Testing connection...');
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
@@ -19,9 +19,9 @@ const ConnectionTest: React.FC = () => {
           setStatus('Connection failed');
           setError(`HTTP ${response.status}: ${response.statusText}`);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         setStatus('Connection error');
-        setError(err.message);
+        setError(err instanceof Error ? err.message : 'Connection error');
       }
     };
 

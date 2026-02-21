@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
 import { authService } from '@/services/authService';
-import { dashboardService } from '@/services/dashboardService';
+import { dashboardService, type DashboardData } from '@/services/dashboardService';
 
 export type Category = 
   | 'Frontend' 
@@ -173,13 +173,14 @@ const login = useCallback(async (email: string, password: string) => {
       dashboardService.getWorkExperience(),
     ]);
 
-    const dashboardData =
+    const dashboardData: DashboardData =
       dashboardResult.status === 'fulfilled'
         ? dashboardResult.value
         : {
             total_score: 0,
             trust_level: 'Low' as const,
             category_scores: {},
+            challenge_progress: [],
           };
 
     const userProfile =
@@ -208,7 +209,7 @@ const login = useCallback(async (email: string, password: string) => {
     );
 
     const categoryScoresArray = Object.entries(dashboardData.category_scores || {}).map(
-      ([category, score]) => ({ category: category as any, score: score as number }),
+      ([category, score]) => ({ category: category as Category, score: Number(score) }),
     );
 
     setUser({

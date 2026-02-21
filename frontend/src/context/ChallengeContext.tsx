@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Category } from './AuthContext';
-import { challengeService } from '@/services/challengeService';
+import { challengeService, type Challenge as BackendChallenge } from '@/services/challengeService';
 import { dashboardService } from '@/services/dashboardService';
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard';
@@ -43,7 +43,10 @@ interface ChallengeContextType {
 const ChallengeContext = createContext<ChallengeContextType | undefined>(undefined);
 
 // Helper function to map backend challenge to frontend format
-const mapBackendChallenge = (backendChallenge: any, submissions: UserSubmissionSnapshot[]): Challenge => {
+const mapBackendChallenge = (
+  backendChallenge: BackendChallenge,
+  submissions: UserSubmissionSnapshot[],
+): Challenge => {
   const challengeSubmissions = submissions
     .filter((sub) => sub.challenge_id === backendChallenge.challenge_id)
     .sort(

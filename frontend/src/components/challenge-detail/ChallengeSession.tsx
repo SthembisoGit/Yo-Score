@@ -5,15 +5,20 @@ import { useNavigate } from 'react-router-dom';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { CodeEditor } from '@/components/CodeEditor';
-import { challengeService, type CoachHintResponse } from '@/services/challengeService';
+import {
+  challengeService,
+  type Challenge,
+  type ChallengeDocs,
+  type CoachHintResponse,
+} from '@/services/challengeService';
 import { proctoringService } from '@/services/proctoring.service';
 import { DescriptionPanel } from './DescriptionPanel';
 import { LanguageSelector } from './LanguageSelector';
 import { ReferenceDocsPanel } from './ReferenceDocsPanel';
 
 interface ChallengeSessionProps {
-  challenge: any;
-  referenceDocs: any[];
+  challenge: Challenge;
+  referenceDocs: ChallengeDocs[];
   docsError?: string | null;
   onRetryDocs?: (() => void) | undefined;
   selectedLanguage: string;
@@ -21,7 +26,7 @@ interface ChallengeSessionProps {
   onLanguageChange: (language: string) => void;
   challengeId: string;
   sessionId?: string | null;
-  onViolation?: (type: string, data: any) => void;
+  onViolation?: (type: string, data: unknown) => void;
   violationCount?: number;
   isSessionPaused?: boolean;
   pauseReason?: string;
@@ -51,6 +56,13 @@ const formatRemaining = (seconds: number): string => {
 
 const mapToSubmissionLanguage = (language: string): 'javascript' | 'python' => {
   return language.toLowerCase() === 'python' ? 'python' : 'javascript';
+};
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
 };
 
 export const ChallengeSession = ({
@@ -193,8 +205,8 @@ export const ChallengeSession = ({
         setTimeout(() => {
           navigate(`/submissions/${submission.submission_id}`);
         }, 1200);
-      } catch (err: any) {
-        const errorMessage = err.message || 'Failed to submit challenge.';
+      } catch (err: unknown) {
+        const errorMessage = getErrorMessage(err, 'Failed to submit challenge.');
         setSubmissionError(errorMessage);
         toast.error(errorMessage);
       } finally {
@@ -238,8 +250,8 @@ export const ChallengeSession = ({
         hintIndex: coachHints.length + 1,
       });
       setCoachHints((prev) => [...prev, nextHint]);
-    } catch (error: any) {
-      const message = error.message || 'Failed to request AI hint.';
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, 'Failed to request AI hint.');
       setHintError(message);
       toast.error(message);
     } finally {
