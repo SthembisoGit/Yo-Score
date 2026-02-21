@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { challengeTestsService } from '../services/challengeTests.service';
+import { normalizeLanguage, SUPPORTED_LANGUAGES } from '../constants/languages';
 
 export class ChallengeTestsController {
   async list(req: Request, res: Response) {
@@ -64,10 +65,12 @@ export class ChallengeTestsController {
         return res.status(400).json({ success: false, message: 'Challenge ID is required', error: 'VALIDATION_FAILED' });
       }
       const language = ((req.query.language as string) || 'python').toLowerCase();
-      if (!['python', 'javascript'].includes(language)) {
+      try {
+        normalizeLanguage(language);
+      } catch {
         return res.status(400).json({
           success: false,
-          message: 'language must be javascript or python',
+          message: `language must be one of: ${SUPPORTED_LANGUAGES.join(', ')}`,
           error: 'VALIDATION_FAILED',
         });
       }

@@ -4,19 +4,13 @@ import { judgeQueue, defaultJobOptions } from '../queue/judgeQueue';
 import { judgeService } from './judge.service';
 import { scoringService } from './scoring.service';
 import { submissionRunService } from './submissionRun.service';
+import { normalizeLanguage, type SupportedLanguage } from '../constants/languages';
 
 export interface SubmissionInput {
   challenge_id: string;
   code: string;
-  language: 'javascript' | 'python';
+  language: SupportedLanguage;
   session_id?: string;
-}
-
-function normalizeLanguage(language: string): 'javascript' | 'python' {
-  const lower = language.toLowerCase();
-  if (lower === 'python' || lower === 'py') return 'python';
-  if (lower === 'javascript' || lower === 'js' || lower === 'node') return 'javascript';
-  throw new Error('Unsupported language. Allowed: javascript, python');
 }
 
 const PRACTICE_GUIDANCE_BY_VIOLATION: Record<string, string> = {

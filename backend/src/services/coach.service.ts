@@ -1,8 +1,9 @@
 import { query } from '../db';
+import { normalizeLanguage, type SupportedLanguage } from '../constants/languages';
 
 export interface CoachHintInput {
   session_id?: string;
-  language: 'javascript' | 'python';
+  language: SupportedLanguage;
   code: string;
   hint_index?: number;
 }
@@ -23,13 +24,17 @@ export interface CoachHintResult {
 const MAX_HINTS = 3;
 const MAX_SNIPPET_LINES = 6;
 
-function normalizeLanguage(language: string): 'javascript' | 'python' {
-  const lower = String(language).toLowerCase();
-  if (lower === 'python' || lower === 'py') return 'python';
-  return 'javascript';
-}
+function getSnippet(language: SupportedLanguage, hintIndex: number): string | null {
+  if (language !== 'python' && language !== 'javascript') {
+    if (hintIndex === 1) {
+      return `// Keep your solution modular:\n// 1) parse input\n// 2) compute result\n// 3) print output`;
+    }
+    if (hintIndex === 2) {
+      return `// Add edge-case checks before main logic.\n// Validate empty and boundary input first.`;
+    }
+    return null;
+  }
 
-function getSnippet(language: 'javascript' | 'python', hintIndex: number): string | null {
   if (hintIndex === 1) {
     return language === 'python'
       ? `def solve(input_data):\n    # 1) parse input\n    # 2) compute result\n    return result`

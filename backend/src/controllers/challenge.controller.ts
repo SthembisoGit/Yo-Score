@@ -3,6 +3,7 @@ import { ChallengeService } from '../services/challenge.service';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { coachService } from '../services/coach.service';
 import { safeErrorMessage } from '../utils/safeErrorMessage';
+import type { SupportedLanguage } from '../constants/languages';
 
 const challengeService = new ChallengeService();
 
@@ -109,6 +110,7 @@ export class ChallengeController {
         target_seniority,
         duration_minutes,
         publish_status,
+        supported_languages,
       } = req.body;
 
       if (!title || !description || !category || !difficulty) {
@@ -125,7 +127,8 @@ export class ChallengeController {
         difficulty,
         target_seniority,
         duration_minutes,
-        publish_status
+        publish_status,
+        supported_languages,
       });
 
       return res.status(201).json({
@@ -165,7 +168,7 @@ export class ChallengeController {
 
       const { session_id, language, code, hint_index } = req.body as {
         session_id?: string;
-        language?: 'javascript' | 'python';
+        language?: SupportedLanguage;
         code?: string;
         hint_index?: number;
       };
