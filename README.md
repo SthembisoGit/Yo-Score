@@ -51,6 +51,8 @@ Demo credentials are for evaluation only and may be reset.
 cd backend
 npm install
 npm run migrate
+npm run seed:easy-challenges
+npm run seed:verify-readiness
 npm run build
 npm run start
 ```
@@ -87,9 +89,28 @@ python -m uvicorn app:app --host 0.0.0.0 --port 5000
 - `FRONTEND_URL`
 - `ML_SERVICE_URL`
 - `ENABLE_JUDGE=true`
+- `RUN_JUDGE_IN_API=true` (if you are not deploying a separate worker service)
 - `REDIS_URL=...`
 - `STRICT_REAL_SCORING=true`
 - `ADMIN_PANEL_ENABLED=true`
+- `ONECOMPILER_BASE_URL=https://onecompiler.com/api/v1` (for Java/C++/Go/C# run + judge)
+- `ONECOMPILER_ACCESS_TOKEN=...` (or set `ONECOMPILER_API_KEY=...`)
+- `ONECOMPILER_REQUEST_TIMEOUT_MS=25000`
+- `CODE_EXEC_TIMEOUT_MS=15000`
+- `CODE_EXEC_MAX_STDIN_BYTES=8192`
+- `CODE_EXEC_MAX_CODE_BYTES=65535`
+- `CODE_EXEC_MAX_OUTPUT_BYTES=32768`
+
+### Frontend `.env`
+
+- `VITE_API_BASE_URL`
+- `VITE_API_URL` (optional fallback)
+- `VITE_JWT_STORAGE_KEY=yoScore_auth_token`
+- `VITE_SUPABASE_URL` (for avatar upload)
+- `VITE_SUPABASE_ANON_KEY` (for avatar upload)
+- `VITE_SUPABASE_AVATAR_BUCKET=avatars` (public bucket)
+
+Avatar uploads use Supabase Storage directly from the frontend. Create the bucket first and set it as public for MVP/demo usage.
 
 ### ML service `.env` (optional tuning)
 
@@ -113,13 +134,13 @@ This is also represented in `render.yaml` under the `yoscore-frontend` service r
 ```bash
 # backend
 cd backend
-npm run build
+NODE_OPTIONS=--max-old-space-size=6144 npm run build
 npm run test:api
 npm run test:judge-smoke
 
 # frontend
 cd frontend
-npm run build
+NODE_OPTIONS=--max-old-space-size=6144 npm run build
 npm run test
 npm run e2e
 ```
