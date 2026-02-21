@@ -46,7 +46,13 @@ CREATE TABLE IF NOT EXISTS proctoring_sessions (
     pause_reason TEXT,
     heartbeat_at TIMESTAMP,
     pause_count INTEGER DEFAULT 0,
-    total_paused_seconds INTEGER DEFAULT 0
+    total_paused_seconds INTEGER DEFAULT 0,
+    risk_state VARCHAR(20) DEFAULT 'observe',
+    risk_score INTEGER DEFAULT 0,
+    liveness_required BOOLEAN DEFAULT false,
+    liveness_challenge JSONB DEFAULT '{}'::jsonb,
+    liveness_completed_at TIMESTAMP,
+    last_sequence_id BIGINT DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS submissions (
@@ -278,6 +284,24 @@ ALTER TABLE proctoring_sessions
 ALTER TABLE proctoring_sessions
     ADD COLUMN IF NOT EXISTS total_paused_seconds INTEGER DEFAULT 0;
 
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS risk_state VARCHAR(20) DEFAULT 'observe';
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS risk_score INTEGER DEFAULT 0;
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS liveness_required BOOLEAN DEFAULT false;
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS liveness_challenge JSONB DEFAULT '{}'::jsonb;
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS liveness_completed_at TIMESTAMP;
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS last_sequence_id BIGINT DEFAULT 0;
+
 ALTER TABLE proctoring_logs
     ADD COLUMN IF NOT EXISTS session_id UUID REFERENCES proctoring_sessions(id) ON DELETE CASCADE;
 
@@ -395,6 +419,11 @@ CREATE TABLE IF NOT EXISTS proctoring_event_logs (
     event_type VARCHAR(100) NOT NULL,
     severity VARCHAR(20) NOT NULL DEFAULT 'low',
     payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    sequence_id BIGINT,
+    client_timestamp TIMESTAMP,
+    confidence FLOAT DEFAULT 0.5,
+    duration_ms INTEGER DEFAULT 0,
+    model_version VARCHAR(80),
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -403,11 +432,86 @@ CREATE TABLE IF NOT EXISTS proctoring_snapshots (
     session_id UUID REFERENCES proctoring_sessions(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     trigger_type VARCHAR(100) NOT NULL,
+    trigger_reason VARCHAR(120),
     image_data BYTEA NOT NULL,
     bytes INTEGER NOT NULL,
+    quality_score FLOAT DEFAULT 0,
+    sha256_hash VARCHAR(64),
+    expires_at TIMESTAMP,
+    encrypted_key_id VARCHAR(120),
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS proctoring_reviews (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID REFERENCES proctoring_sessions(id) ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    final_risk_score INTEGER NOT NULL DEFAULT 0,
+    reasons_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    reviewed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS proctoring_detector_health (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    detector_name VARCHAR(50) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    degraded_reasons JSONB NOT NULL DEFAULT '[]'::jsonb,
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+ALTER TABLE proctoring_event_logs
+    ADD COLUMN IF NOT EXISTS sequence_id BIGINT;
+
+ALTER TABLE proctoring_event_logs
+    ADD COLUMN IF NOT EXISTS client_timestamp TIMESTAMP;
+
+ALTER TABLE proctoring_event_logs
+    ADD COLUMN IF NOT EXISTS confidence FLOAT DEFAULT 0.5;
+
+ALTER TABLE proctoring_event_logs
+    ADD COLUMN IF NOT EXISTS duration_ms INTEGER DEFAULT 0;
+
+ALTER TABLE proctoring_event_logs
+    ADD COLUMN IF NOT EXISTS model_version VARCHAR(80);
+
+ALTER TABLE proctoring_snapshots
+    ADD COLUMN IF NOT EXISTS trigger_reason VARCHAR(120);
+
+ALTER TABLE proctoring_snapshots
+    ADD COLUMN IF NOT EXISTS quality_score FLOAT DEFAULT 0;
+
+ALTER TABLE proctoring_snapshots
+    ADD COLUMN IF NOT EXISTS sha256_hash VARCHAR(64);
+
+ALTER TABLE proctoring_snapshots
+    ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;
+
+ALTER TABLE proctoring_snapshots
+    ADD COLUMN IF NOT EXISTS encrypted_key_id VARCHAR(120);
+
+ALTER TABLE proctoring_sessions
+    DROP CONSTRAINT IF EXISTS proctoring_sessions_risk_state_chk;
+
+ALTER TABLE proctoring_sessions
+    ADD CONSTRAINT proctoring_sessions_risk_state_chk
+    CHECK (risk_state IN ('observe', 'warn', 'elevated', 'paused'));
+
+ALTER TABLE proctoring_sessions
+    DROP CONSTRAINT IF EXISTS proctoring_sessions_risk_score_chk;
+
+ALTER TABLE proctoring_sessions
+    ADD CONSTRAINT proctoring_sessions_risk_score_chk
+    CHECK (risk_score BETWEEN 0 AND 100);
+
+ALTER TABLE proctoring_reviews
+    DROP CONSTRAINT IF EXISTS proctoring_reviews_status_chk;
+
+ALTER TABLE proctoring_reviews
+    ADD CONSTRAINT proctoring_reviews_status_chk
+    CHECK (status IN ('pending', 'running', 'completed', 'failed'));
 
 INSERT INTO proctoring_settings (
     require_camera,
@@ -490,6 +594,7 @@ CREATE INDEX IF NOT EXISTS idx_proctoring_sessions_user_id ON proctoring_session
 CREATE INDEX IF NOT EXISTS idx_proctoring_sessions_challenge_id ON proctoring_sessions(challenge_id);
 CREATE INDEX IF NOT EXISTS idx_proctoring_sessions_submission_id ON proctoring_sessions(submission_id);
 CREATE INDEX IF NOT EXISTS idx_proctoring_sessions_deadline_at ON proctoring_sessions(deadline_at);
+CREATE INDEX IF NOT EXISTS idx_proctoring_sessions_risk_state ON proctoring_sessions(risk_state);
 
 CREATE INDEX IF NOT EXISTS idx_proctoring_logs_session_id ON proctoring_logs(session_id);
 CREATE INDEX IF NOT EXISTS idx_proctoring_logs_user_id ON proctoring_logs(user_id);
@@ -497,8 +602,15 @@ CREATE INDEX IF NOT EXISTS idx_proctoring_logs_submission_id ON proctoring_logs(
 CREATE INDEX IF NOT EXISTS idx_proctoring_logs_timestamp ON proctoring_logs(timestamp);
 CREATE INDEX IF NOT EXISTS idx_proctoring_event_logs_session_id ON proctoring_event_logs(session_id);
 CREATE INDEX IF NOT EXISTS idx_proctoring_event_logs_created_at ON proctoring_event_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_proctoring_event_logs_sequence ON proctoring_event_logs(session_id, sequence_id);
+CREATE INDEX IF NOT EXISTS idx_proctoring_event_logs_client_timestamp ON proctoring_event_logs(client_timestamp);
 CREATE INDEX IF NOT EXISTS idx_proctoring_snapshots_session_id ON proctoring_snapshots(session_id);
 CREATE INDEX IF NOT EXISTS idx_proctoring_snapshots_created_at ON proctoring_snapshots(created_at);
+CREATE INDEX IF NOT EXISTS idx_proctoring_snapshots_expires_at ON proctoring_snapshots(expires_at);
+CREATE INDEX IF NOT EXISTS idx_proctoring_snapshots_sha256_hash ON proctoring_snapshots(sha256_hash);
+CREATE INDEX IF NOT EXISTS idx_proctoring_reviews_session_id ON proctoring_reviews(session_id);
+CREATE INDEX IF NOT EXISTS idx_proctoring_reviews_status ON proctoring_reviews(status);
+CREATE INDEX IF NOT EXISTS idx_proctoring_detector_health_created_at ON proctoring_detector_health(created_at);
 
 CREATE INDEX IF NOT EXISTS idx_ml_analysis_session_id ON ml_analysis_results(session_id);
 CREATE INDEX IF NOT EXISTS idx_ml_analysis_type ON ml_analysis_results(analysis_type);

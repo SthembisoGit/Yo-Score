@@ -16,7 +16,9 @@ except Exception:
 class AudioAnalyzer:
     def __init__(self):
         self._configure_ffmpeg_binary()
-        self.recognizer = sr.Recognizer()
+        self.transcription_mode = os.getenv('AUDIO_TRANSCRIPTION_MODE', 'disabled').strip().lower()
+        self.enable_cloud_transcription = self.transcription_mode == 'google'
+        self.recognizer = sr.Recognizer() if self.enable_cloud_transcription else None
         # Common cheating-related keywords
         self.suspicious_keywords = [
             'help', 'answer', 'solution', 'cheat', 'google',
@@ -44,7 +46,8 @@ class AudioAnalyzer:
         return AudioSegment.from_file(audio_path)
         
     def is_ready(self) -> bool:
-        return self.recognizer is not None
+        # Local VAD remains available even when cloud transcription is disabled.
+        return True
     
     async def analyze_audio(self, audio_path: str, duration_ms: int) -> Dict[str, Any]:
         """Analyze audio file for speech and suspicious activity"""
@@ -54,6 +57,8 @@ class AudioAnalyzer:
         )
 
     def _recognize_google_with_timeout(self, audio_data: sr.AudioData, timeout_seconds: float = 4.0) -> str:
+        if self.recognizer is None:
+            raise sr.RequestError('Cloud transcription disabled')
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(
                 self.recognizer.recognize_google,
@@ -74,7 +79,8 @@ class AudioAnalyzer:
             'noise_level': 0.0,
             'suspicious_keywords': [],
             'transcript': '',
-            'duration_ms': duration_ms
+            'duration_ms': duration_ms,
+            'analysis_mode': 'local_vad'
         }
         
         try:
@@ -100,34 +106,37 @@ class AudioAnalyzer:
                 results['has_speech'] = len(speech_intervals) > 0
 
                 if results['has_speech']:
-                    # Try speech recognition
-                    with sr.AudioFile(tmp_wav_path) as source:
-                        audio_data = self.recognizer.record(source)
+                    # Local-first mode for live detection.
+                    results['speech_confidence'] = 0.68
+                    results['voice_count'] = 1
 
-                        try:
-                            # Use Google Web Speech API (requires internet)
-                            transcript = self._recognize_google_with_timeout(audio_data)
+                    if self.enable_cloud_transcription:
+                        # Optional cloud transcription for post-review mode.
+                        with sr.AudioFile(tmp_wav_path) as source:
+                            audio_data = self.recognizer.record(source)
 
-                            results['transcript'] = transcript.lower()
-                            results['speech_confidence'] = 0.85
+                            try:
+                                transcript = self._recognize_google_with_timeout(audio_data)
 
-                            # Check for suspicious keywords
-                            found_keywords = []
-                            for keyword in self.suspicious_keywords:
-                                if keyword in results['transcript']:
-                                    found_keywords.append(keyword)
+                                results['analysis_mode'] = 'cloud_transcription'
+                                results['transcript'] = transcript.lower()
+                                results['speech_confidence'] = 0.85
 
-                            results['suspicious_keywords'] = found_keywords
+                                found_keywords = []
+                                for keyword in self.suspicious_keywords:
+                                    if keyword in results['transcript']:
+                                        found_keywords.append(keyword)
 
-                            # Simple voice counting (by sentence segmentation)
-                            sentences = [s.strip() for s in results['transcript'].split('.') if s.strip()]
-                            results['voice_count'] = min(len(sentences), 3)  # Estimate
+                                results['suspicious_keywords'] = found_keywords
 
-                        except sr.UnknownValueError:
-                            results['speech_confidence'] = 0.3
-                            results['transcript'] = "[Unintelligible speech]"
-                        except sr.RequestError as e:
-                            results['transcript'] = f"[Speech API error: {e}]"
+                                sentences = [s.strip() for s in results['transcript'].split('.') if s.strip()]
+                                results['voice_count'] = min(len(sentences), 3)
+
+                            except sr.UnknownValueError:
+                                results['speech_confidence'] = 0.45
+                                results['transcript'] = "[Unintelligible speech]"
+                            except sr.RequestError as e:
+                                results['transcript'] = f"[Speech API error: {e}]"
             finally:
                 if os.path.exists(tmp_wav_path):
                     os.unlink(tmp_wav_path)

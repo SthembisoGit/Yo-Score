@@ -31,6 +31,7 @@ def _safe_init(name: str, factory):
 ENABLE_FACE_DETECTOR = os.getenv("ENABLE_FACE_DETECTOR", "true").lower() == "true"
 ENABLE_AUDIO_ANALYZER = os.getenv("ENABLE_AUDIO_ANALYZER", "false").lower() == "true"
 ENABLE_OBJECT_DETECTOR = os.getenv("ENABLE_OBJECT_DETECTOR", "false").lower() == "true"
+DEEP_REVIEW_AVAILABLE = os.getenv("ENABLE_DEEP_REVIEW", "true").lower() == "true"
 
 
 def _build_face_detector():
@@ -309,21 +310,52 @@ async def analyze_object(
 
 @app.get("/health")
 async def health_check():
+    face_live = bool(face_detector and face_detector.is_ready())
+    audio_live = bool(audio_analyzer and audio_analyzer.is_ready())
+    object_live = bool(object_detector and object_detector.is_ready())
+    degraded_reasons = []
+
+    if not face_live:
+        degraded_reasons.append("face_detector_unavailable")
+    if ENABLE_AUDIO_ANALYZER and not audio_live:
+        degraded_reasons.append("audio_detector_unavailable")
+    if ENABLE_OBJECT_DETECTOR and not object_live:
+        degraded_reasons.append("object_detector_unavailable")
+
     return {
         "status": "healthy",
         "service": "ML Proctoring",
         "mode": "two_phase_lite",
         "timestamp": datetime.utcnow().isoformat(),
         "detectors": {
-            "face": bool(face_detector and face_detector.is_ready()),
-            "audio": bool(audio_analyzer and audio_analyzer.is_ready()),
-            "object": bool(object_detector and object_detector.is_ready())
+            "face": face_live,
+            "audio": audio_live,
+            "object": object_live
         },
         "flags": {
             "enable_face_detector": ENABLE_FACE_DETECTOR,
             "enable_audio_analyzer": ENABLE_AUDIO_ANALYZER,
             "enable_object_detector": ENABLE_OBJECT_DETECTOR,
-        }
+        },
+        "capabilities": {
+            "face_live": face_live,
+            "audio_live": audio_live,
+            "deep_review_available": DEEP_REVIEW_AVAILABLE,
+            "browser_consensus": True,
+        },
+        "degraded_reasons": degraded_reasons,
+    }
+
+@app.get("/capabilities")
+async def capabilities():
+    health = await health_check()
+    return {
+        "success": True,
+        "data": {
+            "capabilities": health.get("capabilities", {}),
+            "degraded_reasons": health.get("degraded_reasons", []),
+            "detectors": health.get("detectors", {}),
+        },
     }
 
 if __name__ == "__main__":

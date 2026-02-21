@@ -220,10 +220,18 @@ export class ProctoringController {
         message: 'Proctoring session resumed',
         data: resumed,
       });
-    } catch {
-      return res.status(400).json({
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error && error.message === 'Liveness check required before resume'
+          ? 'Liveness verification is required before resuming the session'
+          : 'Failed to resume proctoring session';
+      const code =
+        error instanceof Error && error.message === 'Liveness check required before resume'
+          ? 409
+          : 400;
+      return res.status(code).json({
         success: false,
-        message: 'Failed to resume proctoring session',
+        message,
         error: 'PROCTORING_REQUEST_FAILED',
       });
     }
@@ -365,11 +373,17 @@ export class ProctoringController {
 
       const { session_id, events } = req.body as {
         session_id?: string;
+        sequence_start?: number;
         events?: Array<{
           event_type: string;
           severity: 'low' | 'medium' | 'high';
           payload?: Record<string, unknown>;
           timestamp?: string;
+          sequence_id?: number;
+          client_ts?: string;
+          confidence?: number;
+          duration_ms?: number;
+          model_version?: string;
         }>;
       };
 
@@ -384,6 +398,7 @@ export class ProctoringController {
         session_id,
         userId,
         events,
+        Number(req.body?.sequence_start),
       );
 
       return res.status(200).json({
@@ -536,6 +551,120 @@ export class ProctoringController {
       return res.status(500).json({
         success: false,
         message: 'Failed to get session status',
+        error: 'PROCTORING_REQUEST_FAILED',
+      });
+    }
+  }
+
+  async getSessionRisk(req: AuthenticatedRequest, res: Response) {
+    try {
+      const userId = this.requireUserId(req, res);
+      if (!userId) return;
+
+      const { sessionId } = req.params;
+      if (!sessionId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Session ID is required',
+        });
+      }
+
+      const risk = await this.proctoringService.getSessionRisk(sessionId, userId);
+      return res.status(200).json({
+        success: true,
+        message: 'Session risk retrieved',
+        data: risk,
+      });
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message === 'Session not found') {
+        return res.status(404).json({
+          success: false,
+          message: 'Session not found',
+          error: 'PROCTORING_REQUEST_FAILED',
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve session risk',
+        error: 'PROCTORING_REQUEST_FAILED',
+      });
+    }
+  }
+
+  async livenessCheck(req: AuthenticatedRequest, res: Response) {
+    try {
+      const userId = this.requireUserId(req, res);
+      if (!userId) return;
+
+      const { sessionId } = req.params;
+      const responseAction = typeof req.body?.response_action === 'string'
+        ? req.body.response_action
+        : '';
+
+      if (!sessionId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Session ID is required',
+        });
+      }
+
+      if (!responseAction) {
+        const challenge = await this.proctoringService.requestLivenessChallenge(sessionId, userId);
+        return res.status(200).json({
+          success: true,
+          message: 'Liveness challenge issued',
+          data: challenge,
+        });
+      }
+
+      const verification = await this.proctoringService.verifyLivenessChallenge(
+        sessionId,
+        userId,
+        responseAction,
+      );
+      return res.status(200).json({
+        success: true,
+        message: verification.message,
+        data: verification,
+      });
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message.includes('Session not found')) {
+        return res.status(404).json({
+          success: false,
+          message: 'Session not found',
+          error: 'PROCTORING_REQUEST_FAILED',
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Liveness check failed',
+        error: 'PROCTORING_REQUEST_FAILED',
+      });
+    }
+  }
+
+  async enqueueReview(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { sessionId } = req.params;
+      if (!sessionId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Session ID is required',
+        });
+      }
+
+      const queued = await this.proctoringService.enqueueSessionReview(sessionId);
+      return res.status(202).json({
+        success: true,
+        message: 'Post-session review enqueued',
+        data: queued,
+      });
+    } catch {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to enqueue post-session review',
         error: 'PROCTORING_REQUEST_FAILED',
       });
     }

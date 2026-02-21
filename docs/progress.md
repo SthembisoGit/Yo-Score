@@ -13,6 +13,44 @@
 - [x] Submission results include deterministic practice guidance from run and proctoring evidence.
 - [x] Full release gate (backend + frontend + e2e + manual acceptance sweep) re-run after final doc sync.
 
+## Latest Update (Proctoring Accuracy Redesign, 2026-02-21)
+
+### Backend proctoring redesign completed
+- Added consensus-risk data model fields and constraints:
+  - `proctoring_sessions`: `risk_state`, `risk_score`, `liveness_required`, `liveness_challenge`, `liveness_completed_at`, `last_sequence_id`.
+  - `proctoring_event_logs`: `sequence_id`, `client_timestamp`, `confidence`, `duration_ms`, `model_version`.
+  - `proctoring_snapshots`: `trigger_reason`, `quality_score`, `sha256_hash`, `expires_at`, `encrypted_key_id`.
+  - New tables: `proctoring_reviews`, `proctoring_detector_health`.
+- Added risk consensus engine (`backend/src/services/proctoringRisk.service.ts`) and wired it into event ingestion.
+- Added new proctoring APIs:
+  - `GET /api/proctoring/session/:sessionId/risk`
+  - `POST /api/proctoring/session/:sessionId/liveness-check`
+  - `POST /api/proctoring/session/:sessionId/review/enqueue` (admin)
+- Extended health payload with capabilities and degraded reason codes.
+- Added review persistence for post-exam async analysis and evidence retention metadata.
+
+### Frontend proctoring redesign completed
+- Extended proctoring event contract with sequence/confidence/duration/model metadata.
+- Upgraded monitor to browser-first strategy:
+  - native browser face detector path first, backend ML fallback.
+  - local audio-energy sampling (browser VAD style) as primary live speech signal.
+- Added consensus risk polling + pause synchronization with backend risk state.
+- Added liveness challenge UX in pause modal before resume when required.
+- Preserved existing device recovery flow and pause/resume behavior.
+
+### ML-service stability updates
+- Added capability/degraded reason reporting in `/health` and a dedicated `/capabilities` endpoint.
+- Switched audio analyzer to local-first mode by default:
+  - cloud speech transcription disabled unless `AUDIO_TRANSCRIPTION_MODE=google`.
+  - live proctoring no longer depends on cloud speech availability.
+
+### Verification (this pass)
+- `backend`: `npm run build` passes.
+- `backend`: `npm run test:api` passes (4/4).
+- `frontend`: `npm run build` passes.
+- `frontend`: `npm run test` passes.
+- `ml-service`: `python -m py_compile app.py audio_analyzer.py face_detector.py` passes.
+
 ## Latest Verification Pass (2026-02-20)
 
 ### Automated gate results
