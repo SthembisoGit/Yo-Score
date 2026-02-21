@@ -9,6 +9,7 @@ import submissionRoutes from './routes/submission.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import proctoringRoutes from './routes/proctoring.routes';
 import adminRoutes from './routes/admin.routes';
+import codeRoutes from './routes/code.routes';
 import { enableJudge, runJudgeInApi } from './config';
 import { getCorsConfig } from './utils/corsConfig';
 import { captureException, initSentry } from './observability/sentry';
@@ -62,6 +63,7 @@ export function createApp() {
   app.use('/api/dashboard', dashboardRoutes);
   app.use('/api/proctoring', proctoringRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/code', codeRoutes);
 
   app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     captureException(err, {
