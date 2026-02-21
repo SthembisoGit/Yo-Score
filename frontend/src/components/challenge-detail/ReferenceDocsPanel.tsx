@@ -1,5 +1,5 @@
 // components/challenge-detail/ReferenceDocsPanel.tsx
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { sanitizeHtml } from '@/lib/sanitizeHtml';
@@ -18,6 +18,14 @@ interface ReferenceDocsPanelProps {
 
 export const ReferenceDocsPanel = ({ docs, error, onRetry }: ReferenceDocsPanelProps) => {
   const [activeDocIndex, setActiveDocIndex] = useState(0);
+  const activeDoc = docs[activeDocIndex] ?? docs[0];
+  const safeContent = useMemo(() => sanitizeHtml(activeDoc?.content ?? ''), [activeDoc?.content]);
+
+  useEffect(() => {
+    if (activeDocIndex >= docs.length) {
+      setActiveDocIndex(0);
+    }
+  }, [activeDocIndex, docs.length]);
 
   if (docs.length === 0) {
     return (
@@ -39,9 +47,6 @@ export const ReferenceDocsPanel = ({ docs, error, onRetry }: ReferenceDocsPanelP
       </div>
     );
   }
-
-  const activeDoc = docs[activeDocIndex];
-  const safeContent = useMemo(() => sanitizeHtml(activeDoc.content), [activeDoc.content]);
 
   return (
     <div className="h-full flex flex-col">

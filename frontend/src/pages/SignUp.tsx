@@ -7,6 +7,19 @@ import { Label } from '@/components/ui/label';
 import { Loader } from '@/components/Loader';
 import { useAuth } from '@/context/AuthContext';
 
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (typeof error === 'object' && error && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.length > 0) {
+      return message;
+    }
+  }
+  return fallback;
+};
+
 export default function SignUp() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -40,9 +53,9 @@ export default function SignUp() {
     // Add role parameter - default to 'developer'
     await signup(name, email, password, 'developer');
     navigate('/dashboard');
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Use actual error message from backend
-    setError(err.message || 'Failed to create account');
+    setError(getErrorMessage(err, 'Failed to create account'));
   }
 };
 

@@ -1,27 +1,38 @@
 // hooks/useChallengeData.ts
-import { useState, useEffect } from 'react';
-import { challengeService } from '@/services/challengeService';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  challengeService,
+  type Challenge,
+  type ChallengeDocs,
+} from '@/services/challengeService';
 
 /**
  * Custom hook to fetch and manage challenge data
  */
+const getErrorMessage = (err: unknown, fallback: string): string => {
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+  return fallback;
+};
+
 export const useChallengeData = (challengeId: string | undefined) => {
-  const [challenge, setChallenge] = useState<any>(null);
-  const [referenceDocs, setReferenceDocs] = useState<any[]>([]);
+  const [challenge, setChallenge] = useState<Challenge | null>(null);
+  const [referenceDocs, setReferenceDocs] = useState<ChallengeDocs[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [docsError, setDocsError] = useState<string | null>(null);
 
-  const loadReferenceDocs = async (id: string) => {
+  const loadReferenceDocs = useCallback(async (id: string) => {
     try {
       const docsData = await challengeService.getChallengeDocs(id);
       setReferenceDocs(docsData);
       setDocsError(null);
-    } catch (docError: any) {
+    } catch (docError: unknown) {
       setReferenceDocs([]);
-      setDocsError(docError?.message || 'Reference docs are currently unavailable.');
+      setDocsError(getErrorMessage(docError, 'Reference docs are currently unavailable.'));
     }
-  };
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -39,8 +50,8 @@ export const useChallengeData = (challengeId: string | undefined) => {
 
         setChallenge(challengeData);
         await loadReferenceDocs(challengeId);
-      } catch (err: any) {
-        const errorMessage = err.message || 'Failed to load challenge data';
+      } catch (err: unknown) {
+        const errorMessage = getErrorMessage(err, 'Failed to load challenge data');
         setError(errorMessage);
         console.error('Error fetching challenge data:', err);
       } finally {
@@ -49,7 +60,7 @@ export const useChallengeData = (challengeId: string | undefined) => {
     };
 
     fetchData();
-  }, [challengeId]);
+  }, [challengeId, loadReferenceDocs]);
 
   return {
     challenge,
