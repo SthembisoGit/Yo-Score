@@ -2,6 +2,12 @@ import { query } from '../db';
 import axios from 'axios';
 import { config } from '../config';
 import { getViolationPenalty, normalizeViolationType } from '../constants/violationPenalties';
+import { createHash } from 'crypto';
+import {
+  evaluateRiskSignals,
+  type RiskEvaluation,
+  type RiskState,
+} from './proctoringRisk.service';
 
 export interface ProctoringViolation {
   type: string;
@@ -73,6 +79,31 @@ export interface ProctoringEventInput {
   severity: 'low' | 'medium' | 'high';
   payload?: Record<string, unknown>;
   timestamp?: string;
+  sequence_id?: number;
+  client_ts?: string;
+  confidence?: number;
+  duration_ms?: number;
+  model_version?: string;
+}
+
+export interface ProctoringRiskSnapshot {
+  riskState: RiskState;
+  riskScore: number;
+  pauseRecommended: boolean;
+  livenessRequired: boolean;
+  reasons: string[];
+}
+
+export interface ProctoringHealthSnapshot {
+  database: boolean;
+  mlService: boolean;
+  capabilities: {
+    face_live: boolean;
+    audio_live: boolean;
+    deep_review_available: boolean;
+    browser_consensus: boolean;
+  };
+  degraded_reasons: string[];
 }
 
 const MAX_EVENTS_PER_BATCH = 200;
@@ -206,6 +237,13 @@ export class ProctoringService {
   private readonly mlServiceUrl: string;
   private schemaEnsured = false;
   private readonly heartbeatTimeoutSeconds = 15;
+  private readonly evidenceRetentionDays = Math.max(1, Number(config.PROCTORING_EVIDENCE_RETENTION_DAYS ?? 7));
+  private readonly encryptedKeyId = config.PROCTORING_ENCRYPTED_KEY_ID || 'yoscore-default-key';
+  private readonly consensusWindowSeconds = Math.max(10, Number(config.PROCTORING_CONSENSUS_WINDOW_SECONDS ?? 30));
+  private readonly highConfidenceThreshold = Math.max(
+    0.5,
+    Math.min(0.99, Number(config.PROCTORING_HIGH_CONFIDENCE_THRESHOLD ?? 0.85)),
+  );
 
   constructor() {
     this.mlServiceUrl = config.ML_SERVICE_URL || 'http://localhost:5000';
@@ -222,7 +260,13 @@ export class ProctoringService {
          ADD COLUMN IF NOT EXISTS pause_reason TEXT,
          ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMP,
          ADD COLUMN IF NOT EXISTS pause_count INTEGER DEFAULT 0,
-         ADD COLUMN IF NOT EXISTS total_paused_seconds INTEGER DEFAULT 0`,
+         ADD COLUMN IF NOT EXISTS total_paused_seconds INTEGER DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS risk_state VARCHAR(20) DEFAULT 'observe',
+         ADD COLUMN IF NOT EXISTS risk_score INTEGER DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS liveness_required BOOLEAN DEFAULT false,
+         ADD COLUMN IF NOT EXISTS liveness_challenge JSONB DEFAULT '{}'::jsonb,
+         ADD COLUMN IF NOT EXISTS liveness_completed_at TIMESTAMP,
+         ADD COLUMN IF NOT EXISTS last_sequence_id BIGINT DEFAULT 0`,
     );
 
     await query(
@@ -233,6 +277,11 @@ export class ProctoringService {
          event_type VARCHAR(100) NOT NULL,
          severity VARCHAR(20) NOT NULL DEFAULT 'low',
          payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+         sequence_id BIGINT,
+         client_timestamp TIMESTAMP,
+         confidence FLOAT DEFAULT 0.5,
+         duration_ms INTEGER DEFAULT 0,
+         model_version VARCHAR(80),
          created_at TIMESTAMP DEFAULT NOW()
        )`,
     );
@@ -243,11 +292,56 @@ export class ProctoringService {
          session_id UUID REFERENCES proctoring_sessions(id) ON DELETE CASCADE,
          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
          trigger_type VARCHAR(100) NOT NULL,
+         trigger_reason VARCHAR(120),
          image_data BYTEA NOT NULL,
          bytes INTEGER NOT NULL,
+         quality_score FLOAT DEFAULT 0,
+         sha256_hash VARCHAR(64),
+         expires_at TIMESTAMP,
+         encrypted_key_id VARCHAR(120),
          metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
          created_at TIMESTAMP DEFAULT NOW()
        )`,
+    );
+
+    await query(
+      `CREATE TABLE IF NOT EXISTS proctoring_reviews (
+         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+         session_id UUID REFERENCES proctoring_sessions(id) ON DELETE CASCADE,
+         status VARCHAR(20) NOT NULL DEFAULT 'pending',
+         final_risk_score INTEGER NOT NULL DEFAULT 0,
+         reasons_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+         reviewed_at TIMESTAMP,
+         created_at TIMESTAMP DEFAULT NOW()
+       )`,
+    );
+
+    await query(
+      `ALTER TABLE proctoring_sessions
+         DROP CONSTRAINT IF EXISTS proctoring_sessions_risk_state_chk`,
+    );
+    await query(
+      `ALTER TABLE proctoring_sessions
+         ADD CONSTRAINT proctoring_sessions_risk_state_chk
+         CHECK (risk_state IN ('observe', 'warn', 'elevated', 'paused'))`,
+    );
+    await query(
+      `ALTER TABLE proctoring_sessions
+         DROP CONSTRAINT IF EXISTS proctoring_sessions_risk_score_chk`,
+    );
+    await query(
+      `ALTER TABLE proctoring_sessions
+         ADD CONSTRAINT proctoring_sessions_risk_score_chk
+         CHECK (risk_score BETWEEN 0 AND 100)`,
+    );
+    await query(
+      `ALTER TABLE proctoring_reviews
+         DROP CONSTRAINT IF EXISTS proctoring_reviews_status_chk`,
+    );
+    await query(
+      `ALTER TABLE proctoring_reviews
+         ADD CONSTRAINT proctoring_reviews_status_chk
+         CHECK (status IN ('pending', 'running', 'completed', 'failed'))`,
     );
 
     await query(
@@ -266,8 +360,107 @@ export class ProctoringService {
       `CREATE INDEX IF NOT EXISTS idx_proctoring_snapshots_created_at
        ON proctoring_snapshots(created_at)`,
     );
+    await query(
+      `CREATE INDEX IF NOT EXISTS idx_proctoring_event_logs_sequence
+       ON proctoring_event_logs(session_id, sequence_id)`,
+    );
+    await query(
+      `CREATE INDEX IF NOT EXISTS idx_proctoring_snapshots_expires_at
+       ON proctoring_snapshots(expires_at)`,
+    );
+    await query(
+      `CREATE INDEX IF NOT EXISTS idx_proctoring_reviews_session_id
+       ON proctoring_reviews(session_id)`,
+    );
+    await query(
+      `CREATE INDEX IF NOT EXISTS idx_proctoring_sessions_risk_state
+       ON proctoring_sessions(risk_state)`,
+    );
 
     this.schemaEnsured = true;
+  }
+
+  private buildEvidenceExpiryDate(baseDate?: Date): Date {
+    const anchor = baseDate ?? new Date();
+    return new Date(anchor.getTime() + this.evidenceRetentionDays * 24 * 60 * 60 * 1000);
+  }
+
+  private createLivenessChallenge(): {
+    challenge_id: string;
+    expected_action: 'turn_left' | 'turn_right' | 'look_up' | 'look_down' | 'blink_once';
+    prompt: string;
+    expires_at: string;
+    created_at: string;
+  } {
+    const options = [
+      {
+        action: 'turn_left' as const,
+        prompt: 'Turn your head slightly to the left, then press "Verify liveness".',
+      },
+      {
+        action: 'turn_right' as const,
+        prompt: 'Turn your head slightly to the right, then press "Verify liveness".',
+      },
+      {
+        action: 'look_up' as const,
+        prompt: 'Look up briefly, then press "Verify liveness".',
+      },
+      {
+        action: 'look_down' as const,
+        prompt: 'Look down briefly, then press "Verify liveness".',
+      },
+      {
+        action: 'blink_once' as const,
+        prompt: 'Blink once clearly, then press "Verify liveness".',
+      },
+    ];
+    const selected = options[Math.floor(Math.random() * options.length)];
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 45_000);
+
+    return {
+      challenge_id: `lv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      expected_action: selected.action,
+      prompt: selected.prompt,
+      expires_at: expiresAt.toISOString(),
+      created_at: now.toISOString(),
+    };
+  }
+
+  private async computeRiskForSession(sessionId: string): Promise<RiskEvaluation> {
+    const result = await query(
+      `SELECT event_type, severity, confidence, duration_ms, created_at
+       FROM proctoring_event_logs
+       WHERE session_id = $1
+         AND created_at >= NOW() - make_interval(secs => $2::int)
+       ORDER BY created_at DESC
+       LIMIT 300`,
+      [sessionId, this.consensusWindowSeconds],
+    );
+
+    return evaluateRiskSignals(
+      result.rows.map((row) => ({
+        event_type: row.event_type,
+        severity: row.severity,
+        confidence: Number(row.confidence ?? 0.5),
+        duration_ms: Number(row.duration_ms ?? 0),
+        created_at: row.created_at,
+      })),
+      {
+        windowSeconds: this.consensusWindowSeconds,
+        highConfidenceThreshold: this.highConfidenceThreshold,
+      },
+    );
+  }
+
+  private async persistSessionRiskState(sessionId: string, risk: RiskEvaluation): Promise<void> {
+    await query(
+      `UPDATE proctoring_sessions
+       SET risk_state = $2,
+           risk_score = $3
+       WHERE id = $1`,
+      [sessionId, risk.riskState, risk.riskScore],
+    );
   }
 
   // Session Management
@@ -288,8 +481,8 @@ export class ProctoringService {
     try {
       result = await query(
         `INSERT INTO proctoring_sessions
-           (user_id, challenge_id, start_time, status, heartbeat_at, deadline_at, duration_seconds, paused_at, pause_reason, pause_count, total_paused_seconds)
-         VALUES ($1, $2, NOW(), 'active', NOW(), $3, $4, NULL, NULL, 0, 0)
+           (user_id, challenge_id, start_time, status, heartbeat_at, deadline_at, duration_seconds, paused_at, pause_reason, pause_count, total_paused_seconds, risk_state, risk_score, liveness_required, last_sequence_id)
+         VALUES ($1, $2, NOW(), 'active', NOW(), $3, $4, NULL, NULL, 0, 0, 'observe', 0, false, 0)
          RETURNING id`,
         [userId, challengeId, deadlineAt.toISOString(), durationSeconds],
       );
@@ -341,7 +534,7 @@ export class ProctoringService {
     await this.ensureSessionSchemaExtensions();
 
     const sessionResult = await query(
-      `SELECT status, paused_at
+      `SELECT status, paused_at, liveness_required
        FROM proctoring_sessions
        WHERE id = $1 AND user_id = $2`,
       [sessionId, userId],
@@ -359,6 +552,7 @@ export class ProctoringService {
     const updated = await query(
       `UPDATE proctoring_sessions
        SET status = 'paused',
+           risk_state = 'paused',
            paused_at = COALESCE(paused_at, NOW()),
            pause_reason = $3,
            pause_count = COALESCE(pause_count, 0) + CASE WHEN status = 'paused' THEN 0 ELSE 1 END,
@@ -401,6 +595,9 @@ export class ProctoringService {
     if (current.status === 'completed') {
       throw new Error('Completed sessions cannot be resumed');
     }
+    if (Boolean(current.liveness_required)) {
+      throw new Error('Liveness check required before resume');
+    }
 
     const pausedAtValue = current.paused_at ? new Date(current.paused_at) : null;
     const pausedDurationSeconds = pausedAtValue
@@ -410,6 +607,11 @@ export class ProctoringService {
     const updated = await query(
       `UPDATE proctoring_sessions
        SET status = 'active',
+           risk_state = CASE
+             WHEN COALESCE(risk_score, 0) >= 55 THEN 'elevated'
+             WHEN COALESCE(risk_score, 0) >= 25 THEN 'warn'
+             ELSE 'observe'
+           END,
            pause_reason = NULL,
            paused_at = NULL,
            heartbeat_at = NOW(),
@@ -497,7 +699,16 @@ export class ProctoringService {
     sessionId: string,
     userId: string,
     events: ProctoringEventInput[],
-  ): Promise<{ accepted: number; status: 'active' | 'paused' | 'completed' }> {
+    sequenceStart?: number,
+  ): Promise<{
+    accepted: number;
+    status: 'active' | 'paused' | 'completed';
+    risk_state: RiskState;
+    risk_score: number;
+    pause_recommended: boolean;
+    liveness_required: boolean;
+    reasons: string[];
+  }> {
     await this.ensureSessionSchemaExtensions();
 
     const sessionResult = await query(
@@ -510,10 +721,23 @@ export class ProctoringService {
       throw new Error('Session not found');
     }
 
+    const sessionStatus = sessionResult.rows[0].status as 'active' | 'paused' | 'completed';
+    if (sessionStatus === 'completed') {
+      return {
+        accepted: 0,
+        status: 'completed',
+        risk_state: 'observe',
+        risk_score: 0,
+        pause_recommended: false,
+        liveness_required: false,
+        reasons: [],
+      };
+    }
+
     const validEvents = events
       .slice(0, MAX_EVENTS_PER_BATCH)
       .filter((event) => typeof event.event_type === 'string' && event.event_type.trim().length > 0)
-      .map((event) => ({
+      .map((event, index) => ({
         eventType: normalizeViolationType(event.event_type),
         severity:
           event.severity === 'high' || event.severity === 'medium' || event.severity === 'low'
@@ -521,14 +745,31 @@ export class ProctoringService {
             : 'low',
         payload: event.payload ?? {},
         timestamp: event.timestamp ? new Date(event.timestamp) : new Date(),
+        sequenceId:
+          Number.isFinite(Number(event.sequence_id))
+            ? Number(event.sequence_id)
+            : Number.isFinite(Number(sequenceStart))
+              ? Number(sequenceStart) + index
+              : null,
+        clientTimestamp: event.client_ts ? new Date(event.client_ts) : null,
+        confidence: Math.max(0, Math.min(1, Number(event.confidence ?? 0.5))),
+        durationMs: Math.max(0, Number(event.duration_ms ?? 0)),
+        modelVersion:
+          typeof event.model_version === 'string' && event.model_version.trim().length > 0
+            ? event.model_version.trim().slice(0, 80)
+            : null,
       }))
       .filter((event) => !Number.isNaN(event.timestamp.getTime()));
 
     for (const event of validEvents) {
+      const clientTs =
+        event.clientTimestamp && !Number.isNaN(event.clientTimestamp.getTime())
+          ? event.clientTimestamp.toISOString()
+          : null;
       await query(
         `INSERT INTO proctoring_event_logs
-           (session_id, user_id, event_type, severity, payload, created_at)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
+           (session_id, user_id, event_type, severity, payload, created_at, sequence_id, client_timestamp, confidence, duration_ms, model_version)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11)`,
         [
           sessionId,
           userId,
@@ -536,13 +777,59 @@ export class ProctoringService {
           event.severity,
           JSON.stringify(event.payload),
           event.timestamp.toISOString(),
+          event.sequenceId,
+          clientTs,
+          event.confidence,
+          event.durationMs,
+          event.modelVersion,
         ],
       );
     }
 
+    const maxSequenceId = validEvents.reduce<number | null>((max, event) => {
+      if (event.sequenceId === null || Number.isNaN(event.sequenceId)) return max;
+      if (max === null) return event.sequenceId;
+      return Math.max(max, event.sequenceId);
+    }, null);
+
+    if (maxSequenceId !== null) {
+      await query(
+        `UPDATE proctoring_sessions
+         SET last_sequence_id = GREATEST(COALESCE(last_sequence_id, 0), $2::bigint)
+         WHERE id = $1`,
+        [sessionId, Math.floor(maxSequenceId)],
+      );
+    }
+
+    const risk = await this.computeRiskForSession(sessionId);
+    await this.persistSessionRiskState(sessionId, risk);
+
+    let status: 'active' | 'paused' | 'completed' = sessionStatus;
+    if (risk.pauseRecommended && status === 'active') {
+      const reason = `Consensus risk pause: ${risk.reasons.join(' | ') || 'high-risk behavior detected'}`;
+      const paused = await this.pauseSession(sessionId, userId, reason);
+      status = paused.status;
+
+      if (risk.livenessRequired) {
+        const challenge = this.createLivenessChallenge();
+        await query(
+          `UPDATE proctoring_sessions
+           SET liveness_required = true,
+               liveness_challenge = $2::jsonb
+           WHERE id = $1`,
+          [sessionId, JSON.stringify(challenge)],
+        );
+      }
+    }
+
     return {
       accepted: validEvents.length,
-      status: sessionResult.rows[0].status,
+      status,
+      risk_state: risk.riskState,
+      risk_score: risk.riskScore,
+      pause_recommended: risk.pauseRecommended,
+      liveness_required: risk.livenessRequired,
+      reasons: risk.reasons,
     };
   }
 
@@ -552,7 +839,7 @@ export class ProctoringService {
     triggerType: string,
     imageBuffer: Buffer,
     metadata: Record<string, unknown> = {},
-  ): Promise<{ snapshot_id: string; bytes: number }> {
+  ): Promise<{ snapshot_id: string; bytes: number; expires_at: string }> {
     await this.ensureSessionSchemaExtensions();
 
     if (!imageBuffer || imageBuffer.length === 0) {
@@ -584,38 +871,63 @@ export class ProctoringService {
       throw new Error('Snapshot limit reached for this session');
     }
 
+    const normalizedTrigger = normalizeViolationType(triggerType || 'sampled_snapshot');
+    const triggerReason =
+      typeof metadata.trigger_reason === 'string'
+        ? metadata.trigger_reason.slice(0, 120)
+        : typeof metadata.reason === 'string'
+          ? metadata.reason.slice(0, 120)
+          : null;
+    const qualityScoreRaw = Number(metadata.quality_score ?? metadata.quality ?? 0);
+    const qualityScore = Number.isFinite(qualityScoreRaw)
+      ? Math.max(0, Math.min(1, qualityScoreRaw))
+      : 0;
+    const hash = createHash('sha256').update(imageBuffer).digest('hex');
+    const expiresAt = this.buildEvidenceExpiryDate();
+
     const result = await query(
       `INSERT INTO proctoring_snapshots
-         (session_id, user_id, trigger_type, image_data, bytes, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+         (session_id, user_id, trigger_type, trigger_reason, image_data, bytes, quality_score, sha256_hash, expires_at, encrypted_key_id, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
        RETURNING id, bytes`,
       [
         sessionId,
         userId,
-        normalizeViolationType(triggerType || 'sampled_snapshot'),
+        normalizedTrigger,
+        triggerReason,
         imageBuffer,
         imageBuffer.length,
+        qualityScore,
+        hash,
+        expiresAt.toISOString(),
+        this.encryptedKeyId,
         JSON.stringify(metadata ?? {}),
       ],
     );
 
     await query(
       `INSERT INTO proctoring_event_logs
-         (session_id, user_id, event_type, severity, payload)
-       VALUES ($1, $2, 'snapshot_captured', 'low', $3::jsonb)`,
+         (session_id, user_id, event_type, severity, payload, confidence, duration_ms, model_version)
+       VALUES ($1, $2, 'snapshot_captured', 'low', $3::jsonb, $4, $5, $6)`,
       [
         sessionId,
         userId,
         JSON.stringify({
-          trigger_type: normalizeViolationType(triggerType || 'sampled_snapshot'),
+          trigger_type: normalizedTrigger,
+          trigger_reason: triggerReason,
           bytes: imageBuffer.length,
+          sha256_hash: hash,
         }),
+        1,
+        0,
+        'backend-snapshot-v1',
       ],
     );
 
     return {
       snapshot_id: result.rows[0].id,
       bytes: Number(result.rows[0].bytes),
+      expires_at: expiresAt.toISOString(),
     };
   }
 
@@ -623,15 +935,22 @@ export class ProctoringService {
     try {
       await this.ensureSessionSchemaExtensions();
 
+      await query(
+        `INSERT INTO proctoring_reviews
+           (session_id, status, final_risk_score, reasons_json)
+         VALUES ($1, 'running', 0, '{}'::jsonb)`,
+        [sessionId],
+      );
+
       const [eventsResult, snapshotsResult] = await Promise.all([
         query(
-          `SELECT severity, event_type
+          `SELECT severity, event_type, confidence, duration_ms, created_at
            FROM proctoring_event_logs
            WHERE session_id = $1`,
           [sessionId],
         ),
         query(
-          `SELECT trigger_type, bytes
+          `SELECT trigger_type, trigger_reason, bytes, quality_score
            FROM proctoring_snapshots
            WHERE session_id = $1`,
           [sessionId],
@@ -646,6 +965,27 @@ export class ProctoringService {
         (sum, row) => sum + Number(row.bytes ?? 0),
         0,
       );
+      const reviewRisk = evaluateRiskSignals(
+        eventsResult.rows.map((row) => ({
+          event_type: String(row.event_type ?? ''),
+          severity:
+            row.severity === 'high' || row.severity === 'medium' || row.severity === 'low'
+              ? row.severity
+              : 'low',
+          confidence: Number(row.confidence ?? 0.5),
+          duration_ms: Number(row.duration_ms ?? 0),
+          created_at: row.created_at,
+        })),
+        {
+          windowSeconds: Math.max(this.consensusWindowSeconds, 90),
+          highConfidenceThreshold: this.highConfidenceThreshold,
+        },
+      );
+      const averageSnapshotQuality =
+        snapshotCount > 0
+          ? snapshotsResult.rows.reduce((sum, row) => sum + Number(row.quality_score ?? 0), 0) /
+            snapshotCount
+          : 0;
 
       await this.logMLAnalysis(
         sessionId,
@@ -657,6 +997,10 @@ export class ProctoringService {
           medium_severity_count: mediumSeverityCount,
           snapshot_count: snapshotCount,
           snapshot_bytes: snapshotBytes,
+          average_snapshot_quality: averageSnapshotQuality,
+          risk_state: reviewRisk.riskState,
+          risk_score: reviewRisk.riskScore,
+          pause_recommended: reviewRisk.pauseRecommended,
           top_events: eventsResult.rows
             .reduce<Record<string, number>>((acc, row) => {
               const type = String(row.event_type);
@@ -666,8 +1010,40 @@ export class ProctoringService {
         },
         [],
       );
+
+      await query(
+        `INSERT INTO proctoring_reviews
+           (session_id, status, final_risk_score, reasons_json, reviewed_at)
+         VALUES ($1, 'completed', $2, $3::jsonb, NOW())`,
+        [
+          sessionId,
+          reviewRisk.riskScore,
+          JSON.stringify({
+            reasons: reviewRisk.reasons,
+            event_count: eventCount,
+            high_severity_count: highSeverityCount,
+            medium_severity_count: mediumSeverityCount,
+            snapshot_count: snapshotCount,
+            snapshot_bytes: snapshotBytes,
+            average_snapshot_quality: averageSnapshotQuality,
+          }),
+        ],
+      );
+
+      await this.persistSessionRiskState(sessionId, reviewRisk);
     } catch (error) {
       console.error('Post-exam proctoring review failed:', error);
+      await query(
+        `INSERT INTO proctoring_reviews
+           (session_id, status, final_risk_score, reasons_json, reviewed_at)
+         VALUES ($1, 'failed', 0, $2::jsonb, NOW())`,
+        [
+          sessionId,
+          JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown review error',
+          }),
+        ],
+      ).catch(() => undefined);
     }
   }
 
@@ -1024,7 +1400,7 @@ export class ProctoringService {
     }
 
     const session = sessionResult.rows[0];
-    const [violations, mlAnalyses, score, eventAggResult, snapshotAggResult] = await Promise.all([
+    const [violations, mlAnalyses, score, eventAggResult, snapshotAggResult, reviewResult] = await Promise.all([
       this.getSessionViolations(sessionId),
       this.getMLAnalysisResults(sessionId),
       this.calculateProctoringScore(sessionId),
@@ -1039,6 +1415,14 @@ export class ProctoringService {
         `SELECT COUNT(*)::int as count, COALESCE(SUM(bytes), 0)::int as total_bytes
          FROM proctoring_snapshots
          WHERE session_id = $1`,
+        [sessionId],
+      ),
+      query(
+        `SELECT status, final_risk_score, reasons_json, reviewed_at, created_at
+         FROM proctoring_reviews
+         WHERE session_id = $1
+         ORDER BY created_at DESC
+         LIMIT 1`,
         [sessionId],
       ),
     ]);
@@ -1093,6 +1477,20 @@ export class ProctoringService {
       violations,
       mlAnalyses,
       proctoringScore: score,
+      review:
+        reviewResult.rows.length > 0
+          ? {
+              status: reviewResult.rows[0].status,
+              final_risk_score: Number(reviewResult.rows[0].final_risk_score ?? 0),
+              reasons:
+                typeof reviewResult.rows[0].reasons_json === 'string'
+                  ? JSON.parse(reviewResult.rows[0].reasons_json)
+                  : reviewResult.rows[0].reasons_json ?? {},
+              reviewed_at: reviewResult.rows[0].reviewed_at
+                ? new Date(reviewResult.rows[0].reviewed_at).toISOString()
+                : null,
+            }
+          : null,
       stats: {
         violations: violationStats,
         mlAnalyses: mlStats,
@@ -1300,11 +1698,12 @@ export class ProctoringService {
     isHeartbeatStale: boolean;
     violationsSinceLastCheck: number;
     currentScore: number;
+    riskState: RiskState;
   }> {
     await this.ensureSessionSchemaExtensions();
 
     const sessionResult = await query(
-      `SELECT id, user_id, status, pause_reason, heartbeat_at
+      `SELECT id, user_id, status, pause_reason, heartbeat_at, risk_state
        FROM proctoring_sessions
        WHERE id = $1`,
       [sessionId],
@@ -1320,6 +1719,7 @@ export class ProctoringService {
         isHeartbeatStale: false,
         violationsSinceLastCheck: 0,
         currentScore: 0,
+        riskState: 'observe',
       };
     }
 
@@ -1367,7 +1767,192 @@ export class ProctoringService {
       isHeartbeatStale,
       violationsSinceLastCheck: parseInt(violationsResult.rows[0]?.count ?? 0, 10),
       currentScore,
+      riskState:
+        status === 'paused'
+          ? 'paused'
+          : session.risk_state === 'warn' || session.risk_state === 'elevated' || session.risk_state === 'paused'
+            ? session.risk_state
+            : 'observe',
     };
+  }
+
+  async getSessionRisk(
+    sessionId: string,
+    userId: string,
+  ): Promise<{
+    risk_state: RiskState;
+    risk_score: number;
+    pause_recommended: boolean;
+    liveness_required: boolean;
+    reasons: string[];
+  }> {
+    await this.ensureSessionSchemaExtensions();
+
+    const sessionResult = await query(
+      `SELECT id, status, liveness_required
+       FROM proctoring_sessions
+       WHERE id = $1 AND user_id = $2`,
+      [sessionId, userId],
+    );
+    if (sessionResult.rows.length === 0) {
+      throw new Error('Session not found');
+    }
+
+    const risk = await this.computeRiskForSession(sessionId);
+    await this.persistSessionRiskState(sessionId, risk);
+
+    const status = String(sessionResult.rows[0].status ?? 'active');
+    const computedState: RiskState =
+      status === 'paused' && risk.riskState !== 'paused' ? 'paused' : risk.riskState;
+
+    return {
+      risk_state: computedState,
+      risk_score: risk.riskScore,
+      pause_recommended: risk.pauseRecommended,
+      liveness_required: Boolean(sessionResult.rows[0].liveness_required ?? risk.livenessRequired),
+      reasons: risk.reasons,
+    };
+  }
+
+  async requestLivenessChallenge(
+    sessionId: string,
+    userId: string,
+  ): Promise<{
+    required: boolean;
+    challenge_id: string;
+    expected_action: 'turn_left' | 'turn_right' | 'look_up' | 'look_down' | 'blink_once';
+    prompt: string;
+    expires_at: string;
+  }> {
+    await this.ensureSessionSchemaExtensions();
+
+    const sessionResult = await query(
+      `SELECT id, status
+       FROM proctoring_sessions
+       WHERE id = $1 AND user_id = $2`,
+      [sessionId, userId],
+    );
+    if (sessionResult.rows.length === 0) {
+      throw new Error('Session not found');
+    }
+    if (sessionResult.rows[0].status === 'completed') {
+      throw new Error('Completed sessions cannot request liveness checks');
+    }
+
+    const challenge = this.createLivenessChallenge();
+    await query(
+      `UPDATE proctoring_sessions
+       SET liveness_required = true,
+           liveness_challenge = $3::jsonb
+       WHERE id = $1 AND user_id = $2`,
+      [sessionId, userId, JSON.stringify(challenge)],
+    );
+
+    return {
+      required: true,
+      challenge_id: challenge.challenge_id,
+      expected_action: challenge.expected_action,
+      prompt: challenge.prompt,
+      expires_at: challenge.expires_at,
+    };
+  }
+
+  async verifyLivenessChallenge(
+    sessionId: string,
+    userId: string,
+    responseAction: string,
+  ): Promise<{
+    verified: boolean;
+    message: string;
+    risk_state: RiskState;
+    liveness_required: boolean;
+  }> {
+    await this.ensureSessionSchemaExtensions();
+
+    const sessionResult = await query(
+      `SELECT status, pause_reason, liveness_challenge, liveness_required
+       FROM proctoring_sessions
+       WHERE id = $1 AND user_id = $2`,
+      [sessionId, userId],
+    );
+    if (sessionResult.rows.length === 0) {
+      throw new Error('Session not found');
+    }
+
+    const session = sessionResult.rows[0];
+    const challengePayload =
+      typeof session.liveness_challenge === 'string'
+        ? JSON.parse(session.liveness_challenge)
+        : session.liveness_challenge ?? {};
+
+    const expectedAction = String(challengePayload.expected_action || '').trim();
+    const expiresAt = new Date(String(challengePayload.expires_at || '')).getTime();
+    const normalizedResponse = String(responseAction || '').trim();
+
+    if (!expectedAction || !expiresAt || Number.isNaN(expiresAt)) {
+      throw new Error('No active liveness challenge');
+    }
+
+    if (Date.now() > expiresAt) {
+      return {
+        verified: false,
+        message: 'Liveness challenge expired. Request a new one.',
+        risk_state: 'paused',
+        liveness_required: true,
+      };
+    }
+
+    if (normalizedResponse !== expectedAction) {
+      return {
+        verified: false,
+        message: 'Liveness verification failed. Please try again.',
+        risk_state: 'paused',
+        liveness_required: true,
+      };
+    }
+
+    await query(
+      `UPDATE proctoring_sessions
+       SET liveness_required = false,
+           liveness_completed_at = NOW(),
+           liveness_challenge = '{}'::jsonb,
+           risk_state = 'observe'
+       WHERE id = $1 AND user_id = $2`,
+      [sessionId, userId],
+    );
+
+    if (
+      String(session.status) === 'paused' &&
+      typeof session.pause_reason === 'string' &&
+      session.pause_reason.startsWith('Consensus risk pause:')
+    ) {
+      await this.resumeSession(sessionId, userId).catch(() => undefined);
+    }
+
+    return {
+      verified: true,
+      message: 'Liveness verified. You can continue.',
+      risk_state: 'observe',
+      liveness_required: false,
+    };
+  }
+
+  async enqueueSessionReview(sessionId: string): Promise<{ queued: boolean }> {
+    await this.ensureSessionSchemaExtensions();
+    setImmediate(() => {
+      void this.runPostExamReview(sessionId);
+    });
+    return { queued: true };
+  }
+
+  async purgeExpiredEvidence(): Promise<{ deleted_snapshots: number }> {
+    await this.ensureSessionSchemaExtensions();
+    const deleted = await query(
+      `DELETE FROM proctoring_snapshots
+       WHERE expires_at IS NOT NULL
+         AND expires_at <= NOW()`,
+    );
+    return { deleted_snapshots: Number(deleted.rowCount ?? 0) };
   }
 
   getDefaultSettings(): ProctoringSettings {
@@ -1460,10 +2045,19 @@ export class ProctoringService {
   }
 
   // Health Check
-  async healthCheck(): Promise<{ database: boolean; mlService: boolean }> {
-    const health = {
+  async healthCheck(): Promise<ProctoringHealthSnapshot> {
+    await this.ensureSessionSchemaExtensions();
+
+    const health: ProctoringHealthSnapshot = {
       database: false,
       mlService: false,
+      capabilities: {
+        face_live: false,
+        audio_live: false,
+        deep_review_available: true,
+        browser_consensus: true,
+      },
+      degraded_reasons: [],
     };
 
     try {
@@ -1471,15 +2065,51 @@ export class ProctoringService {
       health.database = true;
     } catch (error) {
       console.error('Database health check failed:', error);
+      health.degraded_reasons.push('database_unavailable');
     }
 
     try {
-      await axios.get(`${this.mlServiceUrl}/health`, { timeout: 5000 });
+      const response = await axios.get(`${this.mlServiceUrl}/health`, { timeout: 5000 });
+      const payload = response.data ?? {};
       health.mlService = true;
+      health.capabilities.face_live = Boolean(payload?.detectors?.face);
+      health.capabilities.audio_live = Boolean(payload?.detectors?.audio);
+      health.capabilities.deep_review_available = true;
+
+      const degraded = Array.isArray(payload?.degraded_reasons)
+        ? payload.degraded_reasons.filter((reason: unknown) => typeof reason === 'string')
+        : [];
+      if (degraded.length > 0) {
+        health.degraded_reasons.push(...degraded);
+      }
+      if (!health.capabilities.face_live) {
+        health.degraded_reasons.push('face_detector_unavailable');
+      }
+      if (!health.capabilities.audio_live) {
+        health.degraded_reasons.push('audio_detector_unavailable');
+      }
     } catch (error) {
       console.error('ML service health check failed:', error);
+      health.degraded_reasons.push('ml_service_unavailable');
     }
 
+    await query(
+      `INSERT INTO proctoring_detector_health
+         (detector_name, status, degraded_reasons, details)
+       VALUES ($1, $2, $3::jsonb, $4::jsonb)`,
+      [
+        'ml_service',
+        health.mlService ? 'healthy' : 'degraded',
+        JSON.stringify(Array.from(new Set(health.degraded_reasons))),
+        JSON.stringify({
+          face_live: health.capabilities.face_live,
+          audio_live: health.capabilities.audio_live,
+          browser_consensus: health.capabilities.browser_consensus,
+        }),
+      ],
+    ).catch(() => undefined);
+
+    health.degraded_reasons = Array.from(new Set(health.degraded_reasons));
     return health;
   }
 }

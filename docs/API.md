@@ -200,20 +200,26 @@ All proctoring routes require auth.
 - `GET /api/proctoring/session/:sessionId`
 - `GET /api/proctoring/session/:sessionId/analytics`
 - `GET /api/proctoring/session/:sessionId/status`
+- `GET /api/proctoring/session/:sessionId/risk`
+- `POST /api/proctoring/session/:sessionId/liveness-check`
+- `POST /api/proctoring/session/:sessionId/review/enqueue` (admin only)
 - `POST /api/proctoring/session/start` response includes:
   - `sessionId`
   - `deadline_at`
   - `duration_seconds`
 - `POST /api/proctoring/events/batch`
-  - Body: `session_id`, `events[]` (`event_type`, `severity`, optional `payload`, `timestamp`)
+  - Body: `session_id`, optional `sequence_start`, `events[]` with:
+    - `event_type`, `severity`
+    - optional `payload`, `timestamp`
+    - optional `confidence`, `duration_ms`, `sequence_id`, `client_ts`, `model_version`
   - Used for lightweight live-event buffering.
-  - Response includes accepted count and bounded queue status.
+  - Response includes accepted count, bounded queue status, and consensus risk output.
 - `POST /api/proctoring/session/:sessionId/snapshot`
-  - Binary JPEG/PNG body with trigger metadata:
-    - `X-Trigger-Type`
-    - `X-Snapshot-Timestamp` (optional)
+  - Binary JPEG/PNG body with optional metadata header:
+    - `X-Proctoring-Metadata` JSON (trigger reason, risk state, quality score)
   - Server stores bounded snapshots per session and may reject oversized uploads.
   - Intended for trigger-based or sampled evidence only (not continuous upload).
+  - Stored evidence includes retention expiry metadata for automatic purge.
 
 ### Violations
 - `POST /api/proctoring/violation`

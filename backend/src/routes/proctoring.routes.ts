@@ -37,6 +37,20 @@ router.get(
   '/session/:sessionId/status',
   proctoringController.getSessionStatus.bind(proctoringController),
 );
+router.get(
+  '/session/:sessionId/risk',
+  proctoringController.getSessionRisk.bind(proctoringController),
+);
+router.post(
+  '/session/:sessionId/liveness-check',
+  proctoringIngestRateLimiter,
+  proctoringController.livenessCheck.bind(proctoringController),
+);
+router.post(
+  '/session/:sessionId/review/enqueue',
+  authorize('admin'),
+  proctoringController.enqueueReview.bind(proctoringController),
+);
 
 // Violations
 router.post('/violation', proctoringIngestRateLimiter, proctoringController.logViolation.bind(proctoringController));

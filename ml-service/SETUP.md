@@ -24,7 +24,7 @@ pip install -r requirements.txt
 
 ```bash
 # Check if all packages are installed
-python -c "import cv2, mediapipe, numpy, librosa, fastapi, uvicorn; print('All packages installed successfully')"
+python -c "import cv2, numpy, librosa, fastapi, uvicorn; print('All packages installed successfully')"
 ```
 
 ### Step 3: Run the Service
@@ -109,12 +109,20 @@ Expected response:
 {
   "status": "healthy",
   "service": "ML Proctoring",
+  "mode": "two_phase_lite",
   "timestamp": "2026-02-04T...",
   "detectors": {
     "face": true,
-    "audio": true,
-    "object": true
-  }
+    "audio": false,
+    "object": false
+  },
+  "capabilities": {
+    "face_live": true,
+    "audio_live": false,
+    "deep_review_available": true,
+    "browser_consensus": true
+  },
+  "degraded_reasons": []
 }
 ```
 
@@ -140,6 +148,10 @@ Set the ML service URL in your backend `.env`:
 
 ```env
 ML_SERVICE_URL=http://localhost:5000
+ENABLE_FACE_DETECTOR=true
+ENABLE_AUDIO_ANALYZER=false
+ENABLE_OBJECT_DETECTOR=false
+AUDIO_TRANSCRIPTION_MODE=disabled
 ```
 
 ## Production Deployment
