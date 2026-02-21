@@ -54,6 +54,15 @@ export default function ChallengeDetail() {
   const [pauseReason, setPauseReason] = useState('');
 
   const { startSession } = useProctoring();
+  const locationState = location.state as
+    | { assignedFromMatcher?: boolean; assignmentCategory?: string }
+    | null;
+  const params = new URLSearchParams(location.search);
+  const assignedFromMatcher =
+    Boolean(locationState?.assignedFromMatcher) || params.get('assigned') === '1';
+  const assignmentCategory =
+    locationState?.assignmentCategory || params.get('assignmentCategory');
+  const canStartAssignedFlow = assignedFromMatcher && Boolean(assignmentCategory);
 
   // Initialize language from user preference
   useEffect(() => {
@@ -74,24 +83,34 @@ export default function ChallengeDetail() {
   const handleStartSession = async () => {
     if (!id || !challenge) return;
 
-    const forcedCategory = (location.state as { assignmentCategory?: string } | null)?.assignmentCategory;
-    const category = forcedCategory || challenge.category;
+    if (!canStartAssignedFlow || !assignmentCategory) {
+      toast.error('Use "Start Matched Challenge" to begin a seniority-assigned attempt.');
+      navigate('/challenges');
+      return;
+    }
 
     try {
-      const assigned = await challengeService.getNextChallenge(category);
+      const assigned = await challengeService.getNextChallenge(assignmentCategory);
       if (assigned.challenge_id !== id) {
         toast('You were redirected to your assigned challenge for this category and seniority.');
-        navigate(`/challenges/${assigned.challenge_id}`, {
+        navigate(
+          `/challenges/${assigned.challenge_id}?assigned=1&assignmentCategory=${encodeURIComponent(
+            assignmentCategory,
+          )}`,
+          {
           replace: true,
           state: {
             assignedFromMatcher: true,
-            assignmentCategory: category,
+            assignmentCategory,
           },
-        });
+          },
+        );
         return;
       }
     } catch (assignmentError) {
-      console.warn('Assignment check failed, continuing with current challenge:', assignmentError);
+      toast.error('Could not verify assigned challenge. Please restart from the challenge matcher.');
+      navigate('/challenges');
+      return;
     }
 
     setShowProctoringModal(true);
@@ -224,6 +243,9 @@ export default function ChallengeDetail() {
             onLanguageChange={handleLanguageChange}
             onStartSession={handleStartSession}
             onBack={() => navigate('/challenges')}
+            startLabel={
+              canStartAssignedFlow ? 'Start Challenge Session' : 'Start From Matched Assignment'
+            }
           />
         ) : (
           <>

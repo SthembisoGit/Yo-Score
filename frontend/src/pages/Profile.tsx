@@ -9,6 +9,8 @@ import { Loader } from '@/components/Loader';
 import { useAuth } from '@/context/AuthContext';
 import { Link } from 'react-router-dom';
 import { dashboardService } from '@/services/dashboardService';
+import { challengeService } from '@/services/challengeService';
+import { buildCategoryScoresFromSubmissions, type CategoryScoreView } from '@/lib/categoryScores';
 import { toast } from 'react-hot-toast';
 
 const getErrorMessage = (error: unknown, fallback: string) => {
@@ -39,6 +41,8 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [categoryScores, setCategoryScores] = useState<CategoryScoreView[]>([]);
+  const [isCategoryScoresLoading, setIsCategoryScoresLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -65,6 +69,31 @@ export default function Profile() {
         portfolio_url: user.portfolioUrl || '',
       });
     }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const loadCategoryScores = async () => {
+      setIsCategoryScoresLoading(true);
+      try {
+        const [submissions, challenges] = await Promise.all([
+          dashboardService.getUserSubmissions(),
+          challengeService.getAllChallenges(),
+        ]);
+        const mappedChallenges = challenges.map((challenge) => ({
+          id: challenge.challenge_id,
+          category: challenge.category,
+        }));
+        setCategoryScores(buildCategoryScoresFromSubmissions(submissions, mappedChallenges));
+      } catch {
+        setCategoryScores([]);
+      } finally {
+        setIsCategoryScoresLoading(false);
+      }
+    };
+
+    void loadCategoryScores();
   }, [user]);
 
   const initials = useMemo(() => {
@@ -395,9 +424,17 @@ export default function Profile() {
             </div>
 
             <div className="bg-card border border-border rounded-lg p-6">
-              <h3 className="font-semibold mb-4">Category Breakdown</h3>
-              <div className="space-y-4">
-                {user.categoryScores.map((cat, index) => {
+                <h3 className="font-semibold mb-4">Category Breakdown</h3>
+                <div className="space-y-4">
+                {isCategoryScoresLoading && (
+                  <p className="text-sm text-muted-foreground">Loading category scores...</p>
+                )}
+                {!isCategoryScoresLoading && categoryScores.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No scored categories yet. Complete challenges to build your category profile.
+                  </p>
+                )}
+                {!isCategoryScoresLoading && categoryScores.map((cat, index) => {
                   const colors = [
                     'bg-[hsl(210,80%,50%)]',
                     'bg-[hsl(270,60%,55%)]',
