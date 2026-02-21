@@ -283,7 +283,8 @@ process.stdout.write(String(solve(input)));`;
                 c.created_at, c.updated_at
          FROM challenges c
          LEFT JOIN challenge_baselines b ON b.challenge_id = c.id
-         WHERE ${conditions.join(' AND ')}`,
+         WHERE ${conditions.join(' AND ')}
+         GROUP BY c.id`,
         [challengeId],
       );
 
@@ -307,7 +308,8 @@ process.stdout.write(String(solve(input)));`;
                 c.created_at, c.updated_at
          FROM challenges c
          LEFT JOIN challenge_baselines b ON b.challenge_id = c.id
-         WHERE ${legacyConditions.join(' AND ')}`,
+         WHERE ${legacyConditions.join(' AND ')}
+         GROUP BY c.id`,
         [challengeId],
       );
       if (legacyResult.rows.length === 0) {
