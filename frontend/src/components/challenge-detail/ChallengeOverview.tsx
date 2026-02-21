@@ -3,14 +3,17 @@ import { ArrowLeft, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DescriptionPanel } from './DescriptionPanel';
 import { LanguageSelector } from './LanguageSelector';
+import type { Challenge } from '@/services/challengeService';
 
 interface ChallengeOverviewProps {
-  challenge: any;
+  challenge: Challenge;
   selectedLanguage: string;
   availableLanguages: string[];
   onLanguageChange: (language: string) => void;
   onStartSession: () => void;
   onBack: () => void;
+  startDisabled?: boolean;
+  startLabel?: string;
 }
 
 export const ChallengeOverview = ({
@@ -19,7 +22,9 @@ export const ChallengeOverview = ({
   availableLanguages,
   onLanguageChange,
   onStartSession,
-  onBack
+  onBack,
+  startDisabled = false,
+  startLabel = 'Start Challenge Session',
 }: ChallengeOverviewProps) => {
   return (
     <div className="max-w-3xl mx-auto">
@@ -73,9 +78,10 @@ export const ChallengeOverview = ({
           <Button 
             size="lg" 
             onClick={onStartSession} 
+            disabled={startDisabled}
             className="w-full sm:w-auto px-8"
           >
-            Start Challenge Session
+            {startLabel}
           </Button>
         </div>
       </div>

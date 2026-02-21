@@ -84,12 +84,17 @@ export default function Challenges() {
     setIsAssigning(true);
     try {
       const assigned = await getAssignedChallenge(assignmentCategory);
-      navigate(`/challenges/${assigned.id}`, {
+      navigate(
+        `/challenges/${assigned.id}?assigned=1&assignmentCategory=${encodeURIComponent(
+          assignmentCategory,
+        )}`,
+        {
         state: {
           assignedFromMatcher: true,
           assignmentCategory,
         },
-      });
+        },
+      );
     } catch (err: unknown) {
       const message =
         err instanceof Error

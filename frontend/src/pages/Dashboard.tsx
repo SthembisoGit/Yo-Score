@@ -18,13 +18,18 @@ import {
 import { toast } from 'react-hot-toast';
 
 import { useAuth } from '@/context/AuthContext';
-import { useChallenges } from '@/context/ChallengeContext';
+import {
+  useChallenges,
+  type Challenge as ChallengeModel,
+  type ChallengeStatus,
+} from '@/context/ChallengeContext';
 import {
   dashboardService,
   type DashboardData as ServiceDashboardData,
   type Submission as DashboardSubmission,
 } from '@/services/dashboardService';
 import { challengeService } from '@/services/challengeService';
+import { buildCategoryScoresFromSubmissions } from '@/lib/categoryScores';
 
 const CATEGORY_COLORS = [
   'blue',
@@ -36,6 +41,13 @@ const CATEGORY_COLORS = [
   'amber',
   'rose',
 ] as const;
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
+};
 
 export default function Dashboard() {
   const { user, availableCategories } = useAuth();
@@ -76,14 +88,19 @@ export default function Dashboard() {
     setIsAssigning(true);
     try {
       const next = await challengeService.getNextChallenge(selectedCategory);
-      navigate(`/challenges/${next.challenge_id}`, {
+      navigate(
+        `/challenges/${next.challenge_id}?assigned=1&assignmentCategory=${encodeURIComponent(
+          selectedCategory,
+        )}`,
+        {
         state: {
           assignedFromMatcher: true,
           assignmentCategory: selectedCategory,
         },
-      });
-    } catch (error: any) {
-      toast.error(error?.message || 'No matching challenge available for this category and seniority.');
+        },
+      );
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'No matching challenge available for this category and seniority.'));
     } finally {
       setIsAssigning(false);
     }
@@ -112,10 +129,10 @@ export default function Dashboard() {
 
   const recentChallenges = recentSubmissions
     .slice(0, 3)
-    .map((submission) => {
+    .map((submission): ChallengeModel | null => {
       const match = challenges.find((challenge) => challenge.id === submission.challenge_id);
       if (!match) return null;
-      const status =
+      const status: ChallengeStatus =
         submission.status === 'graded'
           ? 'completed'
           : submission.status === 'pending'
@@ -142,9 +159,7 @@ export default function Dashboard() {
   const seniorityBand = dashboardData?.seniority_band ?? 'graduate';
   const workExperienceScore = dashboardData?.work_experience_score ?? 0;
   const trustedMonths = dashboardData?.work_experience_summary?.trusted_months ?? user.workExperienceMonths;
-  const categoryScores = Object.entries(dashboardData?.category_scores ?? {}).map(
-    ([category, score]) => ({ category, score }),
-  );
+  const categoryScores = buildCategoryScoresFromSubmissions(recentSubmissions, challenges);
 
   return (
     <div className="min-h-screen bg-muted">
