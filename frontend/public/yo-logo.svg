@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="YoScore">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#1d4ed8" />
+      <stop offset="100%" stop-color="#0f766e" />
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="48" fill="url(#g)" />
+  <path d="M71 74h29l28 50 28-50h29l-43 73v35h-28v-35L71 74z" fill="#fff" />
+  <circle cx="128" cy="196" r="10" fill="#fff" />
+</svg>

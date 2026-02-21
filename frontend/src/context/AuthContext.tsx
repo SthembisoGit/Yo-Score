@@ -15,16 +15,11 @@ export type Category =
 
 export type ProgrammingLanguage = 
   | 'JavaScript' 
-  | 'TypeScript' 
   | 'Python' 
   | 'Java' 
+  | 'C++'
   | 'C#' 
-  | 'Go' 
-  | 'Rust' 
-  | 'PHP'
-  | 'Ruby'
-  | 'Swift'
-  | 'Kotlin';
+  | 'Go';
 
 export type Tool = 
   | 'VS Code' 
@@ -82,6 +77,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const availableLanguages: ProgrammingLanguage[] = [
   'JavaScript',
   'Python',
+  'Java',
+  'C++',
+  'Go',
+  'C#',
 ];
 
 const availableTools: Tool[] = [
@@ -120,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const response = await authService.validateToken();
         if (response?.user) {
           const u = response.user;
-          const userData: User = {
+          const baselineUser: User = {
             id: u.user_id,
             name: u.name,
             email: u.email ?? '',
@@ -130,7 +129,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             categoryScores: [],
             workExperienceMonths: 0
           };
-          setUser(userData);
+          setUser(baselineUser);
+
+          const [dashboardResult, profileResult, workResult] = await Promise.allSettled([
+            dashboardService.getDashboardData(),
+            dashboardService.getUserProfile(),
+            dashboardService.getWorkExperience(),
+          ]);
+
+          const dashboardData =
+            dashboardResult.status === 'fulfilled'
+              ? dashboardResult.value
+              : {
+                  total_score: 0,
+                  trust_level: 'Low' as const,
+                  category_scores: {},
+                  challenge_progress: [],
+                };
+
+          const userProfile =
+            profileResult.status === 'fulfilled'
+              ? profileResult.value
+              : {
+                  user_id: baselineUser.id,
+                  name: baselineUser.name,
+                  email: baselineUser.email,
+                  role: baselineUser.role,
+                  avatar_url: null,
+                  headline: null,
+                  bio: null,
+                  location: null,
+                  github_url: null,
+                  linkedin_url: null,
+                  portfolio_url: null,
+                  created_at: new Date().toISOString(),
+                };
+
+          const workExperience = workResult.status === 'fulfilled' ? workResult.value : [];
+          const totalWorkExperienceMonths = workExperience.reduce(
+            (total, exp) => total + exp.duration_months,
+            0,
+          );
+
+          const categoryScoresArray = Object.entries(dashboardData.category_scores || {}).map(
+            ([category, score]) => ({ category: category as Category, score: Number(score) }),
+          );
+
+          setUser({
+            id: userProfile.user_id,
+            name: userProfile.name,
+            email: userProfile.email,
+            role: userProfile.role,
+            avatar: userProfile.avatar_url || undefined,
+            headline: userProfile.headline || undefined,
+            bio: userProfile.bio || undefined,
+            location: userProfile.location || undefined,
+            githubUrl: userProfile.github_url || undefined,
+            linkedinUrl: userProfile.linkedin_url || undefined,
+            portfolioUrl: userProfile.portfolio_url || undefined,
+            totalScore: dashboardData.total_score,
+            trustLevel: dashboardData.trust_level,
+            categoryScores: categoryScoresArray,
+            workExperienceMonths: totalWorkExperienceMonths,
+            seniorityBand: dashboardData.seniority_band,
+            createdAt: userProfile.created_at,
+          });
         } else {
           localStorage.removeItem('yoScore_auth_token');
         }

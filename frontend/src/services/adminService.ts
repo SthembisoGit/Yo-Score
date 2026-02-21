@@ -1,5 +1,6 @@
 import apiClient from './apiClient';
 import { unwrapData } from '@/lib/apiHelpers';
+import type { SupportedLanguageCode } from '@/constants/languages';
 
 export interface AdminDashboardSummary {
   users_total: number;
@@ -25,6 +26,8 @@ export interface AdminChallenge {
     missing_languages: string[];
     is_ready: boolean;
   };
+  supported_languages: SupportedLanguageCode[];
+  starter_templates?: Record<SupportedLanguageCode, string>;
 }
 
 export interface AdminChallengeTestCase {
@@ -43,7 +46,7 @@ export interface AdminChallengeTestCase {
 
 export interface AdminChallengeBaseline {
   id: string;
-  language: 'javascript' | 'python';
+  language: SupportedLanguageCode;
   runtime_ms: number;
   memory_mb: number;
   lint_rules: Record<string, unknown>;
@@ -61,7 +64,7 @@ export interface AdminChallengeDoc {
 export interface AdminJudgeRun {
   id: string;
   submission_id: string;
-  language: 'javascript' | 'python';
+  language: SupportedLanguageCode;
   status: 'queued' | 'running' | 'completed' | 'failed' | 'skipped';
   score_correctness: number;
   score_efficiency: number;
@@ -209,6 +212,7 @@ class AdminService {
     target_seniority?: 'graduate' | 'junior' | 'mid' | 'senior';
     duration_minutes?: number;
     publish_status?: 'draft' | 'published' | 'archived';
+    supported_languages?: SupportedLanguageCode[];
   }) {
     const response = await apiClient.post('/admin/challenges', payload);
     return unwrapData<AdminChallenge>(response);
@@ -228,6 +232,7 @@ class AdminService {
       difficulty: string;
       target_seniority: 'graduate' | 'junior' | 'mid' | 'senior';
       duration_minutes: number;
+      supported_languages: SupportedLanguageCode[];
     }>,
   ) {
     const response = await apiClient.put(`/admin/challenges/${challengeId}`, payload);
@@ -272,7 +277,7 @@ class AdminService {
     return unwrapData(response);
   }
 
-  async getChallengeBaseline(challengeId: string, language: 'javascript' | 'python') {
+  async getChallengeBaseline(challengeId: string, language: SupportedLanguageCode) {
     const response = await apiClient.get(`/admin/challenges/${challengeId}/baseline?language=${language}`);
     return unwrapData<AdminChallengeBaseline | null>(response);
   }
@@ -280,7 +285,7 @@ class AdminService {
   async upsertChallengeBaseline(
     challengeId: string,
     payload: {
-      language: 'javascript' | 'python';
+      language: SupportedLanguageCode;
       runtime_ms: number;
       memory_mb: number;
       lint_rules?: Record<string, unknown>;

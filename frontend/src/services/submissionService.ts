@@ -6,6 +6,7 @@ import {
   trackPendingSubmission,
   untrackPendingSubmission,
 } from './pendingSubmissionStore';
+import type { SupportedLanguageCode } from '@/constants/languages';
 
 export interface SubmissionViolation {
   type: string;
@@ -35,7 +36,7 @@ export interface SubmissionResult {
   submission_id: string;
   challenge_id: string;
   challenge_title: string;
-  language: 'javascript' | 'python';
+  language: SupportedLanguageCode;
   status: 'pending' | 'graded' | 'failed';
   judge_status: 'queued' | 'running' | 'completed' | 'failed';
   judge_error?: string | null;
@@ -67,7 +68,7 @@ export interface UserSubmission {
   submission_id: string;
   challenge_id: string;
   challenge_title: string;
-  language: 'javascript' | 'python';
+  language: SupportedLanguageCode;
   score: number | null;
   status: 'pending' | 'graded' | 'failed';
   judge_status: 'queued' | 'running' | 'completed' | 'failed';
@@ -77,7 +78,7 @@ export interface UserSubmission {
 export interface SubmissionRunSummary {
   run_id: string;
   submission_id: string;
-  language: 'javascript' | 'python';
+  language: SupportedLanguageCode;
   status: 'queued' | 'running' | 'completed' | 'failed' | 'skipped';
   score_correctness: number;
   score_efficiency: number;
@@ -107,7 +108,7 @@ class SubmissionService {
   async submitChallenge(
     challengeId: string,
     code: string,
-    language: 'javascript' | 'python',
+    language: SupportedLanguageCode,
     sessionId?: string
   ): Promise<{
     submission_id: string;

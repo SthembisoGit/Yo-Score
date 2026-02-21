@@ -46,8 +46,8 @@ const FRAME_CAPTURE_INTERVAL = 3000;
 const AUDIO_CHUNK_DURATION = 10000;
 const AUDIO_SAMPLE_INTERVAL = 600;
 const CAMERA_CHECK_INTERVAL = 1000;
-const HEARTBEAT_INTERVAL = 5000;
-const RISK_POLL_INTERVAL = 4000;
+const HEARTBEAT_INTERVAL = 8000;
+const RISK_POLL_INTERVAL = 8000;
 const EVENT_FLUSH_INTERVAL = 8000;
 const ALERT_TIMEOUT_MS = 30000;
 const DEFAULT_COOLDOWN_MS = 10000;
@@ -83,7 +83,6 @@ const ProctoringMonitor: React.FC<Props> = ({
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const audioSampleBufferRef = useRef<Uint8Array | null>(null);
   const nativeFaceDetectorRef = useRef<InstanceType<NativeFaceDetectorConstructor> | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const cooldownRef = useRef<Record<string, number>>({});
   const noFaceStreakRef = useRef(0);
   const lookAwayEventsRef = useRef<number[]>([]);
@@ -101,9 +100,10 @@ const ProctoringMonitor: React.FC<Props> = ({
   const speechStreakMsRef = useRef(0);
   const lastSnapshotAtRef = useRef(0);
   const lastRiskPauseReasonRef = useRef('');
+  const audioRecorderUnsupportedRef = useRef(false);
+  const connectionIssueAlertShownRef = useRef(false);
 
   const frameIntervalRef = useRef<NodeJS.Timeout>();
-  const audioIntervalRef = useRef<NodeJS.Timeout>();
   const cameraCheckIntervalRef = useRef<NodeJS.Timeout>();
   const heartbeatIntervalRef = useRef<NodeJS.Timeout>();
   const riskPollIntervalRef = useRef<NodeJS.Timeout>();
@@ -139,7 +139,7 @@ const ProctoringMonitor: React.FC<Props> = ({
 
   const getSupportedRecorderOptions = useCallback((): MediaRecorderOptions | undefined => {
     if (typeof MediaRecorder === 'undefined') return undefined;
-    const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+    const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg'];
     for (const mimeType of candidates) {
       if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(mimeType)) {
         return { mimeType };
@@ -212,9 +212,11 @@ const ProctoringMonitor: React.FC<Props> = ({
         ALERT_TIMEOUT_MS,
       );
 
-      toast.error(message, {
-        duration: severity === 'high' ? 8000 : 5000,
-      });
+      if (severity !== 'low') {
+        toast.error(message, {
+          duration: severity === 'high' ? 8000 : 5000,
+        });
+      }
     },
     [dismissAlert],
   );
@@ -668,8 +670,26 @@ const ProctoringMonitor: React.FC<Props> = ({
     [triggerViolation],
   );
 
+  const stopRecorderSafely = useCallback((context: string) => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || typeof recorder.stop !== 'function') {
+      mediaRecorderRef.current = null;
+      return;
+    }
+    if (recorder.state === 'inactive') return;
+    try {
+      recorder.stop();
+    } catch (error) {
+      console.error(`Failed to stop media recorder (${context}):`, error);
+    }
+  }, []);
+
   const setupAudioRecorder = useCallback(
     (stream: MediaStream) => {
+      if (audioRecorderUnsupportedRef.current) {
+        mediaRecorderRef.current = null;
+        return;
+      }
       if (stream.getAudioTracks().length === 0 || typeof MediaRecorder === 'undefined') {
         mediaRecorderRef.current = null;
         return;
@@ -677,24 +697,25 @@ const ProctoringMonitor: React.FC<Props> = ({
 
       try {
         const recorderOptions = getSupportedRecorderOptions();
-        const recorder = recorderOptions
-          ? new MediaRecorder(stream, recorderOptions)
-          : new MediaRecorder(stream);
-
-        mediaRecorderRef.current = recorder;
-        recorder.ondataavailable = (event) => {
-          if (event.data.size > 0) audioChunksRef.current.push(event.data);
-        };
-        recorder.onstop = async () => {
-          if (pausedRef.current) {
-            audioChunksRef.current = [];
-            return;
+        if (!recorderOptions) {
+          mediaRecorderRef.current = null;
+          if (!audioRecorderUnsupportedRef.current) {
+            audioRecorderUnsupportedRef.current = true;
+            addAlert(
+              'Audio recording unsupported in this browser. Speech checks are limited.',
+              'low',
+            );
           }
-          if (audioChunksRef.current.length === 0) return;
-          const mimeType =
-            audioChunksRef.current[0]?.type || recorder.mimeType || 'audio/webm';
-          const blob = new Blob(audioChunksRef.current, { type: mimeType });
-          audioChunksRef.current = [];
+          return;
+        }
+
+        const recorder = new MediaRecorder(stream, recorderOptions);
+        mediaRecorderRef.current = recorder;
+
+        recorder.ondataavailable = async (event) => {
+          if (!event.data || event.data.size <= 0 || pausedRef.current) return;
+
+          const blob = event.data;
           const durationMs = Date.now() - lastAudioChunkTimeRef.current;
           lastAudioChunkTimeRef.current = Date.now();
           const localSpeechDetected = await estimateSpeechFromAudio(blob);
@@ -751,20 +772,36 @@ const ProctoringMonitor: React.FC<Props> = ({
             );
           }
         };
-        recorder.start();
+
+        recorder.onerror = () => {
+          mediaRecorderRef.current = null;
+          if (!audioRecorderUnsupportedRef.current) {
+            audioRecorderUnsupportedRef.current = true;
+            addAlert(
+              'Audio recording unavailable in this browser. Speech checks are limited.',
+              'low',
+            );
+          }
+        };
+
+        recorder.start(AUDIO_CHUNK_DURATION);
       } catch (error) {
         mediaRecorderRef.current = null;
         console.error('Audio recorder unavailable:', error);
-        addAlert(
-          'Audio recording unsupported in this browser. Speech checks are limited.',
-          'medium',
-        );
+        if (!audioRecorderUnsupportedRef.current) {
+          audioRecorderUnsupportedRef.current = true;
+          addAlert(
+            'Audio recording unsupported in this browser. Speech checks are limited.',
+            'low',
+          );
+        }
       }
     },
     [addAlert, estimateSpeechFromAudio, getSupportedRecorderOptions, sessionId, triggerViolation],
   );
 
   const restartStream = useCallback(async () => {
+    stopRecorderSafely('restart-before-track-swap');
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
       audio: true,
@@ -787,7 +824,7 @@ const ProctoringMonitor: React.FC<Props> = ({
     setCameraReady(true);
     setMicReady(stream.getAudioTracks().length > 0);
     await checkAudioSupport();
-  }, [checkAudioSupport, initializeNativeFaceDetector, setupAudioEnergySampler, setupAudioRecorder]);
+  }, [checkAudioSupport, initializeNativeFaceDetector, setupAudioEnergySampler, setupAudioRecorder, stopRecorderSafely]);
 
   const checkRequiredDevices = useCallback(async () => {
     const stream = mediaStreamRef.current;
@@ -972,10 +1009,18 @@ const ProctoringMonitor: React.FC<Props> = ({
         }
         await applyPauseState(true, reason, buildMissingDevices(cameraReadyRef.current, micReadyRef.current, audioReadyRef.current), false);
       }
+      connectionIssueAlertShownRef.current = false;
     } catch (error) {
       console.error('Failed to send heartbeat:', error);
+      if (!connectionIssueAlertShownRef.current) {
+        connectionIssueAlertShownRef.current = true;
+        addAlert(
+          'Connection to proctoring server is unstable. Local checks continue while sync retries.',
+          'medium',
+        );
+      }
     }
-  }, [applyPauseState, buildMissingDevices, sessionId]);
+  }, [addAlert, applyPauseState, buildMissingDevices, sessionId]);
 
   const pollRiskState = useCallback(async () => {
     try {
@@ -1004,8 +1049,15 @@ const ProctoringMonitor: React.FC<Props> = ({
       }
     } catch (error) {
       console.error('Failed to poll session risk:', error);
+      if (!connectionIssueAlertShownRef.current) {
+        connectionIssueAlertShownRef.current = true;
+        addAlert(
+          'Could not sync live risk state with server. Monitoring will keep retrying.',
+          'medium',
+        );
+      }
     }
-  }, [applyPauseState, livenessChallenge, sessionId]);
+  }, [addAlert, applyPauseState, livenessChallenge, sessionId]);
 
   const startProctoring = useCallback(async () => {
     await restartStream();
@@ -1040,22 +1092,6 @@ const ProctoringMonitor: React.FC<Props> = ({
 
     const removeEvents = unregister();
     frameIntervalRef.current = setInterval(() => void captureAndAnalyzeFrame(), FRAME_CAPTURE_INTERVAL);
-    audioIntervalRef.current = setInterval(() => {
-      const recorder = mediaRecorderRef.current;
-      if (!recorder) return;
-      if (recorder.state === 'recording') {
-        recorder.stop();
-        setTimeout(() => {
-          if (mediaRecorderRef.current && mediaStreamRef.current) {
-            try {
-              mediaRecorderRef.current.start();
-            } catch (error) {
-              console.error('Failed to restart audio recorder:', error);
-            }
-          }
-        }, 100);
-      }
-    }, AUDIO_CHUNK_DURATION);
     cameraCheckIntervalRef.current = setInterval(() => void checkRequiredDevices(), CAMERA_CHECK_INTERVAL);
     heartbeatIntervalRef.current = setInterval(() => void sendHeartbeat(), HEARTBEAT_INTERVAL);
     riskPollIntervalRef.current = setInterval(() => void pollRiskState(), RISK_POLL_INTERVAL);
@@ -1064,15 +1100,62 @@ const ProctoringMonitor: React.FC<Props> = ({
   }, [captureAndAnalyzeFrame, checkRequiredDevices, flushEventBuffer, pollRiskState, restartStream, sendHeartbeat, triggerViolation]);
 
   useEffect(() => {
-    void proctoringService.healthCheck().then((health) => {
-      if (health.degraded) {
+    let cancelled = false;
+    let retryTimer: NodeJS.Timeout | null = null;
+
+    const runHealthCheck = async (isRetry: boolean) => {
+      try {
+        const health = await proctoringService.healthCheck();
+        if (cancelled) return;
+        const degradedReasons = Array.isArray(health.degraded_reasons)
+          ? health.degraded_reasons
+          : [];
+        const isAudioOnlyDegraded =
+          degradedReasons.length > 0 &&
+          degradedReasons.every((reason) => reason === 'audio_detector_unavailable');
+
+        if (health.degraded && !isAudioOnlyDegraded) {
+          if (!isRetry) {
+            retryTimer = setTimeout(() => {
+              void runHealthCheck(true);
+            }, 6000);
+            return;
+          }
+          setMlDegraded(true);
+          if (!mlDegradedRef.current) {
+            addAlert(
+              'ML analysis degraded. Core proctoring checks continue, but face/audio confidence may be reduced.',
+              'medium',
+            );
+          }
+          return;
+        }
+
+        setMlDegraded(false);
+      } catch {
+        if (cancelled) return;
+        if (!isRetry) {
+          retryTimer = setTimeout(() => {
+            void runHealthCheck(true);
+          }, 6000);
+          return;
+        }
         setMlDegraded(true);
-        addAlert(
-          'ML analysis degraded. Core proctoring checks continue, but face/audio confidence may be reduced.',
-          'medium',
-        );
+        if (!mlDegradedRef.current) {
+          addAlert(
+            'ML analysis degraded. Core proctoring checks continue, but face/audio confidence may be reduced.',
+            'medium',
+          );
+        }
       }
-    });
+    };
+
+    void runHealthCheck(false);
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [addAlert]);
 
   useEffect(() => {
@@ -1089,19 +1172,17 @@ const ProctoringMonitor: React.FC<Props> = ({
 
     return () => {
       if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
-      if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
       if (cameraCheckIntervalRef.current) clearInterval(cameraCheckIntervalRef.current);
       if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
       if (riskPollIntervalRef.current) clearInterval(riskPollIntervalRef.current);
       if (audioSampleIntervalRef.current) clearInterval(audioSampleIntervalRef.current);
       if (eventsFlushIntervalRef.current) clearInterval(eventsFlushIntervalRef.current);
       removeEvents?.();
-      if (mediaRecorderRef.current?.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
+      stopRecorderSafely('component-cleanup');
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       }
+      mediaRecorderRef.current = null;
       audioSourceRef.current?.disconnect();
       audioSourceRef.current = null;
       audioAnalyserRef.current = null;
@@ -1111,7 +1192,7 @@ const ProctoringMonitor: React.FC<Props> = ({
       void flushEventBuffer();
       Object.keys(activeAlertTimeouts).forEach((id) => clearAlertTimer(id));
     };
-  }, [addAlert, clearAlertTimer, flushEventBuffer, startProctoring]);
+  }, [addAlert, clearAlertTimer, flushEventBuffer, startProctoring, stopRecorderSafely]);
 
   const requestRecovery = useCallback(async (target: 'camera' | 'microphone' | 'audio' | 'all') => {
     setIsRecovering(target);

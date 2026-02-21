@@ -10,11 +10,13 @@ import {
   type Challenge,
   type ChallengeDocs,
   type CoachHintResponse,
+  type RunCodeResponse,
 } from '@/services/challengeService';
 import { proctoringService } from '@/services/proctoring.service';
 import { DescriptionPanel } from './DescriptionPanel';
 import { LanguageSelector } from './LanguageSelector';
 import { ReferenceDocsPanel } from './ReferenceDocsPanel';
+import { normalizeLanguageCode, type SupportedLanguageCode } from '@/constants/languages';
 
 interface ChallengeSessionProps {
   challenge: Challenge;
@@ -54,9 +56,8 @@ const formatRemaining = (seconds: number): string => {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 };
 
-const mapToSubmissionLanguage = (language: string): 'javascript' | 'python' => {
-  return language.toLowerCase() === 'python' ? 'python' : 'javascript';
-};
+const mapToSubmissionLanguage = (language: string): SupportedLanguageCode =>
+  normalizeLanguageCode(language);
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error && error.message) {
@@ -104,13 +105,22 @@ export const ChallengeSession = ({
     return `yoscore:draft:${sessionId}:${challengeId}`;
   }, [challengeId, sessionId]);
 
-  const templates: Record<'javascript' | 'python', string> = useMemo(
-    () => ({
+  const templates: Record<SupportedLanguageCode, string> = useMemo(() => {
+    const defaults: Record<SupportedLanguageCode, string> = {
       javascript: `function solution(input) {\n  // Your code here\n  return input;\n}\n\nconsole.log(solution("test"));`,
       python: `def solution(input_data):\n    # Your code here\n    return input_data\n\nprint(solution("test"))`,
-    }),
-    [],
-  );
+      java: `import java.io.*;\n\npublic class Main {\n    static String solution(String input) {\n        // Your code here\n        return input.trim();\n    }\n\n    public static void main(String[] args) throws Exception {\n        String input = new String(System.in.readAllBytes());\n        System.out.print(solution(input));\n    }\n}`,
+      cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nstring solution(const string& input) {\n    // Your code here\n    return input;\n}\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    string input((istreambuf_iterator<char>(cin)), istreambuf_iterator<char>());\n    cout << solution(input);\n    return 0;\n}`,
+      go: `package main\n\nimport (\n    \"fmt\"\n    \"io\"\n    \"os\"\n)\n\nfunc solution(input string) string {\n    // Your code here\n    return input\n}\n\nfunc main() {\n    data, _ := io.ReadAll(os.Stdin)\n    fmt.Print(solution(string(data)))\n}`,
+      csharp: `using System;\nusing System.IO;\n\npublic class Program\n{\n    static string Solution(string input)\n    {\n        // Your code here\n        return input.Trim();\n    }\n\n    public static void Main()\n    {\n        string input = Console.In.ReadToEnd();\n        Console.Write(Solution(input));\n    }\n}`,
+    };
+
+    if (!challenge.starter_templates) return defaults;
+    return {
+      ...defaults,
+      ...challenge.starter_templates,
+    };
+  }, [challenge.starter_templates]);
 
   const canRequestHint = coachHints.length < 3 && Boolean(sessionId) && !isSessionEnded;
   const readOnlyEditor = isSubmitting || isSessionEnded || isSessionPaused || timeExpired;
@@ -583,9 +593,17 @@ export const ChallengeSession = ({
 
         <div className="bg-card border border-border rounded-xl overflow-hidden flex-1 shadow-sm">
           <CodeEditor
-            language={selectedLanguage.toLowerCase()}
+            language={mapToSubmissionLanguage(selectedLanguage)}
             value={code}
             onChange={setCode}
+            onRun={async ({ language, code: sourceCode, stdin }): Promise<RunCodeResponse> =>
+              challengeService.runCode({
+                language,
+                code: sourceCode,
+                stdin,
+                challenge_id: challengeId,
+              })
+            }
             className="h-full"
             readOnly={readOnlyEditor}
             disableClipboardActions

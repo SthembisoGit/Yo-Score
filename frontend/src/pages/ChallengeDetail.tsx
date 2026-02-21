@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { ChevronRight, Loader2, AlertCircle, FileText } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
@@ -13,6 +13,7 @@ import { toast } from 'react-hot-toast';
 import ProctoringMonitor from '@/components/proctoring/ProctoringMonitor';
 import { useProctoring } from '@/hooks/useProctoring';
 import { challengeService } from '@/services/challengeService';
+import { CODE_TO_DISPLAY, normalizeLanguageCode } from '@/constants/languages';
 
 interface ViolationEvent {
   type: string;
@@ -35,10 +36,13 @@ export default function ChallengeDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, setPreferredLanguage, availableLanguages } = useAuth();
-  
-  const supportedLanguages = availableLanguages.filter(
-    (lang) => ['JavaScript', 'Python'].includes(lang),
-  );
+  const supportedLanguages = useMemo(() => {
+    const challengeSupportedLanguages = challenge?.supported_languages ?? [];
+    if (challengeSupportedLanguages.length > 0) {
+      return challengeSupportedLanguages.map((language) => CODE_TO_DISPLAY[language]);
+    }
+    return availableLanguages;
+  }, [availableLanguages, challenge?.supported_languages]);
 
   const { challenge, referenceDocs, docsError, refetchDocs, isLoading, error } = useChallengeData(id);
   const [showProctoringModal, setShowProctoringModal] = useState(false);
@@ -76,7 +80,8 @@ export default function ChallengeDetail() {
   const handleLanguageChange = (language: string) => {
     setSelectedLanguage(language);
     if (user) {
-      setPreferredLanguage(language as ProgrammingLanguage);
+      const display = CODE_TO_DISPLAY[normalizeLanguageCode(language)];
+      setPreferredLanguage(display as ProgrammingLanguage);
     }
   };
 

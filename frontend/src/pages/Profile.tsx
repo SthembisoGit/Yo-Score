@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { User, Mail, Save, MapPin, Link2, Github, Linkedin, Globe } from 'lucide-react';
+import { User, Mail, Save, MapPin, Link2, Github, Linkedin, Globe, Upload, X } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { ScoreCard } from '@/components/ScoreCard';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { dashboardService } from '@/services/dashboardService';
 import { challengeService } from '@/services/challengeService';
 import { buildCategoryScoresFromSubmissions, type CategoryScoreView } from '@/lib/categoryScores';
 import { toast } from 'react-hot-toast';
+import { avatarUploadService } from '@/services/avatarUploadService';
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (typeof error === 'object' && error !== null && 'response' in error) {
@@ -40,9 +41,12 @@ export default function Profile() {
   const { user, updateUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [avatarUploadError, setAvatarUploadError] = useState<string | null>(null);
   const [categoryScores, setCategoryScores] = useState<CategoryScoreView[]>([]);
   const [isCategoryScoresLoading, setIsCategoryScoresLoading] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -129,9 +133,49 @@ export default function Profile() {
     }
   };
 
+  const handleAvatarFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextFile = event.target.files?.[0] || null;
+    setAvatarFile(nextFile);
+    setAvatarUploadError(null);
+    if (saveError) {
+      setSaveError(null);
+    }
+  };
+
+  const uploadAvatarFile = async (): Promise<string> => {
+    if (!avatarFile) {
+      return formData.avatar_url;
+    }
+    if (!user?.id) {
+      throw new Error('Unable to upload avatar without a user session.');
+    }
+
+    setIsUploadingAvatar(true);
+    setAvatarUploadError(null);
+    try {
+      const result = await avatarUploadService.uploadAvatar({
+        userId: user.id,
+        file: avatarFile,
+        previousUrl: formData.avatar_url || user.avatar || null,
+      });
+      setFormData((previous) => ({ ...previous, avatar_url: result.publicUrl }));
+      setAvatarFile(null);
+      toast.success('Profile photo uploaded');
+      return result.publicUrl;
+    } catch (error) {
+      const message = getErrorMessage(error, 'Failed to upload profile photo.');
+      setAvatarUploadError(message);
+      throw new Error(message);
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
   const handleCancel = () => {
     setIsEditing(false);
     setSaveError(null);
+    setAvatarUploadError(null);
+    setAvatarFile(null);
     setFormData({
       name: user.name || '',
       email: user.email || '',
@@ -146,10 +190,22 @@ export default function Profile() {
   };
 
   const handleSave = async () => {
+    let avatarUrl = formData.avatar_url.trim() || null;
+
+    if (avatarFile) {
+      try {
+        avatarUrl = (await uploadAvatarFile()).trim() || null;
+      } catch (error) {
+        const message = getErrorMessage(error, 'Failed to upload profile photo.');
+        setSaveError(message);
+        return;
+      }
+    }
+
     const payload = {
       name: formData.name.trim(),
       email: formData.email.trim(),
-      avatar_url: formData.avatar_url.trim() || null,
+      avatar_url: avatarUrl,
       headline: formData.headline.trim() || null,
       bio: formData.bio.trim() || null,
       location: formData.location.trim() || null,
@@ -284,15 +340,68 @@ export default function Profile() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="avatar_url">Profile Photo URL</Label>
-                  <Input
-                    id="avatar_url"
-                    name="avatar_url"
-                    placeholder="https://example.com/avatar.jpg"
-                    value={formData.avatar_url}
-                    onChange={handleInputChange}
-                    disabled={!isEditing || isSaving}
-                  />
+                  <Label htmlFor="avatar_file">Profile Photo</Label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                      id="avatar_file"
+                      name="avatar_file"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      onChange={handleAvatarFileChange}
+                      disabled={!isEditing || isSaving || isUploadingAvatar}
+                      className="max-w-xs"
+                    />
+                    {isEditing && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          if (!avatarFile) return;
+                          void uploadAvatarFile();
+                        }}
+                        disabled={!avatarFile || isSaving || isUploadingAvatar}
+                        className="gap-2"
+                      >
+                        {isUploadingAvatar ? (
+                          <Loader size="sm" className="border-current" />
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4" />
+                            Upload
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    {isEditing && formData.avatar_url && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          setFormData((previous) => ({ ...previous, avatar_url: '' }));
+                          setAvatarFile(null);
+                          setAvatarUploadError(null);
+                        }}
+                        disabled={isSaving || isUploadingAvatar}
+                        className="gap-2"
+                      >
+                        <X className="h-4 w-4" />
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                  {avatarFile && (
+                    <p className="text-xs text-muted-foreground">
+                      Selected: {avatarFile.name} ({Math.ceil(avatarFile.size / 1024)} KB)
+                    </p>
+                  )}
+                  {avatarUploadError && (
+                    <p className="text-sm text-destructive" role="alert">
+                      {avatarUploadError}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    JPG, PNG, WEBP, or GIF up to 2MB.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -390,7 +499,11 @@ export default function Profile() {
                 )}
 
                 {isEditing && (
-                  <Button onClick={handleSave} disabled={isSaving} className="w-full gap-2">
+                  <Button
+                    onClick={handleSave}
+                    disabled={isSaving || isUploadingAvatar}
+                    className="w-full gap-2"
+                  >
                     {isSaving ? (
                       <Loader size="sm" className="border-primary-foreground" />
                     ) : (
