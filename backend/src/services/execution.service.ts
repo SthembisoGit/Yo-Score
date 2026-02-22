@@ -168,6 +168,40 @@ function stringifyOneCompilerException(value: unknown): string {
   return String(value);
 }
 
+function pickString(
+  source: Record<string, unknown>,
+  keys: string[],
+): string {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string') return value;
+  }
+  return '';
+}
+
+function pickNumber(
+  source: Record<string, unknown>,
+  keys: string[],
+): number | null {
+  for (const key of keys) {
+    const value = source[key];
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function pickBoolean(
+  source: Record<string, unknown>,
+  keys: string[],
+): boolean | null {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'boolean') return value;
+  }
+  return null;
+}
+
 async function runWithOneCompilerProvider(input: {
   language: SupportedLanguage;
   code: string;
@@ -215,18 +249,59 @@ async function runWithOneCompilerProvider(input: {
         : undefined,
   });
 
-  const run = response.data ?? {};
-  const status = String(run.status ?? '').toLowerCase();
-  const stdout = String(run.stdout ?? '');
-  const stderr = String(run.stderr ?? '');
+  const raw = response.data;
+  const run: Record<string, unknown> =
+    raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+
+  const status = pickString(run, ['status', 'resultStatus', 'executionStatus'])
+    .toLowerCase()
+    .trim();
+  const stdout = pickString(run, ['stdout', 'output', 'result', 'runOutput']);
+  const stderr = pickString(run, [
+    'stderr',
+    'error',
+    'errors',
+    'compile_output',
+    'compileOutput',
+  ]);
   const exceptionText = stringifyOneCompilerException(run.exception);
   const combinedStderr = [stderr, exceptionText].filter(Boolean).join('\n').trim();
-  const code = status === 'success' && !exceptionText ? 0 : 1;
-  const timedOut =
+  const successFlag = pickBoolean(run, ['success', 'ok']);
+  const explicitExitCode = pickNumber(run, ['exitCode', 'exit_code', 'code', 'statusCode']);
+  const timedOutFromStatus =
     status === 'timeout' ||
-    /tim(e|ed)\s*out|time limit/i.test(combinedStderr);
+    /tim(e|ed)\s*out|time limit/i.test(`${status}\n${combinedStderr}`);
+
+  const hasMeaningfulPayload =
+    status.length > 0 ||
+    stdout.length > 0 ||
+    combinedStderr.length > 0 ||
+    explicitExitCode !== null ||
+    successFlag !== null;
+  if (!hasMeaningfulPayload) {
+    throw new Error('Execution provider returned an empty response payload.');
+  }
+
+  let code = 0;
+  if (explicitExitCode !== null) {
+    code = explicitExitCode;
+  } else if (successFlag === false) {
+    code = 1;
+  } else if (timedOutFromStatus) {
+    code = 1;
+  } else if (combinedStderr.length > 0) {
+    code = 1;
+  } else if (
+    status &&
+    !['success', 'ok', 'completed', 'done', 'passed'].includes(status)
+  ) {
+    code = 1;
+  }
+
+  const timedOut = timedOutFromStatus;
   const runtimeMs = Number(
-    Number.isFinite(Number(run.executionTime)) ? run.executionTime : Date.now() - start,
+    pickNumber(run, ['executionTime', 'execution_time', 'runtimeMs', 'runtime_ms']) ??
+      (Date.now() - start),
   );
 
   const truncated = truncateOutput(stdout, combinedStderr, input.limits.maxOutputBytes);
@@ -237,7 +312,7 @@ async function runWithOneCompilerProvider(input: {
     exit_code: code,
     timed_out: timedOut,
     runtime_ms: runtimeMs,
-    memory_kb: Number(run.memoryKb ?? 0),
+    memory_kb: Number(pickNumber(run, ['memoryKb', 'memory_kb', 'memory']) ?? 0),
     truncated: truncated.truncated,
     provider: 'onecompiler',
     error_class: inferErrorClass({

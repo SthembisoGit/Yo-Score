@@ -39,8 +39,17 @@ export default function ChallengeDetail() {
   const { challenge, referenceDocs, docsError, refetchDocs, isLoading, error } = useChallengeData(id);
   const supportedLanguages = useMemo(() => {
     const challengeSupportedLanguages = challenge?.supported_languages ?? [];
+    const preferredDisplayOrder = ['JavaScript', 'Python', 'Java', 'C++', 'Go', 'C#'];
     if (challengeSupportedLanguages.length > 0) {
-      return challengeSupportedLanguages.map((language) => CODE_TO_DISPLAY[language]);
+      const display = challengeSupportedLanguages.map((language) => CODE_TO_DISPLAY[language]);
+      return display.sort((a, b) => {
+        const ai = preferredDisplayOrder.indexOf(a);
+        const bi = preferredDisplayOrder.indexOf(b);
+        const ao = ai === -1 ? Number.MAX_SAFE_INTEGER : ai;
+        const bo = bi === -1 ? Number.MAX_SAFE_INTEGER : bi;
+        if (ao !== bo) return ao - bo;
+        return a.localeCompare(b);
+      });
     }
     return availableLanguages;
   }, [availableLanguages, challenge?.supported_languages]);
@@ -71,6 +80,8 @@ export default function ChallengeDetail() {
   useEffect(() => {
     if (user?.preferredLanguage && supportedLanguages.includes(user.preferredLanguage)) {
       setSelectedLanguage(user.preferredLanguage);
+    } else if (supportedLanguages.includes('JavaScript')) {
+      setSelectedLanguage('JavaScript');
     } else if (supportedLanguages.length > 0) {
       setSelectedLanguage(supportedLanguages[0]);
     }
