@@ -108,11 +108,12 @@ export class WorkExperienceService {
       experience_id: experience.id,
       company_name: experience.company_name,
       role: experience.role,
-      duration_months: experience.duration_months,
+      duration_months: Number(experience.duration_months ?? 0),
       verified: experience.verified,
       evidence_links: Array.isArray(experience.evidence_links) ? experience.evidence_links : [],
       verification_status: experience.verification_status,
       risk_score: Number(experience.risk_score ?? 0),
+      added_at: experience.added_at,
     };
   }
 
@@ -143,7 +144,7 @@ export class WorkExperienceService {
       experience_id: exp.id,
       company_name: exp.company_name,
       role: exp.role,
-      duration_months: exp.duration_months,
+      duration_months: Number(exp.duration_months ?? 0),
       verified: exp.verified,
       evidence_links: Array.isArray(exp.evidence_links) ? exp.evidence_links : [],
       verification_status: exp.verification_status,
