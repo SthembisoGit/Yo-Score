@@ -381,7 +381,7 @@ export const ChallengeSession = ({
   }, [lastClipboardWarningAt]);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-180px)]">
+    <div className="flex flex-col lg:flex-row gap-6 min-h-[680px] lg:h-[calc(100vh-140px)]">
       <div className="lg:w-1/3 flex flex-col">
         <div className="bg-card border border-border rounded-xl overflow-hidden flex-1 flex flex-col shadow-sm">
           <div className="flex border-b border-border">

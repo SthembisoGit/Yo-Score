@@ -122,9 +122,9 @@ public class Program
 };
 
 const toDisplay = (code: SupportedLanguageCode): string => CODE_TO_DISPLAY[code];
-const DEFAULT_EDITOR_HEIGHT = 420;
-const MIN_EDITOR_HEIGHT = 280;
-const MAX_EDITOR_HEIGHT = 760;
+const DEFAULT_EDITOR_HEIGHT = 560;
+const MIN_EDITOR_HEIGHT = 420;
+const MAX_EDITOR_HEIGHT = 920;
 const EDITOR_HEIGHT_STORAGE_KEY = 'yoscore:editor-height';
 
 export function CodeEditor({
@@ -220,12 +220,16 @@ export function CodeEditor({
         stdin,
       });
 
-      const stdout = String(result.stdout ?? '').trimEnd();
-      const stderr = String(result.stderr ?? '').trimEnd();
+      const stdout = String(result.stdout ?? '');
+      const stderr = String(result.stderr ?? '');
       const sections: string[] = [];
 
       if (stdout.length > 0) {
-        sections.push(stdout);
+        sections.push(stdout.trimEnd());
+      } else if (stdin.trim().length === 0) {
+        sections.push(
+          '(No stdout output. Add input in the stdin box and run again if the program expects input.)',
+        );
       } else {
         sections.push('(Program completed with no stdout output.)');
       }
