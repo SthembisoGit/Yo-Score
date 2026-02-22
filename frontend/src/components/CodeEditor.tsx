@@ -384,6 +384,7 @@ export function CodeEditor({
 
       <div className="bg-editor-background" style={{ height: `${editorHeight}px` }}>
         <Editor
+          height={`${editorHeight}px`}
           language={MONACO_LANGUAGE_IDS[selectedLanguage]}
           value={code}
           onChange={(next) => {
@@ -419,7 +420,7 @@ export function CodeEditor({
         />
       </div>
 
-      <div className="border-t border-border">
+      <div className="border-t border-border h-5">
         <div className="flex items-center justify-between border-b border-border bg-muted/50 px-4 py-2 text-xs font-medium text-muted-foreground">
           <span className="flex items-center gap-2">
             <Terminal className="h-3.5 w-3.5" />
