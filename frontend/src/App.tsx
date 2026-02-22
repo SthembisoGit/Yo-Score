@@ -22,6 +22,7 @@ import HowItWorks from "./pages/HowItWorks";
 import { AdminRoute } from "./components/guards/AdminRoute";
 import ConnectionTest from "./components/ConnectionTest";
 import { SubmissionStatusTracker } from "./components/SubmissionStatusTracker";
+import { DemoCredentialsDialog } from "./components/DemoCredentialsDialog";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <SubmissionStatusTracker />
+            <DemoCredentialsDialog />
             <Routes>
               {/*<Route path="" element={<ConnectionTest />} />*/}
               <Route path="/" element={<Home />} />
