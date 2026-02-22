@@ -85,6 +85,7 @@ class DashboardService {
     const rows = unwrapData<WorkExperience[]>(response);
     if (!Array.isArray(rows)) return [];
     return rows.map((row) => {
+      const record = row as WorkExperience & { id?: unknown; experience_id?: unknown };
       let evidenceLinks: string[] = [];
       const raw = row.evidence_links;
       if (Array.isArray(raw)) {
@@ -101,6 +102,14 @@ class DashboardService {
       }
       return {
         ...row,
+        experience_id: String(record.experience_id ?? record.id ?? ''),
+        duration_months: Number(row.duration_months ?? 0),
+        risk_score: Number(row.risk_score ?? 0),
+        verification_status: row.verification_status ?? 'pending',
+        added_at:
+          typeof row.added_at === 'string' && row.added_at.trim().length > 0
+            ? row.added_at
+            : new Date(0).toISOString(),
         evidence_links: evidenceLinks,
       };
     });
