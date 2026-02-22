@@ -89,7 +89,7 @@ export default function WorkExperience() {
 
     setIsSaving(true);
     try {
-      const created = await dashboardService.addWorkExperience({
+      await dashboardService.addWorkExperience({
         company_name: formData.company_name.trim(),
         role: formData.role.trim(),
         duration_months: durationMonths,
@@ -98,10 +98,7 @@ export default function WorkExperience() {
           .map((link) => link.trim())
           .filter((link) => link.length > 0),
       });
-
-      const updated = [created, ...experiences];
-      setExperiences(updated);
-      updateUser({ workExperienceMonths: calculateTotalMonths(updated) });
+      await loadExperiences();
       setFormData({ company_name: '', role: '', duration_months: '', evidence_links: '' });
       setShowForm(false);
       toast.success('Work experience added');
@@ -271,7 +268,7 @@ export default function WorkExperience() {
                       <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
                         <Calendar className="h-4 w-4" />
                         <span>{experience.duration_months} months</span>
-                        {experience.added_at && (
+                        {experience.added_at && new Date(experience.added_at).getTime() > 0 && (
                           <span>
                             • Added {new Date(experience.added_at).toLocaleDateString()}
                           </span>
