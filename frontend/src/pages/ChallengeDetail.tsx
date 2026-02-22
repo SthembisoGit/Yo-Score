@@ -36,6 +36,7 @@ export default function ChallengeDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, setPreferredLanguage, availableLanguages } = useAuth();
+  const { challenge, referenceDocs, docsError, refetchDocs, isLoading, error } = useChallengeData(id);
   const supportedLanguages = useMemo(() => {
     const challengeSupportedLanguages = challenge?.supported_languages ?? [];
     if (challengeSupportedLanguages.length > 0) {
@@ -43,8 +44,6 @@ export default function ChallengeDetail() {
     }
     return availableLanguages;
   }, [availableLanguages, challenge?.supported_languages]);
-
-  const { challenge, referenceDocs, docsError, refetchDocs, isLoading, error } = useChallengeData(id);
   const [showProctoringModal, setShowProctoringModal] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
