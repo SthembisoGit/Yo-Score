@@ -30,7 +30,7 @@ export interface WorkExperience {
   role: string;
   duration_months: number;
   verified: boolean;
-  evidence_links?: string[];
+  evidence_links?: string[] | unknown;
   verification_status?: 'pending' | 'verified' | 'flagged' | 'rejected';
   risk_score?: number;
   added_at: string;
@@ -82,7 +82,28 @@ class DashboardService {
 
   async getWorkExperience(): Promise<WorkExperience[]> {
     const response = await apiClient.get('/users/me/work-experience');
-    return unwrapData<WorkExperience[]>(response);
+    const rows = unwrapData<WorkExperience[]>(response);
+    if (!Array.isArray(rows)) return [];
+    return rows.map((row) => {
+      let evidenceLinks: string[] = [];
+      const raw = row.evidence_links;
+      if (Array.isArray(raw)) {
+        evidenceLinks = raw.map((link) => String(link ?? '').trim()).filter((link) => link.length > 0);
+      } else if (typeof raw === 'string' && raw.trim().length > 0) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            evidenceLinks = parsed.map((link) => String(link ?? '').trim()).filter((link) => link.length > 0);
+          }
+        } catch {
+          evidenceLinks = [];
+        }
+      }
+      return {
+        ...row,
+        evidence_links: evidenceLinks,
+      };
+    });
   }
 
   async addWorkExperience(input: AddWorkExperienceInput): Promise<WorkExperience> {
