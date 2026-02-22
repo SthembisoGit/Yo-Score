@@ -62,6 +62,18 @@ type GetChallengeOptions = {
 };
 
 export class ChallengeService {
+  private sanitizeDurationMinutes(rawDuration: unknown): number {
+    let duration = Number(rawDuration ?? 45);
+    if (!Number.isFinite(duration) || duration <= 0) {
+      duration = 45;
+    }
+    // Legacy seed data sometimes stored seconds in duration_minutes.
+    if (duration > 300) {
+      duration = Math.round(duration / 60);
+    }
+    return Math.round(Math.min(300, Math.max(5, duration)));
+  }
+
   private isMissingSchemaError(error: unknown): boolean {
     const code = (error as { code?: string })?.code;
     const message = (error as { message?: string })?.message ?? '';
@@ -571,7 +583,7 @@ process.stdout.write(String(solve(input)));`;
       category: String(row.category),
       difficulty: String(row.difficulty),
       target_seniority: (String(row.target_seniority ?? 'junior') as SeniorityBand),
-      duration_minutes: Number(row.duration_minutes ?? 45),
+      duration_minutes: this.sanitizeDurationMinutes(row.duration_minutes),
       publish_status: (row.publish_status as ChallengePublishStatus) ?? 'published',
       supported_languages: supportedLanguages,
       starter_templates: this.buildStarterTemplates(supportedLanguages),
