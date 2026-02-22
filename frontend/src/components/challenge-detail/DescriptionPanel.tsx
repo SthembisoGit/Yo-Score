@@ -17,7 +17,14 @@ interface DescriptionPanelProps {
 
 export const DescriptionPanel = ({ challenge, compact = false }: DescriptionPanelProps) => {
   const defaults = getDurationAndPoints(challenge.difficulty);
-  const duration = Number(challenge.duration_minutes ?? defaults.duration);
+  let duration = Number(challenge.duration_minutes ?? defaults.duration);
+  if (!Number.isFinite(duration) || duration <= 0) {
+    duration = defaults.duration;
+  }
+  if (duration > 300) {
+    duration = Math.round(duration / 60);
+  }
+  duration = Math.round(Math.min(300, Math.max(5, duration)));
   const points = defaults.points;
   const displayDifficulty = difficultyDisplayMap[challenge.difficulty.toLowerCase()] || 'Medium';
   const seniorityLabel = challenge.target_seniority

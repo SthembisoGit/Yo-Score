@@ -42,6 +42,17 @@ interface ChallengeContextType {
 
 const ChallengeContext = createContext<ChallengeContextType | undefined>(undefined);
 
+const sanitizeDurationMinutes = (rawDuration: unknown, fallback: number): number => {
+  let duration = Number(rawDuration ?? fallback);
+  if (!Number.isFinite(duration) || duration <= 0) {
+    duration = fallback;
+  }
+  if (duration > 300) {
+    duration = Math.round(duration / 60);
+  }
+  return Math.round(Math.min(300, Math.max(5, duration)));
+};
+
 // Helper function to map backend challenge to frontend format
 const mapBackendChallenge = (
   backendChallenge: BackendChallenge,
@@ -90,10 +101,11 @@ const mapBackendChallenge = (
   const points = backendChallenge.difficulty === 'easy' ? 100 : 
                  backendChallenge.difficulty === 'medium' ? 150 : 200;
 
-  const duration = Number(backendChallenge.duration_minutes ?? (
+  const duration = sanitizeDurationMinutes(
+    backendChallenge.duration_minutes,
     backendChallenge.difficulty === 'easy' ? 30 :
-    backendChallenge.difficulty === 'medium' ? 45 : 60
-  ));
+    backendChallenge.difficulty === 'medium' ? 45 : 60,
+  );
 
   return {
     id: backendChallenge.challenge_id,
