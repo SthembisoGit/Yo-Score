@@ -254,7 +254,10 @@ export default function WorkExperience() {
           {!isLoading && experiences.length > 0 ? (
             experiences.map((experience) => (
               <div
-                key={experience.experience_id}
+                key={
+                  experience.experience_id ||
+                  `${experience.company_name}-${experience.role}-${experience.added_at || 'unknown'}`
+                }
                 className="bg-card border border-border rounded-lg p-6 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start justify-between gap-4">
@@ -268,6 +271,11 @@ export default function WorkExperience() {
                       <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
                         <Calendar className="h-4 w-4" />
                         <span>{experience.duration_months} months</span>
+                        {experience.added_at && (
+                          <span>
+                            • Added {new Date(experience.added_at).toLocaleDateString()}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
