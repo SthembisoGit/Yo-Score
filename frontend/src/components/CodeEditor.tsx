@@ -122,6 +122,10 @@ public class Program
 };
 
 const toDisplay = (code: SupportedLanguageCode): string => CODE_TO_DISPLAY[code];
+const DEFAULT_EDITOR_HEIGHT = 420;
+const MIN_EDITOR_HEIGHT = 280;
+const MAX_EDITOR_HEIGHT = 760;
+const EDITOR_HEIGHT_STORAGE_KEY = 'yoscore:editor-height';
 
 export function CodeEditor({
   value,
@@ -143,6 +147,13 @@ export function CodeEditor({
   const [stdin, setStdin] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [output, setOutput] = useState<string>('');
+  const [editorHeight, setEditorHeight] = useState<number>(() => {
+    if (typeof window === 'undefined') return DEFAULT_EDITOR_HEIGHT;
+    const raw = window.localStorage.getItem(EDITOR_HEIGHT_STORAGE_KEY);
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return DEFAULT_EDITOR_HEIGHT;
+    return Math.min(MAX_EDITOR_HEIGHT, Math.max(MIN_EDITOR_HEIGHT, parsed));
+  });
   const disposersRef = useRef<Array<() => void>>([]);
 
   useEffect(() => {
@@ -209,14 +220,18 @@ export function CodeEditor({
         stdin,
       });
 
-      const sections = [
-        `exit_code=${result.exit_code} provider=${result.provider} runtime=${result.runtime_ms}ms memory=${result.memory_kb}KB`,
-      ];
-      if (result.stdout) {
-        sections.push(`stdout:\n${result.stdout}`);
+      const stdout = String(result.stdout ?? '').trimEnd();
+      const stderr = String(result.stderr ?? '').trimEnd();
+      const sections: string[] = [];
+
+      if (stdout.length > 0) {
+        sections.push(stdout);
+      } else {
+        sections.push('(Program completed with no stdout output.)');
       }
-      if (result.stderr) {
-        sections.push(`stderr:\n${result.stderr}`);
+
+      if (stderr.length > 0) {
+        sections.push(`stderr:\n${stderr}`);
       }
       if (result.timed_out) {
         sections.push('Execution timed out.');
@@ -224,6 +239,9 @@ export function CodeEditor({
       if (result.truncated) {
         sections.push('Output was truncated to protect performance limits.');
       }
+      sections.push(
+        `[meta] exit_code=${result.exit_code} runtime=${result.runtime_ms}ms memory=${result.memory_kb}KB provider=${result.provider}`,
+      );
 
       setOutput(sections.join('\n\n'));
     } catch (error) {
@@ -244,6 +262,14 @@ export function CodeEditor({
   const handleSubmit = () => {
     if (readOnly) return;
     onSubmit?.(code);
+  };
+
+  const handleEditorHeightChange = (next: number) => {
+    const clamped = Math.min(MAX_EDITOR_HEIGHT, Math.max(MIN_EDITOR_HEIGHT, next));
+    setEditorHeight(clamped);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(EDITOR_HEIGHT_STORAGE_KEY, String(clamped));
+    }
   };
 
   const handleEditorMount: OnMount = (editor, monaco) => {
@@ -320,6 +346,21 @@ export function CodeEditor({
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="hidden items-center gap-2 rounded border border-border bg-background px-2 py-1 text-xs text-muted-foreground md:flex">
+            <span>Editor Height</span>
+            <input
+              type="range"
+              min={MIN_EDITOR_HEIGHT}
+              max={MAX_EDITOR_HEIGHT}
+              step={10}
+              value={editorHeight}
+              onChange={(event) => handleEditorHeightChange(Number(event.target.value))}
+              disabled={readOnly}
+              className="h-3 w-24"
+              aria-label="Editor height"
+            />
+            <span>{editorHeight}px</span>
+          </div>
           <Button variant="ghost" size="sm" onClick={() => void handleRun()} disabled={isRunning || readOnly}>
             {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
             Run
@@ -337,7 +378,7 @@ export function CodeEditor({
         </div>
       </div>
 
-      <div className="h-[420px] bg-editor-background">
+      <div className="bg-editor-background" style={{ height: `${editorHeight}px` }}>
         <Editor
           language={MONACO_LANGUAGE_IDS[selectedLanguage]}
           value={code}

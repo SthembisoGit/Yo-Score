@@ -107,12 +107,12 @@ export const ChallengeSession = ({
 
   const templates: Record<SupportedLanguageCode, string> = useMemo(() => {
     const defaults: Record<SupportedLanguageCode, string> = {
-      javascript: `function solution(input) {\n  // Your code here\n  return input;\n}\n\nconsole.log(solution("test"));`,
-      python: `def solution(input_data):\n    # Your code here\n    return input_data\n\nprint(solution("test"))`,
-      java: `import java.io.*;\n\npublic class Main {\n    static String solution(String input) {\n        // Your code here\n        return input.trim();\n    }\n\n    public static void main(String[] args) throws Exception {\n        String input = new String(System.in.readAllBytes());\n        System.out.print(solution(input));\n    }\n}`,
-      cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nstring solution(const string& input) {\n    // Your code here\n    return input;\n}\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    string input((istreambuf_iterator<char>(cin)), istreambuf_iterator<char>());\n    cout << solution(input);\n    return 0;\n}`,
-      go: `package main\n\nimport (\n    "fmt"\n    "io"\n    "os"\n)\n\nfunc solution(input string) string {\n    // Your code here\n    return input\n}\n\nfunc main() {\n    data, _ := io.ReadAll(os.Stdin)\n    fmt.Print(solution(string(data)))\n}`,
-      csharp: `using System;\nusing System.IO;\n\npublic class Program\n{\n    static string Solution(string input)\n    {\n        // Your code here\n        return input.Trim();\n    }\n\n    public static void Main()\n    {\n        string input = Console.In.ReadToEnd();\n        Console.Write(Solution(input));\n    }\n}`,
+      javascript: `function solve(input) {\n  // parse input and return output\n  return input.trim();\n}\n\nconst fs = require('fs');\nconst input = fs.readFileSync(0, 'utf8');\nprocess.stdout.write(String(solve(input)));`,
+      python: `def solve(input_data):\n    # parse input and return output\n    return input_data.strip()\n\nif __name__ == "__main__":\n    import sys\n    data = sys.stdin.read()\n    print(solve(data))`,
+      java: `import java.io.*;\n\npublic class Main {\n    static String solve(String input) {\n        // parse input and return output\n        return input.trim();\n    }\n\n    public static void main(String[] args) throws Exception {\n        String input = new String(System.in.readAllBytes());\n        System.out.print(solve(input));\n    }\n}`,
+      cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nstring solve(const string& input) {\n    // parse input and return output\n    return input;\n}\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    string input((istreambuf_iterator<char>(cin)), istreambuf_iterator<char>());\n    cout << solve(input);\n    return 0;\n}`,
+      go: `package main\n\nimport (\n    "fmt"\n    "io"\n    "os"\n)\n\nfunc solve(input string) string {\n    // parse input and return output\n    return input\n}\n\nfunc main() {\n    data, _ := io.ReadAll(os.Stdin)\n    fmt.Print(solve(string(data)))\n}`,
+      csharp: `using System;\nusing System.IO;\n\npublic class Program\n{\n    static string Solve(string input)\n    {\n        // parse input and return output\n        return input.Trim();\n    }\n\n    public static void Main()\n    {\n        string input = Console.In.ReadToEnd();\n        Console.Write(Solve(input));\n    }\n}`,
     };
 
     if (!challenge.starter_templates) return defaults;

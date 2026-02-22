@@ -32,6 +32,15 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function normalizeForComparison(value: string): string {
+  return String(value ?? '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+$/g, ''))
+    .join('\n')
+    .trim();
+}
+
 function computeStyleScore(language: SupportedLanguage, code: string): number {
   const trimmed = code.trim();
   if (!trimmed.length) return 0;
@@ -165,7 +174,7 @@ export class JudgeService {
         runtimeMsTotal += Number(run.runtime_ms ?? 0);
         memoryMbMax = Math.max(memoryMbMax, Math.ceil(Number(run.memory_kb ?? 0) / 1024));
 
-        const output = String(run.stdout ?? '').trim();
+        const output = normalizeForComparison(String(run.stdout ?? ''));
         if (run.timed_out) {
           detailedTests.push({
             testCaseId: test.id,
@@ -190,7 +199,8 @@ export class JudgeService {
           continue;
         }
 
-        const passed = output === String(test.expected_output ?? '').trim();
+        const expectedOutput = normalizeForComparison(String(test.expected_output ?? ''));
+        const passed = output === expectedOutput;
         detailedTests.push({
           testCaseId: test.id,
           status: passed ? 'passed' : 'failed',
