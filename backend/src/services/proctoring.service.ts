@@ -473,7 +473,15 @@ export class ProctoringService {
        WHERE id = $1`,
       [challengeId],
     );
-    const durationMinutes = Number(challengeResult.rows[0]?.duration_minutes ?? 45);
+    let durationMinutes = Number(challengeResult.rows[0]?.duration_minutes ?? 45);
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+      durationMinutes = 45;
+    }
+    // Guard against legacy data accidentally stored in seconds.
+    if (durationMinutes > 300) {
+      durationMinutes = Math.round(durationMinutes / 60);
+    }
+    durationMinutes = Math.min(300, Math.max(5, durationMinutes));
     const durationSeconds = Math.max(300, durationMinutes * 60);
     const deadlineAt = new Date(Date.now() + durationSeconds * 1000);
 
@@ -2071,21 +2079,52 @@ export class ProctoringService {
     try {
       const response = await axios.get(`${this.mlServiceUrl}/health`, { timeout: 5000 });
       const payload = response.data ?? {};
+      const payloadFlags =
+        payload && typeof payload.flags === 'object' && payload.flags !== null
+          ? (payload.flags as Record<string, unknown>)
+          : {};
+      const enableFaceDetector = payloadFlags.enable_face_detector !== false;
+      const enableAudioAnalyzer = payloadFlags.enable_audio_analyzer === true;
+      const enableObjectDetector = payloadFlags.enable_object_detector === true;
+      const payloadCapabilities =
+        payload && typeof payload.capabilities === 'object' && payload.capabilities !== null
+          ? (payload.capabilities as Record<string, unknown>)
+          : {};
+      const payloadDetectors =
+        payload && typeof payload.detectors === 'object' && payload.detectors !== null
+          ? (payload.detectors as Record<string, unknown>)
+          : {};
       health.mlService = true;
-      health.capabilities.face_live = Boolean(payload?.detectors?.face);
-      health.capabilities.audio_live = Boolean(payload?.detectors?.audio);
-      health.capabilities.deep_review_available = true;
+      health.capabilities.face_live = Boolean(payloadCapabilities.face_live ?? payloadDetectors.face);
+      health.capabilities.audio_live = Boolean(payloadCapabilities.audio_live ?? payloadDetectors.audio);
+      health.capabilities.deep_review_available = Boolean(
+        payloadCapabilities.deep_review_available ?? health.capabilities.deep_review_available,
+      );
 
       const degraded = Array.isArray(payload?.degraded_reasons)
-        ? payload.degraded_reasons.filter((reason: unknown) => typeof reason === 'string')
+        ? payload.degraded_reasons.filter((reason: unknown) => {
+            if (typeof reason !== 'string') {
+              return false;
+            }
+            if (reason === 'face_detector_unavailable' && !enableFaceDetector) {
+              return false;
+            }
+            if (reason === 'audio_detector_unavailable' && !enableAudioAnalyzer) {
+              return false;
+            }
+            if (reason === 'object_detector_unavailable' && !enableObjectDetector) {
+              return false;
+            }
+            return true;
+          })
         : [];
       if (degraded.length > 0) {
         health.degraded_reasons.push(...degraded);
       }
-      if (!health.capabilities.face_live) {
+      if (enableFaceDetector && !health.capabilities.face_live) {
         health.degraded_reasons.push('face_detector_unavailable');
       }
-      if (!health.capabilities.audio_live) {
+      if (enableAudioAnalyzer && !health.capabilities.audio_live) {
         health.degraded_reasons.push('audio_detector_unavailable');
       }
     } catch (error) {

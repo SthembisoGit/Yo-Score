@@ -315,7 +315,7 @@ async def health_check():
     object_live = bool(object_detector and object_detector.is_ready())
     degraded_reasons = []
 
-    if not face_live:
+    if ENABLE_FACE_DETECTOR and not face_live:
         degraded_reasons.append("face_detector_unavailable")
     if ENABLE_AUDIO_ANALYZER and not audio_live:
         degraded_reasons.append("audio_detector_unavailable")
