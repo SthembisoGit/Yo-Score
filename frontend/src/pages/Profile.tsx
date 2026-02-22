@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { User, Mail, Save, MapPin, Link2, Github, Linkedin, Globe, Upload, X } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { ScoreCard } from '@/components/ScoreCard';
@@ -47,6 +47,7 @@ export default function Profile() {
   const [categoryScores, setCategoryScores] = useState<CategoryScoreView[]>([]);
   const [isCategoryScoresLoading, setIsCategoryScoresLoading] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -140,6 +141,11 @@ export default function Profile() {
     if (saveError) {
       setSaveError(null);
     }
+  };
+
+  const handleAvatarClick = () => {
+    if (!isEditing || isSaving || isUploadingAvatar) return;
+    avatarInputRef.current?.click();
   };
 
   const uploadAvatarFile = async (): Promise<string> => {
@@ -286,21 +292,32 @@ export default function Profile() {
               </div>
 
               <div className="flex items-center gap-4 mb-6">
-                {formData.avatar_url ? (
-                  <img
-                    src={formData.avatar_url}
-                    alt="Profile avatar"
-                    className="h-16 w-16 rounded-full object-cover border border-border"
-                    onError={(event) => {
-                      (event.currentTarget as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                ) : null}
-                {!formData.avatar_url && (
-                  <div className="h-16 w-16 rounded-full bg-primary/10 border border-border flex items-center justify-center font-semibold">
-                    {initials}
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={handleAvatarClick}
+                  className="group relative"
+                  aria-label={isEditing ? 'Upload profile photo' : 'Profile photo'}
+                >
+                  {formData.avatar_url ? (
+                    <img
+                      src={formData.avatar_url}
+                      alt="Profile avatar"
+                      className="h-16 w-16 rounded-full object-cover border border-border"
+                      onError={(event) => {
+                        (event.currentTarget as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="h-16 w-16 rounded-full bg-primary/10 border border-border flex items-center justify-center font-semibold">
+                      {initials}
+                    </div>
+                  )}
+                  {isEditing && (
+                    <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[11px] text-muted-foreground">
+                      Click to upload
+                    </span>
+                  )}
+                </button>
                 <div className="text-sm text-muted-foreground">
                   <p className="font-medium text-foreground">{user.name}</p>
                   <p>{user.role}</p>
@@ -341,16 +358,17 @@ export default function Profile() {
 
                 <div className="space-y-2">
                   <Label htmlFor="avatar_file">Profile Photo</Label>
+                  <Input
+                    id="avatar_file"
+                    name="avatar_file"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={handleAvatarFileChange}
+                    disabled={!isEditing || isSaving || isUploadingAvatar}
+                    className="sr-only"
+                    ref={avatarInputRef}
+                  />
                   <div className="flex flex-wrap items-center gap-2">
-                    <Input
-                      id="avatar_file"
-                      name="avatar_file"
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/gif"
-                      onChange={handleAvatarFileChange}
-                      disabled={!isEditing || isSaving || isUploadingAvatar}
-                      className="max-w-xs"
-                    />
                     {isEditing && (
                       <Button
                         type="button"
@@ -367,7 +385,7 @@ export default function Profile() {
                         ) : (
                           <>
                             <Upload className="h-4 w-4" />
-                            Upload
+                            Upload Selected Photo
                           </>
                         )}
                       </Button>
