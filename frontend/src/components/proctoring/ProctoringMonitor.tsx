@@ -1102,6 +1102,16 @@ const ProctoringMonitor: React.FC<Props> = ({
   useEffect(() => {
     let cancelled = false;
     let retryTimer: NodeJS.Timeout | null = null;
+    let periodicTimer: NodeJS.Timeout | null = null;
+
+    const scheduleRetry = () => {
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
+      retryTimer = setTimeout(() => {
+        void runHealthCheck(true);
+      }, 6000);
+    };
 
     const runHealthCheck = async (isRetry: boolean) => {
       try {
@@ -1116,9 +1126,7 @@ const ProctoringMonitor: React.FC<Props> = ({
 
         if (health.degraded && !isAudioOnlyDegraded) {
           if (!isRetry) {
-            retryTimer = setTimeout(() => {
-              void runHealthCheck(true);
-            }, 6000);
+            scheduleRetry();
             return;
           }
           setMlDegraded(true);
@@ -1135,9 +1143,7 @@ const ProctoringMonitor: React.FC<Props> = ({
       } catch {
         if (cancelled) return;
         if (!isRetry) {
-          retryTimer = setTimeout(() => {
-            void runHealthCheck(true);
-          }, 6000);
+          scheduleRetry();
           return;
         }
         setMlDegraded(true);
@@ -1151,10 +1157,14 @@ const ProctoringMonitor: React.FC<Props> = ({
     };
 
     void runHealthCheck(false);
+    periodicTimer = setInterval(() => {
+      void runHealthCheck(false);
+    }, 45000);
 
     return () => {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
+      if (periodicTimer) clearInterval(periodicTimer);
     };
   }, [addAlert]);
 
