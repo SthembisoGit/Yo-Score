@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { ChevronRight, Loader2, AlertCircle, FileText } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
@@ -64,6 +64,7 @@ export default function ChallengeDetail() {
   const [isStartingProctoring, setIsStartingProctoring] = useState(false);
   const [isSessionPaused, setIsSessionPaused] = useState(false);
   const [pauseReason, setPauseReason] = useState('');
+  const lastChallengeIdRef = useRef<string | undefined>(id);
 
   const { startSession } = useProctoring();
   const locationState = location.state as
@@ -168,6 +169,28 @@ export default function ChallengeDetail() {
     setIsSessionPaused(state.isPaused);
     setPauseReason(state.reason);
   };
+
+  useEffect(() => {
+    if (lastChallengeIdRef.current === id) {
+      return;
+    }
+
+    const previousSessionId = sessionId;
+    if (previousSessionId && sessionStarted) {
+      void proctoringService.endSession(previousSessionId);
+    }
+
+    setShowProctoringModal(false);
+    setSessionStarted(false);
+    setSessionId(null);
+    setDeadlineAt(null);
+    setDurationSeconds(0);
+    setViolations([]);
+    setViolationCount(0);
+    setIsSessionPaused(false);
+    setPauseReason('');
+    lastChallengeIdRef.current = id;
+  }, [id, sessionId, sessionStarted]);
 
   // Loading state
   if (isLoading) {

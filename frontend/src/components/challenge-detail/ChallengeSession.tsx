@@ -66,6 +66,18 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
+const sanitizeDurationSeconds = (rawSeconds: number | undefined, fallbackMinutes: number): number => {
+  const fallbackSeconds = Math.max(300, Math.round(fallbackMinutes * 60));
+  if (!Number.isFinite(rawSeconds) || (rawSeconds ?? 0) <= 0) {
+    return fallbackSeconds;
+  }
+  let value = Number(rawSeconds);
+  if (value > 300 * 60) {
+    value = Math.round(value / 60);
+  }
+  return Math.min(300 * 60, Math.max(300, Math.round(value)));
+};
+
 export const ChallengeSession = ({
   challenge,
   referenceDocs,
@@ -121,6 +133,15 @@ export const ChallengeSession = ({
       ...challenge.starter_templates,
     };
   }, [challenge.starter_templates]);
+
+  const challengeDurationSeconds = useMemo(() => {
+    const fallbackMinutes =
+      challenge.difficulty === 'easy' ? 30 : challenge.difficulty === 'hard' ? 60 : 45;
+    return sanitizeDurationSeconds(
+      durationSeconds,
+      Number(challenge.duration_minutes ?? fallbackMinutes),
+    );
+  }, [challenge.difficulty, challenge.duration_minutes, durationSeconds]);
 
   const canRequestHint = coachHints.length < 3 && Boolean(sessionId) && !isSessionEnded;
   const readOnlyEditor = isSubmitting || isSessionEnded || isSessionPaused || timeExpired;
@@ -324,10 +345,10 @@ export const ChallengeSession = ({
   }, []);
 
   useEffect(() => {
-    if (durationSeconds > 0 && !deadlineAt) {
-      setRemainingSeconds(durationSeconds);
+    if (!deadlineAt) {
+      setRemainingSeconds(challengeDurationSeconds);
     }
-  }, [deadlineAt, durationSeconds]);
+  }, [challengeDurationSeconds, deadlineAt]);
 
   useEffect(() => {
     if (!deadlineAt || isSessionEnded) return;
@@ -335,7 +356,8 @@ export const ChallengeSession = ({
     const updateRemaining = () => {
       const endMs = new Date(deadlineAt).getTime();
       const now = Date.now();
-      const nextRemaining = Math.max(0, Math.floor((endMs - now) / 1000));
+      const fromDeadline = Math.max(0, Math.floor((endMs - now) / 1000));
+      const nextRemaining = Math.min(fromDeadline, challengeDurationSeconds);
       setRemainingSeconds(nextRemaining);
 
       if (nextRemaining <= 0 && !expiryHandledRef.current) {
