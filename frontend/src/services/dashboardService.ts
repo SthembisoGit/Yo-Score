@@ -82,9 +82,27 @@ class DashboardService {
 
   async getWorkExperience(): Promise<WorkExperience[]> {
     const response = await apiClient.get('/users/me/work-experience');
-    const rows = unwrapData<WorkExperience[]>(response);
-    if (!Array.isArray(rows)) return [];
-    return rows.map((row) => {
+    const unwrapped = unwrapData<unknown>(response);
+
+    const rows = (() => {
+      if (Array.isArray(unwrapped)) return unwrapped;
+      if (unwrapped && typeof unwrapped === 'object') {
+        const candidate = unwrapped as {
+          rows?: unknown;
+          experiences?: unknown;
+          work_experience?: unknown;
+          workExperiences?: unknown;
+        };
+        if (Array.isArray(candidate.rows)) return candidate.rows;
+        if (Array.isArray(candidate.experiences)) return candidate.experiences;
+        if (Array.isArray(candidate.work_experience)) return candidate.work_experience;
+        if (Array.isArray(candidate.workExperiences)) return candidate.workExperiences;
+      }
+      return [];
+    })();
+
+    return rows.map((rawRow) => {
+      const row = rawRow as WorkExperience;
       const record = row as WorkExperience & { id?: unknown; experience_id?: unknown };
       let evidenceLinks: string[] = [];
       const raw = row.evidence_links;
@@ -113,10 +131,11 @@ class DashboardService {
             : null;
       const parsedAddedAt =
         rawAddedAt && !Number.isNaN(new Date(rawAddedAt).getTime()) ? rawAddedAt : null;
+      const experienceId = String(record.experience_id ?? record.id ?? '').trim();
 
       return {
         ...row,
-        experience_id: String(record.experience_id ?? record.id ?? ''),
+        experience_id: experienceId || `${row.company_name ?? 'unknown'}-${row.role ?? 'unknown'}-${parsedAddedAt ?? 'unknown'}`,
         duration_months: Number(row.duration_months ?? 0),
         risk_score: Number(row.risk_score ?? 0),
         verification_status: row.verification_status ?? 'pending',
