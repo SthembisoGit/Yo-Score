@@ -38,6 +38,7 @@ const getErrorMessage = (error: unknown, fallback: string) => {
 
 export default function WorkExperience() {
   const { user, updateUser } = useAuth();
+  const userId = user?.id ?? null;
   const [experiences, setExperiences] = useState<WorkExperienceRecord[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,7 +53,7 @@ export default function WorkExperience() {
   });
 
   const loadExperiences = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setIsLoading(false);
       return;
     }
@@ -76,7 +77,7 @@ export default function WorkExperience() {
     } finally {
       setIsLoading(false);
     }
-  }, [updateUser, user]);
+  }, [updateUser, userId]);
 
   useEffect(() => {
     void loadExperiences();
