@@ -13,6 +13,49 @@
 - [x] Submission results include deterministic practice guidance from run and proctoring evidence.
 - [x] Full release gate (backend + frontend + e2e + manual acceptance sweep) re-run after final doc sync.
 
+## Latest Update (Content + UX Expansion, 2026-02-24)
+
+### Challenge content pack (50 challenges) completed
+- Added generated source-of-truth pack: `backend/scripts/challenge-pack.v2.json`.
+- Added pack builder script: `backend/scripts/build_pack_v2.js`.
+- Added idempotent pack seeder: `backend/scripts/seed_challenge_pack_v2.js`.
+- Updated seed entrypoint compatibility: `backend/scripts/seed-easy-challenges.js` now builds + seeds v2 pack.
+- Distribution lock achieved:
+  - Categories: Frontend(6), Backend(6), Security(6), DevOps(6), Cloud Engineering(6), Data Science(5), Mobile Development(5), QA Testing(5), IT Support(5).
+  - Seniority: Graduate(12), Junior(13), Mid(13), Senior(12).
+  - Difficulty: Easy(18), Medium(22), Hard(10).
+  - AI-fix ratio: 30/50 (60%).
+- Readiness verifier strengthened (`backend/scripts/verify-challenge-readiness.js`):
+  - minimum hidden tests per published challenge,
+  - minimum total test points,
+  - full six-language baseline coverage.
+
+### UX hardening completed (non-breaking)
+- Challenge Results:
+  - removed retry CTA,
+  - clearer score interpretation layout,
+  - first-use interpretation helper.
+- Proctoring:
+  - degraded message now explicitly states core checks continue and improvement is in progress.
+- Challenges page:
+  - added grid/list toggle,
+  - added pagination (12 per page),
+  - URL-safe state for page/view.
+- Profile:
+  - photo update is image-picker-first via clickable avatar,
+  - removed separate upload workflow clutter,
+  - first-use helper text for photo flow.
+- Added contextual first-use guidance on challenge start flow.
+- Navbar logout now awaits async cleanup before redirect.
+
+### Validation results (this pass)
+- Backend: `npm run build` passes.
+- Backend: `npm run test:api` passes.
+- Backend: `npm run test:judge-smoke` passes.
+- Frontend: `npx tsc --noEmit` passes.
+- Frontend: `npm run lint` passes.
+- Frontend: `npm run test` and `npm run build` blocked locally by existing SWC native binding issue (`@swc/core`), not by code-level lint/type failures.
+
 ## Latest Update (MVP Language Expansion Continuation, 2026-02-21)
 
 ### Execution and judging alignment
