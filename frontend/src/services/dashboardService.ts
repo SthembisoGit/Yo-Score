@@ -80,8 +80,9 @@ class DashboardService {
     return unwrapData<UserProfile>(response);
   }
 
-  async getWorkExperience(): Promise<WorkExperience[]> {
-    const response = await apiClient.get('/users/me/work-experience');
+  async getWorkExperience(options?: { timeoutMs?: number }): Promise<WorkExperience[]> {
+    const timeoutMs = Number(options?.timeoutMs ?? 10_000);
+    const response = await apiClient.get('/users/me/work-experience', { timeout: timeoutMs });
     const unwrapped = unwrapData<unknown>(response);
 
     const extractRows = (value: unknown, depth = 0): unknown[] => {
