@@ -589,7 +589,7 @@ export class ProctoringService {
     await this.ensureSessionSchemaExtensions();
 
     const sessionResult = await query(
-      `SELECT status, paused_at
+      `SELECT status, paused_at, liveness_required
        FROM proctoring_sessions
        WHERE id = $1 AND user_id = $2`,
       [sessionId, userId],
@@ -669,14 +669,12 @@ export class ProctoringService {
 
     const missingRequiredDevice =
       payload.cameraReady === false ||
-      payload.microphoneReady === false ||
-      payload.audioReady === false;
+      payload.microphoneReady === false;
 
     if (missingRequiredDevice) {
       const reasonParts: string[] = [];
       if (!payload.cameraReady) reasonParts.push('camera');
       if (!payload.microphoneReady) reasonParts.push('microphone');
-      if (!payload.audioReady) reasonParts.push('audio');
       const reason = `Required proctoring device unavailable: ${reasonParts.join(', ')}`;
       const paused = await this.pauseSession(sessionId, userId, reason);
       return {

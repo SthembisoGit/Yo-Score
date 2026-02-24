@@ -34,6 +34,13 @@ interface PauseStatePayload {
   missingDevices: MissingDevices;
 }
 
+interface LivenessChallengeState {
+  challengeId: string;
+  prompt: string;
+  expiresAt: string;
+  expectedAction: 'turn_left' | 'turn_right' | 'look_up' | 'look_down' | 'blink_once';
+}
+
 type NativeFaceDetection = { boundingBox?: DOMRectReadOnly };
 type NativeFaceDetectorConstructor = new (options: {
   fastMode?: boolean;
@@ -94,6 +101,10 @@ const ProctoringMonitor: React.FC<Props> = ({
   const pauseTransitionVersionRef = useRef(0);
   const lastPauseSourceRef = useRef<PauseSource | null>(null);
   const missingDevicesRef = useRef<MissingDevices>(EMPTY_MISSING);
+  const livenessChallengeRef = useRef<LivenessChallengeState | null>(null);
+  const livenessRequiredRef = useRef(false);
+  const livenessIssueInFlightRef = useRef(false);
+  const lastLivenessIssuedAtRef = useRef(0);
   const deviceMissingStreakRef = useRef(0);
   const deviceReadyStreakRef = useRef(0);
   const cameraReadyRef = useRef(false);
@@ -134,12 +145,8 @@ const ProctoringMonitor: React.FC<Props> = ({
   );
   const [mlDegraded, setMlDegraded] = useState(false);
   const [riskState, setRiskState] = useState<'observe' | 'warn' | 'elevated' | 'paused'>('observe');
-  const [livenessChallenge, setLivenessChallenge] = useState<{
-    challengeId: string;
-    prompt: string;
-    expiresAt: string;
-    expectedAction: 'turn_left' | 'turn_right' | 'look_up' | 'look_down' | 'blink_once';
-  } | null>(null);
+  const [livenessChallenge, setLivenessChallenge] = useState<LivenessChallengeState | null>(null);
+  const [isLivenessRequired, setIsLivenessRequired] = useState(false);
   const [livenessAction, setLivenessAction] = useState<'turn_left' | 'turn_right' | 'look_up' | 'look_down' | 'blink_once'>('turn_left');
   const [isVerifyingLiveness, setIsVerifyingLiveness] = useState(false);
   const [position, setPosition] = useState({ x: window.innerWidth - 340, y: 20 });
@@ -181,6 +188,14 @@ const ProctoringMonitor: React.FC<Props> = ({
   useEffect(() => {
     mlDegradedRef.current = mlDegraded;
   }, [mlDegraded]);
+
+  useEffect(() => {
+    livenessChallengeRef.current = livenessChallenge;
+  }, [livenessChallenge]);
+
+  useEffect(() => {
+    livenessRequiredRef.current = isLivenessRequired;
+  }, [isLivenessRequired]);
 
   useEffect(() => {
     if (isMinimized) return;
@@ -469,6 +484,11 @@ const ProctoringMonitor: React.FC<Props> = ({
       if (!response) return;
 
       setRiskState(response.risk_state);
+      const livenessRequiredNow = Boolean(response.liveness_required);
+      setIsLivenessRequired(livenessRequiredNow);
+      if (!livenessRequiredNow && livenessChallengeRef.current) {
+        setLivenessChallenge(null);
+      }
       if (
         response.pause_recommended &&
         response.risk_state === 'paused'
@@ -483,25 +503,42 @@ const ProctoringMonitor: React.FC<Props> = ({
           missing: missingDevicesRef.current,
           source: 'risk',
         });
-        if (response.liveness_required) {
-          const issued = await proctoringService.livenessCheck(sessionId).catch(() => null);
-          if (issued?.challenge_id && issued.prompt && issued.expires_at) {
-            const action = issued.expected_action || 'turn_left';
-            setLivenessAction(action);
-            setLivenessChallenge({
-              challengeId: issued.challenge_id,
-              prompt: issued.prompt,
-              expiresAt: issued.expires_at,
-              expectedAction: action,
-            });
-          }
-        }
       }
     } catch (error) {
       console.error('Failed to flush proctoring event buffer:', error);
       eventBufferRef.current = [...payload, ...eventBufferRef.current].slice(-MAX_EVENT_BUFFER);
     }
   }, [applyPauseState, sessionId]);
+
+  const issueLivenessChallenge = useCallback(
+    async (force: boolean = false) => {
+      if (!force && livenessChallengeRef.current) return;
+      if (livenessIssueInFlightRef.current) return;
+
+      const now = Date.now();
+      if (!force && now - lastLivenessIssuedAtRef.current < 5000) return;
+      lastLivenessIssuedAtRef.current = now;
+      livenessIssueInFlightRef.current = true;
+
+      try {
+        const issued = await proctoringService.livenessCheck(sessionId).catch(() => null);
+        if (issued?.challenge_id && issued.prompt && issued.expires_at) {
+          const action = issued.expected_action || 'turn_left';
+          setLivenessAction(action);
+          setLivenessChallenge({
+            challengeId: issued.challenge_id,
+            prompt: issued.prompt,
+            expiresAt: issued.expires_at,
+            expectedAction: action,
+          });
+          setIsLivenessRequired(true);
+        }
+      } finally {
+        livenessIssueInFlightRef.current = false;
+      }
+    },
+    [sessionId],
+  );
 
   const checkAudioSupport = useCallback(async () => {
     const audioContextClass =
@@ -966,9 +1003,7 @@ const ProctoringMonitor: React.FC<Props> = ({
 
     const missing = buildMissingDevices(cameraOn, micOn, audioOn);
     const hasBlockingMissing = missing.camera || missing.microphone;
-    const blockedByRiskPause =
-      (typeof pauseReason === 'string' && pauseReason.startsWith('Consensus risk pause:')) ||
-      Boolean(livenessChallenge);
+    const blockedByRiskPause = livenessRequiredRef.current || Boolean(livenessChallengeRef.current);
 
     if (hasBlockingMissing) {
       deviceMissingStreakRef.current += 1;
@@ -1061,7 +1096,7 @@ const ProctoringMonitor: React.FC<Props> = ({
       missing,
       source: 'device',
     });
-  }, [addAlert, applyPauseState, buildMissingDevices, livenessChallenge, pauseReason, queueEvent, triggerViolation]);
+  }, [addAlert, applyPauseState, buildMissingDevices, queueEvent, triggerViolation]);
 
   const applyFaceSignal = useCallback(
     (result: FaceMonitorResult, source: 'browser' | 'ml') => {
@@ -1198,6 +1233,14 @@ const ProctoringMonitor: React.FC<Props> = ({
           source: 'server',
           syncWithBackend: false,
         });
+      } else if (status.status === 'active' && pausedRef.current) {
+        commitPauseState(false, '', EMPTY_MISSING, 'server');
+      }
+      if (status.status === 'active') {
+        setIsLivenessRequired(false);
+        if (!livenessChallengeRef.current) {
+          lastRiskPauseReasonRef.current = '';
+        }
       }
       connectionIssueAlertShownRef.current = false;
     } catch (error) {
@@ -1210,12 +1253,17 @@ const ProctoringMonitor: React.FC<Props> = ({
         );
       }
     }
-  }, [addAlert, applyPauseState, buildMissingDevices, sessionId]);
+  }, [addAlert, applyPauseState, buildMissingDevices, commitPauseState, sessionId]);
 
   const pollRiskState = useCallback(async () => {
     try {
       const risk = await proctoringService.getSessionRisk(sessionId);
       setRiskState(risk.risk_state);
+      const livenessRequiredNow = Boolean(risk.liveness_required);
+      setIsLivenessRequired(livenessRequiredNow);
+      if (!livenessRequiredNow && livenessChallengeRef.current) {
+        setLivenessChallenge(null);
+      }
 
       if (risk.risk_state === 'paused' && risk.pause_recommended) {
         const reasonDetail = risk.reasons?.[0] || 'session paused by consensus proctoring policy';
@@ -1229,18 +1277,8 @@ const ProctoringMonitor: React.FC<Props> = ({
         });
       }
 
-      if (risk.liveness_required && !livenessChallenge) {
-        const issued = await proctoringService.livenessCheck(sessionId).catch(() => null);
-        if (issued?.challenge_id && issued.prompt && issued.expires_at) {
-          const action = issued.expected_action || 'turn_left';
-          setLivenessAction(action);
-          setLivenessChallenge({
-            challengeId: issued.challenge_id,
-            prompt: issued.prompt,
-            expiresAt: issued.expires_at,
-            expectedAction: action,
-          });
-        }
+      if (livenessRequiredNow) {
+        await issueLivenessChallenge(false);
       }
     } catch (error) {
       console.error('Failed to poll session risk:', error);
@@ -1252,7 +1290,7 @@ const ProctoringMonitor: React.FC<Props> = ({
         );
       }
     }
-  }, [addAlert, applyPauseState, livenessChallenge, sessionId]);
+  }, [addAlert, applyPauseState, issueLivenessChallenge, sessionId]);
 
   const startProctoring = useCallback(async () => {
     await restartStream();
@@ -1434,22 +1472,12 @@ const ProctoringMonitor: React.FC<Props> = ({
 
   const requestLivenessChallenge = useCallback(async () => {
     try {
-      const issued = await proctoringService.livenessCheck(sessionId);
-      if (issued.challenge_id && issued.prompt && issued.expires_at) {
-        const action = issued.expected_action || 'turn_left';
-        setLivenessAction(action);
-        setLivenessChallenge({
-          challengeId: issued.challenge_id,
-          prompt: issued.prompt,
-          expiresAt: issued.expires_at,
-          expectedAction: action,
-        });
-      }
+      await issueLivenessChallenge(true);
     } catch (error) {
       console.error('Failed to request liveness challenge:', error);
       addAlert('Unable to start liveness challenge. Try again.', 'medium');
     }
-  }, [addAlert, sessionId]);
+  }, [addAlert, issueLivenessChallenge]);
 
   const verifyLiveness = useCallback(async () => {
     if (!livenessChallenge) return;
@@ -1460,6 +1488,7 @@ const ProctoringMonitor: React.FC<Props> = ({
       });
       if (result.verified) {
         setLivenessChallenge(null);
+        setIsLivenessRequired(Boolean(result.liveness_required));
         setRiskState(result.risk_state || 'observe');
         const currentMissing = buildMissingDevices(
           cameraReadyRef.current,
@@ -1477,6 +1506,7 @@ const ProctoringMonitor: React.FC<Props> = ({
         }
         toast.success('Liveness verified. You can resume the session.');
       } else {
+        setIsLivenessRequired(true);
         addAlert(result.message || 'Liveness check failed.', 'medium');
       }
     } catch (error) {
@@ -1516,9 +1546,7 @@ const ProctoringMonitor: React.FC<Props> = ({
     };
   }, [handleDrag, handleDragEnd, isDragging]);
 
-  const requiresLiveness =
-    Boolean(livenessChallenge) ||
-    (typeof pauseReason === 'string' && pauseReason.startsWith('Consensus risk pause:'));
+  const requiresLiveness = Boolean(livenessChallenge) || isLivenessRequired;
   const canResume =
     !missingDevices.camera &&
     !missingDevices.microphone &&
