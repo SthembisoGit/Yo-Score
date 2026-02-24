@@ -180,6 +180,8 @@ export default function SubmissionResult() {
     submission.penalties?.total ??
     submission.violations.reduce((sum, violation) => sum + Number(violation.penalty ?? 0), 0);
   const violationCount = submission.penalties?.violation_count ?? submission.violations.length;
+  const weightedCorrectness = Math.round((Math.max(0, components.correctness) / 40) * 85);
+  const weightedBehavior = Math.round((Math.max(0, components.behavior) / 20) * 15);
 
   const isJudgePending =
     submission.status === 'pending' ||
@@ -204,8 +206,9 @@ export default function SubmissionResult() {
                 <div>
                   <p className="font-medium text-foreground">How to read this result</p>
                   <p className="text-muted-foreground">
-                    Correctness comes from hidden tests, efficiency compares runtime against baseline,
-                    and behavior reflects proctoring evidence. Use “What To Practice Next” for targeted improvement.
+                    Correctness contributes 85% from hidden tests, and integrity contributes 15%
+                    from proctoring behavior. Efficiency and style remain diagnostic feedback.
+                    Use "What To Practice Next" for targeted improvement.
                   </p>
                 </div>
               </div>
@@ -283,12 +286,14 @@ export default function SubmissionResult() {
               <h3 className="text-lg font-semibold mb-4">Assessment Snapshot</h3>
               <div className="grid gap-3 sm:grid-cols-3 text-sm">
                 <div className="rounded-lg border border-border p-3">
-                  <p className="text-muted-foreground">Correctness</p>
-                  <p className="text-xl font-semibold">{components.correctness}</p>
+                  <p className="text-muted-foreground">Correctness (85%)</p>
+                  <p className="text-xl font-semibold">{weightedCorrectness}</p>
+                  <p className="text-xs text-muted-foreground">Raw: {components.correctness}/40</p>
                 </div>
                 <div className="rounded-lg border border-border p-3">
-                  <p className="text-muted-foreground">Efficiency</p>
-                  <p className="text-xl font-semibold">{components.efficiency}</p>
+                  <p className="text-muted-foreground">Integrity (15%)</p>
+                  <p className="text-xl font-semibold">{weightedBehavior}</p>
+                  <p className="text-xs text-muted-foreground">Raw: {components.behavior}/20</p>
                 </div>
                 <div className="rounded-lg border border-border p-3">
                   <p className="text-muted-foreground">Behavior Penalty</p>
@@ -302,24 +307,32 @@ export default function SubmissionResult() {
               {scoreBreakdown ? (
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Correctness</span>
-                    <span className="font-medium">{components.correctness}</span>
+                    <span className="text-muted-foreground">Correctness weighted (85%)</span>
+                    <span className="font-medium">{weightedCorrectness}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Efficiency</span>
+                    <span className="text-muted-foreground">Integrity weighted (15%)</span>
+                    <span className="font-medium">{weightedBehavior}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Correctness raw</span>
+                    <span className="font-medium">{components.correctness}/40</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Efficiency (diagnostic)</span>
                     <span className="font-medium">{components.efficiency}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Style</span>
+                    <span className="text-muted-foreground">Style (diagnostic)</span>
                     <span className="font-medium">{components.style}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Skill component</span>
+                    <span className="text-muted-foreground">Challenge raw component</span>
                     <span className="font-medium">{components.skill}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Behavior component</span>
-                    <span className="font-medium">{components.behavior}</span>
+                    <span className="text-muted-foreground">Behavior raw component</span>
+                    <span className="font-medium">{components.behavior}/20</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Work experience component</span>

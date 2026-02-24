@@ -5,10 +5,17 @@ const CHALLENGE_MAX = 60;
 const BEHAVIOR_MAX = 20;
 const WORK_EXPERIENCE_MAX = 20;
 const TOTAL_MAX = 100;
-const SCORING_VERSION = 'v3.0';
+const CORRECTNESS_WEIGHT = 85;
+const BEHAVIOR_WEIGHT = 15;
+const NON_VIOLATION_PENALTY_SCALE = 0.7;
+const SCORING_VERSION = 'v3.1';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function scaleNonViolationPenalty(value: number): number {
+  return Math.max(0, Math.round(value * NON_VIOLATION_PENALTY_SCALE));
 }
 
 function trustLevelFromScore(total: number): 'Low' | 'Medium' | 'High' {
@@ -77,13 +84,17 @@ async function computeBehaviorScore(
         totalPausedSeconds += Math.max(0, elapsed);
       }
 
-      pauseCountPenalty = Math.min(8, pauseCount * 2);
-      pauseDurationPenalty = Math.min(8, Math.floor(totalPausedSeconds / 30));
+      pauseCountPenalty = scaleNonViolationPenalty(Math.min(8, pauseCount * 2));
+      pauseDurationPenalty = scaleNonViolationPenalty(
+        Math.min(8, Math.floor(totalPausedSeconds / 30)),
+      );
 
       if (row.heartbeat_at && row.status === 'active') {
         const heartbeatAgeSeconds = (Date.now() - new Date(row.heartbeat_at).getTime()) / 1000;
         if (heartbeatAgeSeconds > 20) {
-          heartbeatPenalty = Math.min(6, Math.floor((heartbeatAgeSeconds - 20) / 10) + 1);
+          heartbeatPenalty = scaleNonViolationPenalty(
+            Math.min(6, Math.floor((heartbeatAgeSeconds - 20) / 10) + 1),
+          );
         }
       }
     }
@@ -181,13 +192,12 @@ export class ScoringService {
     workExperience: number;
   }): { submissionScore: number; trustScore: number; trustLevel: 'Low' | 'Medium' | 'High' } {
     const correctness = clamp(args.correctness, 0, 40);
-    const efficiency = clamp(args.efficiency, 0, 15);
-    const style = clamp(args.style, 0, 5);
-    const challenge = clamp(correctness + efficiency + style, 0, CHALLENGE_MAX);
     const behavior = clamp(args.behavior, 0, BEHAVIOR_MAX);
     const workExperience = clamp(args.workExperience, 0, WORK_EXPERIENCE_MAX);
 
-    const submissionScore = clamp(Math.round(challenge + behavior), 0, 80);
+    const correctnessWeighted = (correctness / 40) * CORRECTNESS_WEIGHT;
+    const behaviorWeighted = (behavior / BEHAVIOR_MAX) * BEHAVIOR_WEIGHT;
+    const submissionScore = clamp(Math.round(correctnessWeighted + behaviorWeighted), 0, 100);
     const trustScore = clamp(Math.round(submissionScore * 0.8 + workExperience), 0, TOTAL_MAX);
     const trustLevel = trustLevelFromScore(trustScore);
     return { submissionScore, trustScore, trustLevel };

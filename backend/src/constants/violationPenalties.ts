@@ -1,6 +1,11 @@
-export const DEFAULT_VIOLATION_PENALTY = 3;
+const PENALTY_SCALE = 0.7;
 
-export const VIOLATION_PENALTIES: Record<string, number> = {
+function scalePenalty(value: number): number {
+  return Math.max(1, Math.round(value * PENALTY_SCALE));
+}
+
+const RAW_DEFAULT_VIOLATION_PENALTY = 3;
+const RAW_VIOLATION_PENALTIES: Record<string, number> = {
   camera_off: 8,
   microphone_off: 8,
   audio_off: 6,
@@ -23,6 +28,12 @@ export const VIOLATION_PENALTIES: Record<string, number> = {
   suspicious_conversation: 10,
   heartbeat_timeout: 8,
 };
+
+export const DEFAULT_VIOLATION_PENALTY = scalePenalty(RAW_DEFAULT_VIOLATION_PENALTY);
+
+export const VIOLATION_PENALTIES: Record<string, number> = Object.fromEntries(
+  Object.entries(RAW_VIOLATION_PENALTIES).map(([type, penalty]) => [type, scalePenalty(penalty)]),
+) as Record<string, number>;
 
 export function normalizeViolationType(type: string): string {
   return type.toLowerCase().replace(/-/g, '_').trim();
