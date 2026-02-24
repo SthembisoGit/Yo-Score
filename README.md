@@ -51,6 +51,7 @@ Demo credentials are for evaluation only and may be reset.
 cd backend
 npm install
 npm run migrate
+npm run seed:build-pack
 npm run seed:easy-challenges
 npm run seed:verify-readiness
 npm run build
@@ -100,6 +101,10 @@ python -m uvicorn app:app --host 0.0.0.0 --port 5000
 - `CODE_EXEC_MAX_STDIN_BYTES=8192`
 - `CODE_EXEC_MAX_CODE_BYTES=65535`
 - `CODE_EXEC_MAX_OUTPUT_BYTES=32768`
+
+Challenge content pack scripts:
+- `npm run seed:build-pack` generates `backend/scripts/challenge-pack.v2.json` (50 challenges).
+- `npm run seed:challenge-pack` builds and seeds the full pack.
 
 ### Frontend `.env`
 
