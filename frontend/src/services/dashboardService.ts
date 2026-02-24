@@ -84,22 +84,30 @@ class DashboardService {
     const response = await apiClient.get('/users/me/work-experience');
     const unwrapped = unwrapData<unknown>(response);
 
-    const rows = (() => {
-      if (Array.isArray(unwrapped)) return unwrapped;
-      if (unwrapped && typeof unwrapped === 'object') {
-        const candidate = unwrapped as {
-          rows?: unknown;
-          experiences?: unknown;
-          work_experience?: unknown;
-          workExperiences?: unknown;
-        };
-        if (Array.isArray(candidate.rows)) return candidate.rows;
-        if (Array.isArray(candidate.experiences)) return candidate.experiences;
-        if (Array.isArray(candidate.work_experience)) return candidate.work_experience;
-        if (Array.isArray(candidate.workExperiences)) return candidate.workExperiences;
+    const extractRows = (value: unknown, depth = 0): unknown[] => {
+      if (depth > 4) return [];
+      if (Array.isArray(value)) return value;
+      if (!value || typeof value !== 'object') return [];
+
+      const candidate = value as {
+        data?: unknown;
+        rows?: unknown;
+        experiences?: unknown;
+        work_experience?: unknown;
+        workExperiences?: unknown;
+      };
+
+      if (Array.isArray(candidate.rows)) return candidate.rows;
+      if (Array.isArray(candidate.experiences)) return candidate.experiences;
+      if (Array.isArray(candidate.work_experience)) return candidate.work_experience;
+      if (Array.isArray(candidate.workExperiences)) return candidate.workExperiences;
+      if ('data' in candidate) {
+        return extractRows(candidate.data, depth + 1);
       }
       return [];
-    })();
+    };
+
+    const rows = extractRows(unwrapped);
 
     return rows.map((rawRow) => {
       const row = rawRow as WorkExperience;
