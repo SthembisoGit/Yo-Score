@@ -11,6 +11,8 @@
     "test:judge-smoke": "npm run build && node scripts/judge-smoke.js",
     "migrate": "node scripts/migrate.js",
     "seed:easy-challenges": "node scripts/seed-easy-challenges.js",
+    "seed:build-pack": "node scripts/build_pack_v2.js",
+    "seed:challenge-pack": "node scripts/build_pack_v2.js && node scripts/seed_challenge_pack_v2.js",
     "seed:verify-readiness": "node scripts/verify-challenge-readiness.js",
     "bootstrap:admin": "node scripts/bootstrap-admin.js",
     "worker": "node dist/src/worker.js",
