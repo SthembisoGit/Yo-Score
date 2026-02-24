@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import { ChevronRight, Loader2, AlertCircle, FileText } from 'lucide-react';
+import { ChevronRight, Loader2, AlertCircle, FileText, Info } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { ProctoringModal } from '@/components/ProctoringModal';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,8 @@ interface PauseStatePayload {
     audio: boolean;
   };
 }
+
+const CHALLENGE_START_HELP_KEY = 'yoscore_challenge_start_help_seen';
 
 export default function ChallengeDetail() {
   const { id } = useParams<{ id: string }>();
@@ -64,6 +66,7 @@ export default function ChallengeDetail() {
   const [isStartingProctoring, setIsStartingProctoring] = useState(false);
   const [isSessionPaused, setIsSessionPaused] = useState(false);
   const [pauseReason, setPauseReason] = useState('');
+  const [showStartHelp, setShowStartHelp] = useState(false);
   const lastChallengeIdRef = useRef<string | undefined>(id);
 
   const { startSession } = useProctoring();
@@ -171,6 +174,25 @@ export default function ChallengeDetail() {
   };
 
   useEffect(() => {
+    try {
+      if (!localStorage.getItem(CHALLENGE_START_HELP_KEY)) {
+        setShowStartHelp(true);
+      }
+    } catch {
+      setShowStartHelp(true);
+    }
+  }, []);
+
+  const dismissStartHelp = () => {
+    setShowStartHelp(false);
+    try {
+      localStorage.setItem(CHALLENGE_START_HELP_KEY, '1');
+    } catch {
+      // ignore storage errors
+    }
+  };
+
+  useEffect(() => {
     if (lastChallengeIdRef.current === id) {
       return;
     }
@@ -274,17 +296,33 @@ export default function ChallengeDetail() {
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
         {!sessionStarted ? (
-          <ChallengeOverview
-            challenge={challenge}
-            selectedLanguage={selectedLanguage}
-            availableLanguages={supportedLanguages}
-            onLanguageChange={handleLanguageChange}
-            onStartSession={handleStartSession}
-            onBack={() => navigate('/challenges')}
-            startLabel={
-              canStartAssignedFlow ? 'Start Challenge Session' : 'Start From Matched Assignment'
-            }
-          />
+          <>
+            {showStartHelp && (
+              <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/20 p-4 flex items-start justify-between gap-3">
+                <div className="flex gap-2 text-sm">
+                  <Info className="h-4 w-4 mt-0.5 text-blue-600" />
+                  <p className="text-muted-foreground">
+                    You are taking a matched challenge. Start the session to begin timer + proctoring,
+                    then submit once your solution passes your own run checks.
+                  </p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={dismissStartHelp}>
+                  Got it
+                </Button>
+              </div>
+            )}
+            <ChallengeOverview
+              challenge={challenge}
+              selectedLanguage={selectedLanguage}
+              availableLanguages={supportedLanguages}
+              onLanguageChange={handleLanguageChange}
+              onStartSession={handleStartSession}
+              onBack={() => navigate('/challenges')}
+              startLabel={
+                canStartAssignedFlow ? 'Start Challenge Session' : 'Start From Matched Assignment'
+              }
+            />
+          </>
         ) : (
           <>
             {/* Proctoring Monitor */}

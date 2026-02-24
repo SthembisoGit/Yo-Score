@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { User, Mail, Save, MapPin, Link2, Github, Linkedin, Globe, Upload, X } from 'lucide-react';
+import { User, Mail, Save, MapPin, Link2, Github, Linkedin, Globe, X } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { ScoreCard } from '@/components/ScoreCard';
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,8 @@ const isValidUrl = (value: string) => {
   }
 };
 
+const PROFILE_AVATAR_HELP_KEY = 'yoscore_profile_avatar_help_seen';
+
 export default function Profile() {
   const { user, updateUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
@@ -47,6 +49,7 @@ export default function Profile() {
   const [categoryScores, setCategoryScores] = useState<CategoryScoreView[]>([]);
   const [isCategoryScoresLoading, setIsCategoryScoresLoading] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [showAvatarHelp, setShowAvatarHelp] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -75,6 +78,16 @@ export default function Profile() {
       });
     }
   }, [user]);
+
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem(PROFILE_AVATAR_HELP_KEY)) {
+        setShowAvatarHelp(true);
+      }
+    } catch {
+      setShowAvatarHelp(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -150,6 +163,15 @@ export default function Profile() {
   const handleAvatarClick = () => {
     if (!isEditing || isSaving || isUploadingAvatar) return;
     avatarInputRef.current?.click();
+  };
+
+  const dismissAvatarHelp = () => {
+    setShowAvatarHelp(false);
+    try {
+      localStorage.setItem(PROFILE_AVATAR_HELP_KEY, '1');
+    } catch {
+      // ignore storage errors
+    }
   };
 
   const uploadAvatarFile = async (): Promise<string> => {
@@ -339,8 +361,32 @@ export default function Profile() {
                 <div className="text-sm text-muted-foreground">
                   <p className="font-medium text-foreground">{user.name}</p>
                   <p>{user.role}</p>
+                  {isEditing && (
+                    <p className="text-xs mt-1">Click the profile photo to choose an image.</p>
+                  )}
                 </div>
+                <Input
+                  id="avatar_file"
+                  name="avatar_file"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={handleAvatarFileChange}
+                  disabled={!isEditing || isSaving || isUploadingAvatar}
+                  className="sr-only"
+                  ref={avatarInputRef}
+                />
               </div>
+
+              {isEditing && showAvatarHelp && (
+                <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/20 p-3 text-sm">
+                  <p className="text-muted-foreground">
+                    Profile photo upload is image-picker only. Select an image by clicking your avatar.
+                  </p>
+                  <Button variant="ghost" size="sm" onClick={dismissAvatarHelp} className="mt-1">
+                    Got it
+                  </Button>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
@@ -374,71 +420,35 @@ export default function Profile() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="avatar_file">Profile Photo</Label>
-                  <Input
-                    id="avatar_file"
-                    name="avatar_file"
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
-                    onChange={handleAvatarFileChange}
-                    disabled={!isEditing || isSaving || isUploadingAvatar}
-                    className="sr-only"
-                    ref={avatarInputRef}
-                  />
-                  <div className="flex flex-wrap items-center gap-2">
-                    {isEditing && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          if (!avatarFile) return;
-                          void uploadAvatarFile();
-                        }}
-                        disabled={!avatarFile || isSaving || isUploadingAvatar}
-                        className="gap-2"
-                      >
-                        {isUploadingAvatar ? (
-                          <Loader size="sm" className="border-current" />
-                        ) : (
-                          <>
-                            <Upload className="h-4 w-4" />
-                            Upload Selected Photo
-                          </>
-                        )}
-                      </Button>
-                    )}
-                    {isEditing && formData.avatar_url && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => {
-                          setFormData((previous) => ({ ...previous, avatar_url: '' }));
-                          setAvatarFile(null);
-                          setAvatarUploadError(null);
-                        }}
-                        disabled={isSaving || isUploadingAvatar}
-                        className="gap-2"
-                      >
-                        <X className="h-4 w-4" />
-                        Remove
-                      </Button>
-                    )}
-                  </div>
-                  {avatarFile && (
-                    <p className="text-xs text-muted-foreground">
-                      Selected: {avatarFile.name} ({Math.ceil(avatarFile.size / 1024)} KB)
-                    </p>
-                  )}
-                  {avatarUploadError && (
-                    <p className="text-sm text-destructive" role="alert">
-                      {avatarUploadError}
-                    </p>
-                  )}
+                {isEditing && formData.avatar_url && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setFormData((previous) => ({ ...previous, avatar_url: '' }));
+                      setAvatarFile(null);
+                      setAvatarUploadError(null);
+                    }}
+                    disabled={isSaving || isUploadingAvatar}
+                    className="gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    Remove Photo
+                  </Button>
+                )}
+                {avatarFile && (
                   <p className="text-xs text-muted-foreground">
-                    JPG, PNG, WEBP, or GIF up to 2MB.
+                    Selected: {avatarFile.name} ({Math.ceil(avatarFile.size / 1024)} KB)
                   </p>
-                </div>
+                )}
+                {avatarUploadError && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {avatarUploadError}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  JPG, PNG, WEBP, or GIF up to 2MB.
+                </p>
 
                 <div className="space-y-2">
                   <Label htmlFor="headline">Headline</Label>
