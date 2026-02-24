@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BadgeCheck, Briefcase, Calendar, ExternalLink, Plus, ShieldAlert } from 'lucide-react';
+import { Plus, ShieldAlert } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
 import { Link } from 'react-router-dom';
+import { WorkExperienceRecordCard } from '@/components/work-experience/WorkExperienceRecordCard';
 import {
   dashboardService,
   type WorkExperience as WorkExperienceRecord,
@@ -21,23 +22,6 @@ interface ExperienceFormData {
 
 const calculateTotalMonths = (experiences: WorkExperienceRecord[]) =>
   experiences.reduce((total, experience) => total + experience.duration_months, 0);
-
-const getVerificationTone = (status: WorkExperienceRecord['verification_status']) => {
-  if (status === 'verified') {
-    return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
-  }
-  if (status === 'flagged' || status === 'rejected') {
-    return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
-  }
-  return 'bg-muted text-muted-foreground';
-};
-
-const formatAddedDate = (dateValue: string | null | undefined) => {
-  if (!dateValue) return null;
-  const parsed = new Date(dateValue);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toLocaleDateString();
-};
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (typeof error === 'object' && error !== null && 'response' in error) {
@@ -77,7 +61,13 @@ export default function WorkExperience() {
     setLoadError(null);
 
     try {
-      const rows = await dashboardService.getWorkExperience();
+      const timeoutMs = 10_000;
+      const rows = await Promise.race<WorkExperienceRecord[]>([
+        dashboardService.getWorkExperience({ timeoutMs }),
+        new Promise<WorkExperienceRecord[]>((_, reject) => {
+          setTimeout(() => reject(new Error('Request timed out while loading work experience.')), timeoutMs + 500);
+        }),
+      ]);
       setExperiences(rows);
       updateUser({ workExperienceMonths: calculateTotalMonths(rows) });
     } catch (error: unknown) {
@@ -311,7 +301,8 @@ export default function WorkExperience() {
         )}
 
         {loadError && (
-          <div className="mb-6 rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive space-y-2">
+          <div className="mb-6 rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive space-y-3">
+            <p className="font-medium">Could not load work experience history.</p>
             <p>{loadError}</p>
             <Button type="button" variant="outline" size="sm" onClick={() => void loadExperiences()}>
               Retry Loading History
@@ -328,72 +319,13 @@ export default function WorkExperience() {
         <div className="space-y-4">
           {!isLoading && experiences.length > 0 ? (
             experiences.map((experience) => (
-              <div
+              <WorkExperienceRecordCard
                 key={
                   experience.experience_id ||
                   `${experience.company_name}-${experience.role}-${experience.added_at || 'unknown'}`
                 }
-                className="bg-card border border-border rounded-lg p-6 hover:shadow-md transition-shadow"
-              >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex gap-3 min-w-0">
-                    <div className="w-11 h-11 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                      <Briefcase className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-lg font-semibold truncate">{experience.role}</p>
-                      <p className="text-muted-foreground truncate">{experience.company_name}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                        <span className="inline-flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          {experience.duration_months} months
-                        </span>
-                        {formatAddedDate(experience.added_at) ? (
-                          <span>Added {formatAddedDate(experience.added_at)}</span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`text-xs rounded-full px-2 py-1 ${getVerificationTone(
-                        experience.verification_status,
-                      )}`}
-                    >
-                      {(experience.verification_status || 'pending').toUpperCase()}
-                    </span>
-                    <span className="text-xs rounded-full px-2 py-1 bg-muted text-muted-foreground">
-                      Risk {experience.risk_score ?? 0}
-                    </span>
-                    <span className="text-xs rounded-full px-2 py-1 bg-muted text-muted-foreground inline-flex items-center gap-1">
-                      <BadgeCheck className="h-3.5 w-3.5" />
-                      {experience.verified ? 'Verified flag set' : 'Awaiting review'}
-                    </span>
-                  </div>
-                </div>
-                {experience.evidence_links && experience.evidence_links.length > 0 && (
-                  <details className="mt-4 rounded border border-border bg-muted/20 p-3">
-                    <summary className="cursor-pointer text-sm font-medium">
-                      Evidence links ({experience.evidence_links.length})
-                    </summary>
-                    <ul className="mt-2 space-y-1 text-sm">
-                      {experience.evidence_links.map((link) => (
-                        <li key={link} className="truncate">
-                          <a
-                            href={link}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-primary hover:underline"
-                          >
-                            {link}
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </div>
+                experience={experience}
+              />
             ))
           ) : null}
 

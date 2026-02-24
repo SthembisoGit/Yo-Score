@@ -182,7 +182,7 @@ export class WorkExperienceService {
         `SELECT id, company_name, role, duration_months, verified, evidence_links, verification_status, risk_score, added_at
          FROM work_experience
          WHERE user_id = $1
-         ORDER BY added_at DESC`,
+         ORDER BY added_at DESC NULLS LAST, id DESC`,
         [userId],
       );
     } catch (error) {
@@ -194,7 +194,7 @@ export class WorkExperienceService {
           `SELECT id, company_name, role, duration_months, verified, added_at
            FROM work_experience
            WHERE user_id = $1
-           ORDER BY added_at DESC`,
+           ORDER BY added_at DESC NULLS LAST, id DESC`,
           [userId],
         );
       } catch (legacyError) {

@@ -79,7 +79,8 @@ export class WorkExperienceController {
         });
       }
 
-      const experiences = await workExperienceService.getUserWorkExperiences(req.user.id);
+      const experiencesRaw = await workExperienceService.getUserWorkExperiences(req.user.id);
+      const experiences = Array.isArray(experiencesRaw) ? experiencesRaw : [];
 
       return res.status(200).json({
         success: true,
