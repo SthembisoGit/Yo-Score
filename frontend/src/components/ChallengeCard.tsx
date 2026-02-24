@@ -6,6 +6,7 @@ import type { Challenge } from '@/context/ChallengeContext';
 interface ChallengeCardProps {
   challenge: Challenge;
   className?: string;
+  viewMode?: 'grid' | 'list';
 }
 
 const difficultyColors = {
@@ -38,19 +39,22 @@ const statusLabel: Record<Challenge['status'], string> = {
   not_started: 'Not Started',
 };
 
-export function ChallengeCard({ challenge, className }: ChallengeCardProps) {
+export function ChallengeCard({ challenge, className, viewMode = 'grid' }: ChallengeCardProps) {
   const categoryTone = categoryColors[challenge.category] ?? 'text-muted-foreground';
+  const isList = viewMode === 'list';
 
   return (
     <Link
       to={`/challenges/${challenge.id}`}
       className={cn(
         'block bg-card rounded-lg border border-border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group',
+        isList && 'w-full',
         className
       )}
     >
       <div className={cn('border-l-4', statusAccentClass[challenge.status])}>
-        <div className="p-5">
+        <div className={cn('p-5', isList && 'sm:flex sm:items-center sm:justify-between sm:gap-4')}>
+          <div className={cn(isList && 'flex-1 min-w-0')}>
           <div className="mb-3 flex items-center justify-between gap-2">
             <span className={cn('text-xs font-medium px-2 py-1 rounded', statusBadgeClass[challenge.status])}>
               {statusLabel[challenge.status]}
@@ -82,7 +86,7 @@ export function ChallengeCard({ challenge, className }: ChallengeCardProps) {
             </span>
           </div>
 
-          <div className="flex items-center gap-4 mt-4 pt-4 border-t border-border text-sm text-muted-foreground">
+          <div className={cn('flex items-center gap-4 mt-4 pt-4 border-t border-border text-sm text-muted-foreground', isList && 'border-t-0 pt-2')}>
             <div className="flex items-center gap-1">
               <Clock className="h-4 w-4" />
               <span>{challenge.duration} min</span>
@@ -96,6 +100,7 @@ export function ChallengeCard({ challenge, className }: ChallengeCardProps) {
                 Score: {challenge.score}
               </div>
             )}
+          </div>
           </div>
         </div>
       </div>
