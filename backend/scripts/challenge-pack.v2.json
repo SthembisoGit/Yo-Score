@@ -1,0 +1,3982 @@
+{
+  "version": "v2",
+  "generated_at": "2026-02-24T10:09:49.713Z",
+  "summary": {
+    "total": 50,
+    "aiFix": 30,
+    "categories": {
+      "Frontend": 6,
+      "Backend": 6,
+      "Security": 6,
+      "DevOps": 6,
+      "Cloud Engineering": 6,
+      "Data Science": 5,
+      "Mobile Development": 5,
+      "QA Testing": 5,
+      "IT Support": 5
+    },
+    "seniority": {
+      "junior": 13,
+      "graduate": 12,
+      "mid": 13,
+      "senior": 12
+    },
+    "difficulty": {
+      "easy": 18,
+      "medium": 22,
+      "hard": 10
+    }
+  },
+  "challenges": [
+    {
+      "title": "Frontend: Debounced Search Event Cleaner (AI Fix)",
+      "category": "Frontend",
+      "difficulty": "easy",
+      "seniority": "junior",
+      "duration": 35,
+      "ai_fix": true,
+      "mistake_class": "state mutation side effects",
+      "description": "AI-generated code attempt contains common mistake class: state mutation side effects. Fix the logic and produce correct output.\nCollapse consecutive duplicate tokens (case-insensitive).\nConstraints: O(n), preserve first casing in run.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "a a a b b c\n",
+          "output": "a b c",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "Login login LOGIN success\n",
+          "output": "Login success",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "x\n",
+          "output": "x",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "up up down down down up\n",
+          "output": "up down up",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "A a B b B\n",
+          "output": "A B",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "one two two three three three\n",
+          "output": "one two three",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Frontend: Query Tag Normalizer (AI Fix)",
+      "category": "Frontend",
+      "difficulty": "medium",
+      "seniority": "graduate",
+      "duration": 45,
+      "ai_fix": true,
+      "mistake_class": "input parsing faults",
+      "description": "AI-generated code attempt contains common mistake class: input parsing faults. Fix the logic and produce correct output.\nNormalize comma-separated tokens (trim/lowercase/dedupe).\nConstraints: O(n) with set.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": " API, auth ,API, Cache ,, cache,Queue\n",
+          "output": "api|auth|cache|queue",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "a,b,c\n",
+          "output": "a|b|c",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": " , , \n",
+          "output": "empty",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "One, two, THREE, two\n",
+          "output": "one|two|three",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "x\n",
+          "output": "x",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "A,a,A,a\n",
+          "output": "a",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Frontend: Inclusive Page Range Counter (AI Fix)",
+      "category": "Frontend",
+      "difficulty": "hard",
+      "seniority": "graduate",
+      "duration": 60,
+      "ai_fix": true,
+      "mistake_class": "off-by-one logic bugs",
+      "description": "AI-generated code attempt contains common mistake class: off-by-one logic bugs. Fix the logic and produce correct output.\nCount numbers divisible by k in inclusive [a,b].\nConstraints: O(1) arithmetic.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "1 10 2\n",
+          "output": "5",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "5 5 5\n",
+          "output": "1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "6 14 7\n",
+          "output": "2",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "2 3 5\n",
+          "output": "0",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "-10 10 5\n",
+          "output": "5",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "100 130 10\n",
+          "output": "4",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 3200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Frontend: Label Frequency Sanitizer (AI Fix)",
+      "category": "Frontend",
+      "difficulty": "medium",
+      "seniority": "junior",
+      "duration": 45,
+      "ai_fix": true,
+      "mistake_class": "input parsing faults",
+      "description": "AI-generated code attempt contains common mistake class: input parsing faults. Fix the logic and produce correct output.\nFrequency map for letters sorted alphabetically.\nConstraints: Ignore spaces/case/non-letters.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "aA b\n",
+          "output": "a:2,b:1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "YoScore\n",
+          "output": "c:1,e:1,o:2,r:1,s:1,y:1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "bbb aaa\n",
+          "output": "a:3,b:3",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "123 !\n",
+          "output": "",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "Z z Z\n",
+          "output": "z:3",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "AbCabc\n",
+          "output": "a:2,b:2,c:2",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Frontend: Feature Flag Histogram",
+      "category": "Frontend",
+      "difficulty": "medium",
+      "seniority": "junior",
+      "duration": 40,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nPrint alphabetical status histogram key:count.\nConstraints: Normalize lowercase first.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "5\nopen\nclosed\nopen\npending\nclosed\n",
+          "output": "closed:2,open:2,pending:1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "3\nOK\nok\nOk\n",
+          "output": "ok:3",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "1\nqueued\n",
+          "output": "queued:1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "4\na\nb\nc\nd\n",
+          "output": "a:1,b:1,c:1,d:1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "4\nwarn\nwarn\nwarn\nwarn\n",
+          "output": "warn:4",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "2\nup\ndown\n",
+          "output": "down:1,up:1",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Frontend: Banner Rotation Window Max",
+      "category": "Frontend",
+      "difficulty": "hard",
+      "seniority": "mid",
+      "duration": 55,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nCompute max contiguous sum with fixed window k.\nConstraints: O(n) sliding window.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "5 2\n1 2 3 4 5\n",
+          "output": "9",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "6 3\n-1 -2 -3 -4 -5 -6\n",
+          "output": "-6",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "4 4\n2 2 2 2\n",
+          "output": "8",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "8 3\n1 3 -1 -3 5 3 6 7\n",
+          "output": "16",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "5 1\n9 8 7 6 5\n",
+          "output": "9",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "7 2\n5 -1 2 3 -2 4 1\n",
+          "output": "5",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 3200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Backend: Email Dedupe Pipeline (AI Fix)",
+      "category": "Backend",
+      "difficulty": "medium",
+      "seniority": "junior",
+      "duration": 45,
+      "ai_fix": true,
+      "mistake_class": "input normalization bugs",
+      "description": "AI-generated code attempt contains common mistake class: input normalization bugs. Fix the logic and produce correct output.\nCount unique emails after trim+lowercase normalization.\nConstraints: O(n) set-based.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "5\na@x.com\nA@x.com\n b@y.com\nB@y.com \nc@z.com\n",
+          "output": "3",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "3\nuser@a.com\nuser@a.com\nuser@a.com\n",
+          "output": "1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "4\none@a.com\ntwo@a.com\nthree@a.com\nfour@a.com\n",
+          "output": "4",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "2\n test@x.com\nTEST@X.COM\n",
+          "output": "1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "1\nsolo@x.com\n",
+          "output": "1",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "6\na@a.com\nb@a.com\nA@A.com\nB@A.com\nc@a.com\nC@A.com\n",
+          "output": "3",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Backend: SQL Marker Guard (AI Fix)",
+      "category": "Backend",
+      "difficulty": "medium",
+      "seniority": "graduate",
+      "duration": 45,
+      "ai_fix": true,
+      "mistake_class": "unsafe validation/security issues",
+      "description": "AI-generated code attempt contains common mistake class: unsafe validation/security issues. Fix the logic and produce correct output.\nDetect common SQL injection markers and print BLOCK/ALLOW.\nConstraints: Case-insensitive marker checks.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "name='john' OR 1=1\n",
+          "output": "BLOCK",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "SELECT * FROM users WHERE id=4\n",
+          "output": "ALLOW",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "UNION SELECT password FROM users\n",
+          "output": "BLOCK",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "status=active -- comment\n",
+          "output": "BLOCK",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "email = \"abc@x.com\"\n",
+          "output": "ALLOW",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "id=1;--\n",
+          "output": "BLOCK",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Backend: CSV Quantity Aggregator (AI Fix)",
+      "category": "Backend",
+      "difficulty": "medium",
+      "seniority": "junior",
+      "duration": 45,
+      "ai_fix": true,
+      "mistake_class": "messy delimiter parsing",
+      "description": "AI-generated code attempt contains common mistake class: messy delimiter parsing. Fix the logic and produce correct output.\nSum qty column from CSV rows item,qty,price.\nConstraints: Skip malformed rows.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "3\npen,2,10\npaper, 5 ,3\nclip,1,1\n",
+          "output": "8",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "2\na,10,0\nb,20,0\n",
+          "output": "30",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "3\nx,1,1\ninvalid\ny,2,2\n",
+          "output": "3",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "1\nitem,  7, 50\n",
+          "output": "7",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "4\na,0,1\nb,0,2\nc,0,3\nd,0,4\n",
+          "output": "0",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "2\n p,3,9\n q,4,1\n",
+          "output": "7",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Backend: Path Traversal Blocker (AI Fix)",
+      "category": "Backend",
+      "difficulty": "hard",
+      "seniority": "senior",
+      "duration": 60,
+      "ai_fix": true,
+      "mistake_class": "unsafe validation/security issues",
+      "description": "AI-generated code attempt contains common mistake class: unsafe validation/security issues. Fix the logic and produce correct output.\nBlock traversal tokens (../, ..\\, %2e%2e).\nConstraints: Case-insensitive encoded checks.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "images/profile.png\n",
+          "output": "SAFE",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "../etc/passwd\n",
+          "output": "BLOCK",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "..\\windows\\system32\n",
+          "output": "BLOCK",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "/public/%2E%2E/secrets\n",
+          "output": "BLOCK",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "assets/icons/menu.svg\n",
+          "output": "SAFE",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "./safe/path\n",
+          "output": "SAFE",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 3200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Backend: Retry Backoff Planner",
+      "category": "Backend",
+      "difficulty": "easy",
+      "seniority": "graduate",
+      "duration": 30,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nGenerate exponential backoff sequence.\nConstraints: O(r).\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "100 4\n",
+          "output": "100,200,400,800",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "50 1\n",
+          "output": "50",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "10 3\n",
+          "output": "10,20,40",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "1 5\n",
+          "output": "1,2,4,8,16",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "7 2\n",
+          "output": "7,14",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "3 6\n",
+          "output": "3,6,12,24,48,96",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Backend: API Log Severity Counter",
+      "category": "Backend",
+      "difficulty": "medium",
+      "seniority": "mid",
+      "duration": 40,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nCount INFO/WARN/ERROR lines from log input.\nConstraints: Case-insensitive line checks.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "4\nINFO ok\nWARN disk\nERROR fail\nINFO done\n",
+          "output": "INFO:2,WARN:1,ERROR:1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "2\nDEBUG hi\nTRACE no\n",
+          "output": "INFO:0,WARN:0,ERROR:0",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "3\nERROR a\nERROR b\nWARN c\n",
+          "output": "INFO:0,WARN:1,ERROR:2",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "5\ninfo a\nwarn b\nwarn c\nerror d\nINFO e\n",
+          "output": "INFO:2,WARN:2,ERROR:1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "1\nWARN only\n",
+          "output": "INFO:0,WARN:1,ERROR:0",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "3\nerror\nwarn\ninfo\n",
+          "output": "INFO:1,WARN:1,ERROR:1",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Security: Injection Signature Screen (AI Fix)",
+      "category": "Security",
+      "difficulty": "easy",
+      "seniority": "junior",
+      "duration": 35,
+      "ai_fix": true,
+      "mistake_class": "unsafe validation/security issues",
+      "description": "AI-generated code attempt contains common mistake class: unsafe validation/security issues. Fix the logic and produce correct output.\nDetect common SQL injection markers and print BLOCK/ALLOW.\nConstraints: Case-insensitive marker checks.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "name='john' OR 1=1\n",
+          "output": "BLOCK",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "SELECT * FROM users WHERE id=4\n",
+          "output": "ALLOW",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "UNION SELECT password FROM users\n",
+          "output": "BLOCK",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "status=active -- comment\n",
+          "output": "BLOCK",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "email = \"abc@x.com\"\n",
+          "output": "ALLOW",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "id=1;--\n",
+          "output": "BLOCK",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Security: Path Canonicalization Sentinel (AI Fix)",
+      "category": "Security",
+      "difficulty": "medium",
+      "seniority": "senior",
+      "duration": 45,
+      "ai_fix": true,
+      "mistake_class": "unsafe validation/security issues",
+      "description": "AI-generated code attempt contains common mistake class: unsafe validation/security issues. Fix the logic and produce correct output.\nBlock traversal tokens (../, ..\\, %2e%2e).\nConstraints: Case-insensitive encoded checks.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "images/profile.png\n",
+          "output": "SAFE",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "../etc/passwd\n",
+          "output": "BLOCK",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "..\\windows\\system32\n",
+          "output": "BLOCK",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "/public/%2E%2E/secrets\n",
+          "output": "BLOCK",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "assets/icons/menu.svg\n",
+          "output": "SAFE",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "./safe/path\n",
+          "output": "SAFE",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Security: Password Policy Validator (AI Fix)",
+      "category": "Security",
+      "difficulty": "medium",
+      "seniority": "mid",
+      "duration": 45,
+      "ai_fix": true,
+      "mistake_class": "messy policy checks",
+      "description": "AI-generated code attempt contains common mistake class: messy policy checks. Fix the logic and produce correct output.\nValidate password policy and print STRONG/WEAK.\nConstraints: Single-pass checks.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "YoScore@2026\n",
+          "output": "STRONG",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "password\n",
+          "output": "WEAK",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "A1@aaaa\n",
+          "output": "WEAK",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "Abcdef1!\n",
+          "output": "STRONG",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "ABCDEF12!\n",
+          "output": "WEAK",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "abc123!@#\n",
+          "output": "WEAK",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Security: IPv4 Allowlist Validator (AI Fix)",
+      "category": "Security",
+      "difficulty": "medium",
+      "seniority": "mid",
+      "duration": 45,
+      "ai_fix": true,
+      "mistake_class": "input parsing faults",
+      "description": "AI-generated code attempt contains common mistake class: input parsing faults. Fix the logic and produce correct output.\nValidate IPv4 address.\nConstraints: Four octets in 0..255.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "192.168.0.1\n",
+          "output": "VALID",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "256.1.1.1\n",
+          "output": "INVALID",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "10.0.0\n",
+          "output": "INVALID",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "01.2.3.4\n",
+          "output": "VALID",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "a.b.c.d\n",
+          "output": "INVALID",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "0.0.0.0\n",
+          "output": "VALID",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Security: Bracketed Policy Parser",
+      "category": "Security",
+      "difficulty": "medium",
+      "seniority": "mid",
+      "duration": 40,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nValidate bracket sequence and print VALID/INVALID.\nConstraints: O(n) stack.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "([]){}\n",
+          "output": "VALID",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "([)]\n",
+          "output": "INVALID",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "((()))\n",
+          "output": "VALID",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "((()\n",
+          "output": "INVALID",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "{[()]}[]\n",
+          "output": "VALID",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "}{\n",
+          "output": "INVALID",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Security: Failed-Event Window Detector",
+      "category": "Security",
+      "difficulty": "hard",
+      "seniority": "junior",
+      "duration": 55,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nCompute max contiguous sum with fixed window k.\nConstraints: O(n) sliding window.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "5 2\n1 2 3 4 5\n",
+          "output": "9",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "6 3\n-1 -2 -3 -4 -5 -6\n",
+          "output": "-6",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "4 4\n2 2 2 2\n",
+          "output": "8",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "8 3\n1 3 -1 -3 5 3 6 7\n",
+          "output": "16",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "5 1\n9 8 7 6 5\n",
+          "output": "9",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "7 2\n5 -1 2 3 -2 4 1\n",
+          "output": "5",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 3200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "DevOps: Deployment Status Compactor (AI Fix)",
+      "category": "DevOps",
+      "difficulty": "medium",
+      "seniority": "junior",
+      "duration": 45,
+      "ai_fix": true,
+      "mistake_class": "state mutation side effects",
+      "description": "AI-generated code attempt contains common mistake class: state mutation side effects. Fix the logic and produce correct output.\nCollapse consecutive duplicate tokens (case-insensitive).\nConstraints: O(n), preserve first casing in run.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "a a a b b c\n",
+          "output": "a b c",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "Login login LOGIN success\n",
+          "output": "Login success",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "x\n",
+          "output": "x",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "up up down down down up\n",
+          "output": "up down up",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "A a B b B\n",
+          "output": "A B",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "one two two three three three\n",
+          "output": "one two three",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "DevOps: Service Tag Normalizer (AI Fix)",
+      "category": "DevOps",
+      "difficulty": "medium",
+      "seniority": "mid",
+      "duration": 45,
+      "ai_fix": true,
+      "mistake_class": "input parsing faults",
+      "description": "AI-generated code attempt contains common mistake class: input parsing faults. Fix the logic and produce correct output.\nNormalize comma-separated tokens (trim/lowercase/dedupe).\nConstraints: O(n) with set.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": " API, auth ,API, Cache ,, cache,Queue\n",
+          "output": "api|auth|cache|queue",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "a,b,c\n",
+          "output": "a|b|c",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": " , , \n",
+          "output": "empty",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "One, two, THREE, two\n",
+          "output": "one|two|three",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "x\n",
+          "output": "x",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "A,a,A,a\n",
+          "output": "a",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "DevOps: Inclusive Build Range Counter (AI Fix)",
+      "category": "DevOps",
+      "difficulty": "medium",
+      "seniority": "graduate",
+      "duration": 45,
+      "ai_fix": true,
+      "mistake_class": "off-by-one logic bugs",
+      "description": "AI-generated code attempt contains common mistake class: off-by-one logic bugs. Fix the logic and produce correct output.\nCount numbers divisible by k in inclusive [a,b].\nConstraints: O(1) arithmetic.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "1 10 2\n",
+          "output": "5",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "5 5 5\n",
+          "output": "1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "6 14 7\n",
+          "output": "2",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "2 3 5\n",
+          "output": "0",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "-10 10 5\n",
+          "output": "5",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "100 130 10\n",
+          "output": "4",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "DevOps: Pipeline Log Counter (AI Fix)",
+      "category": "DevOps",
+      "difficulty": "hard",
+      "seniority": "senior",
+      "duration": 60,
+      "ai_fix": true,
+      "mistake_class": "messy code parsing",
+      "description": "AI-generated code attempt contains common mistake class: messy code parsing. Fix the logic and produce correct output.\nCount INFO/WARN/ERROR lines from log input.\nConstraints: Case-insensitive line checks.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "4\nINFO ok\nWARN disk\nERROR fail\nINFO done\n",
+          "output": "INFO:2,WARN:1,ERROR:1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "2\nDEBUG hi\nTRACE no\n",
+          "output": "INFO:0,WARN:0,ERROR:0",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "3\nERROR a\nERROR b\nWARN c\n",
+          "output": "INFO:0,WARN:1,ERROR:2",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "5\ninfo a\nwarn b\nwarn c\nerror d\nINFO e\n",
+          "output": "INFO:2,WARN:2,ERROR:1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "1\nWARN only\n",
+          "output": "INFO:0,WARN:1,ERROR:0",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "3\nerror\nwarn\ninfo\n",
+          "output": "INFO:1,WARN:1,ERROR:1",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 3200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "DevOps: Rollback Retry Backoff",
+      "category": "DevOps",
+      "difficulty": "medium",
+      "seniority": "mid",
+      "duration": 40,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nGenerate exponential backoff sequence.\nConstraints: O(r).\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "100 4\n",
+          "output": "100,200,400,800",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "50 1\n",
+          "output": "50",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "10 3\n",
+          "output": "10,20,40",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "1 5\n",
+          "output": "1,2,4,8,16",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "7 2\n",
+          "output": "7,14",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "3 6\n",
+          "output": "3,6,12,24,48,96",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "DevOps: Incident Histogram",
+      "category": "DevOps",
+      "difficulty": "easy",
+      "seniority": "mid",
+      "duration": 30,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nPrint alphabetical status histogram key:count.\nConstraints: Normalize lowercase first.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "5\nopen\nclosed\nopen\npending\nclosed\n",
+          "output": "closed:2,open:2,pending:1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "3\nOK\nok\nOk\n",
+          "output": "ok:3",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "1\nqueued\n",
+          "output": "queued:1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "4\na\nb\nc\nd\n",
+          "output": "a:1,b:1,c:1,d:1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "4\nwarn\nwarn\nwarn\nwarn\n",
+          "output": "warn:4",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "2\nup\ndown\n",
+          "output": "down:1,up:1",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Cloud Engineering: Bucket Path Guard (AI Fix)",
+      "category": "Cloud Engineering",
+      "difficulty": "medium",
+      "seniority": "junior",
+      "duration": 45,
+      "ai_fix": true,
+      "mistake_class": "unsafe validation/security issues",
+      "description": "AI-generated code attempt contains common mistake class: unsafe validation/security issues. Fix the logic and produce correct output.\nBlock traversal tokens (../, ..\\, %2e%2e).\nConstraints: Case-insensitive encoded checks.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "images/profile.png\n",
+          "output": "SAFE",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "../etc/passwd\n",
+          "output": "BLOCK",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "..\\windows\\system32\n",
+          "output": "BLOCK",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "/public/%2E%2E/secrets\n",
+          "output": "BLOCK",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "assets/icons/menu.svg\n",
+          "output": "SAFE",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "./safe/path\n",
+          "output": "SAFE",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Cloud Engineering: Config Token Normalizer (AI Fix)",
+      "category": "Cloud Engineering",
+      "difficulty": "easy",
+      "seniority": "graduate",
+      "duration": 35,
+      "ai_fix": true,
+      "mistake_class": "input parsing faults",
+      "description": "AI-generated code attempt contains common mistake class: input parsing faults. Fix the logic and produce correct output.\nNormalize comma-separated tokens (trim/lowercase/dedupe).\nConstraints: O(n) with set.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": " API, auth ,API, Cache ,, cache,Queue\n",
+          "output": "api|auth|cache|queue",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "a,b,c\n",
+          "output": "a|b|c",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": " , , \n",
+          "output": "empty",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "One, two, THREE, two\n",
+          "output": "one|two|three",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "x\n",
+          "output": "x",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "A,a,A,a\n",
+          "output": "a",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Cloud Engineering: Request Window Counter (AI Fix)",
+      "category": "Cloud Engineering",
+      "difficulty": "hard",
+      "seniority": "senior",
+      "duration": 60,
+      "ai_fix": true,
+      "mistake_class": "off-by-one logic bugs",
+      "description": "AI-generated code attempt contains common mistake class: off-by-one logic bugs. Fix the logic and produce correct output.\nCount numbers divisible by k in inclusive [a,b].\nConstraints: O(1) arithmetic.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "1 10 2\n",
+          "output": "5",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "5 5 5\n",
+          "output": "1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "6 14 7\n",
+          "output": "2",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "2 3 5\n",
+          "output": "0",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "-10 10 5\n",
+          "output": "5",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "100 130 10\n",
+          "output": "4",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 3200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Cloud Engineering: Node Event Deduper (AI Fix)",
+      "category": "Cloud Engineering",
+      "difficulty": "medium",
+      "seniority": "mid",
+      "duration": 45,
+      "ai_fix": true,
+      "mistake_class": "state mutation side effects",
+      "description": "AI-generated code attempt contains common mistake class: state mutation side effects. Fix the logic and produce correct output.\nCollapse consecutive duplicate tokens (case-insensitive).\nConstraints: O(n), preserve first casing in run.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "a a a b b c\n",
+          "output": "a b c",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "Login login LOGIN success\n",
+          "output": "Login success",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "x\n",
+          "output": "x",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "up up down down down up\n",
+          "output": "up down up",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "A a B b B\n",
+          "output": "A B",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "one two two three three three\n",
+          "output": "one two three",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Cloud Engineering: Auto-Scale Retry Plan",
+      "category": "Cloud Engineering",
+      "difficulty": "medium",
+      "seniority": "mid",
+      "duration": 40,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nGenerate exponential backoff sequence.\nConstraints: O(r).\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "100 4\n",
+          "output": "100,200,400,800",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "50 1\n",
+          "output": "50",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "10 3\n",
+          "output": "10,20,40",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "1 5\n",
+          "output": "1,2,4,8,16",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "7 2\n",
+          "output": "7,14",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "3 6\n",
+          "output": "3,6,12,24,48,96",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Cloud Engineering: Alert Severity Summary",
+      "category": "Cloud Engineering",
+      "difficulty": "medium",
+      "seniority": "junior",
+      "duration": 40,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nCount INFO/WARN/ERROR lines from log input.\nConstraints: Case-insensitive line checks.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "4\nINFO ok\nWARN disk\nERROR fail\nINFO done\n",
+          "output": "INFO:2,WARN:1,ERROR:1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "2\nDEBUG hi\nTRACE no\n",
+          "output": "INFO:0,WARN:0,ERROR:0",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "3\nERROR a\nERROR b\nWARN c\n",
+          "output": "INFO:0,WARN:1,ERROR:2",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "5\ninfo a\nwarn b\nwarn c\nerror d\nINFO e\n",
+          "output": "INFO:2,WARN:2,ERROR:1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "1\nWARN only\n",
+          "output": "INFO:0,WARN:1,ERROR:0",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "3\nerror\nwarn\ninfo\n",
+          "output": "INFO:1,WARN:1,ERROR:1",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Data Science: Null-Safe Sample Average (AI Fix)",
+      "category": "Data Science",
+      "difficulty": "easy",
+      "seniority": "senior",
+      "duration": 35,
+      "ai_fix": true,
+      "mistake_class": "null handling bugs",
+      "description": "AI-generated code attempt contains common mistake class: null handling bugs. Fix the logic and produce correct output.\nIgnore null/NaN tokens and compute floor average.\nConstraints: Print 0 when no numeric token.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "5\n1 2 null 3 NaN\n",
+          "output": "2",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "4\nnull NaN null NaN\n",
+          "output": "0",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "3\n10 20 30\n",
+          "output": "20",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "6\n5 -5 5 -5 null 0\n",
+          "output": "0",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "1\n7\n",
+          "output": "7",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "5\n1 2 3 4 5\n",
+          "output": "3",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Data Science: Label Frequency Cleanup (AI Fix)",
+      "category": "Data Science",
+      "difficulty": "easy",
+      "seniority": "junior",
+      "duration": 35,
+      "ai_fix": true,
+      "mistake_class": "messy preprocessing logic",
+      "description": "AI-generated code attempt contains common mistake class: messy preprocessing logic. Fix the logic and produce correct output.\nFrequency map for letters sorted alphabetically.\nConstraints: Ignore spaces/case/non-letters.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "aA b\n",
+          "output": "a:2,b:1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "YoScore\n",
+          "output": "c:1,e:1,o:2,r:1,s:1,y:1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "bbb aaa\n",
+          "output": "a:3,b:3",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "123 !\n",
+          "output": "",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "Z z Z\n",
+          "output": "z:3",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "AbCabc\n",
+          "output": "a:2,b:2,c:2",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Data Science: CSV Quantity Parser (AI Fix)",
+      "category": "Data Science",
+      "difficulty": "easy",
+      "seniority": "graduate",
+      "duration": 35,
+      "ai_fix": true,
+      "mistake_class": "input parsing faults",
+      "description": "AI-generated code attempt contains common mistake class: input parsing faults. Fix the logic and produce correct output.\nSum qty column from CSV rows item,qty,price.\nConstraints: Skip malformed rows.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "3\npen,2,10\npaper, 5 ,3\nclip,1,1\n",
+          "output": "8",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "2\na,10,0\nb,20,0\n",
+          "output": "30",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "3\nx,1,1\ninvalid\ny,2,2\n",
+          "output": "3",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "1\nitem,  7, 50\n",
+          "output": "7",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "4\na,0,1\nb,0,2\nc,0,3\nd,0,4\n",
+          "output": "0",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "2\n p,3,9\n q,4,1\n",
+          "output": "7",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Data Science: Sliding Window Peak",
+      "category": "Data Science",
+      "difficulty": "easy",
+      "seniority": "senior",
+      "duration": 30,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nCompute max contiguous sum with fixed window k.\nConstraints: O(n) sliding window.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "5 2\n1 2 3 4 5\n",
+          "output": "9",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "6 3\n-1 -2 -3 -4 -5 -6\n",
+          "output": "-6",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "4 4\n2 2 2 2\n",
+          "output": "8",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "8 3\n1 3 -1 -3 5 3 6 7\n",
+          "output": "16",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "5 1\n9 8 7 6 5\n",
+          "output": "9",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "7 2\n5 -1 2 3 -2 4 1\n",
+          "output": "5",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Data Science: Dataset Status Histogram",
+      "category": "Data Science",
+      "difficulty": "easy",
+      "seniority": "graduate",
+      "duration": 30,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nPrint alphabetical status histogram key:count.\nConstraints: Normalize lowercase first.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "5\nopen\nclosed\nopen\npending\nclosed\n",
+          "output": "closed:2,open:2,pending:1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "3\nOK\nok\nOk\n",
+          "output": "ok:3",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "1\nqueued\n",
+          "output": "queued:1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "4\na\nb\nc\nd\n",
+          "output": "a:1,b:1,c:1,d:1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "4\nwarn\nwarn\nwarn\nwarn\n",
+          "output": "warn:4",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "2\nup\ndown\n",
+          "output": "down:1,up:1",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Mobile Development: Gesture Event Deduper (AI Fix)",
+      "category": "Mobile Development",
+      "difficulty": "hard",
+      "seniority": "junior",
+      "duration": 60,
+      "ai_fix": true,
+      "mistake_class": "state mutation side effects",
+      "description": "AI-generated code attempt contains common mistake class: state mutation side effects. Fix the logic and produce correct output.\nCollapse consecutive duplicate tokens (case-insensitive).\nConstraints: O(n), preserve first casing in run.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "a a a b b c\n",
+          "output": "a b c",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "Login login LOGIN success\n",
+          "output": "Login success",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "x\n",
+          "output": "x",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "up up down down down up\n",
+          "output": "up down up",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "A a B b B\n",
+          "output": "A B",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "one two two three three three\n",
+          "output": "one two three",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 3200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Mobile Development: Route Token Normalizer (AI Fix)",
+      "category": "Mobile Development",
+      "difficulty": "hard",
+      "seniority": "senior",
+      "duration": 60,
+      "ai_fix": true,
+      "mistake_class": "input parsing faults",
+      "description": "AI-generated code attempt contains common mistake class: input parsing faults. Fix the logic and produce correct output.\nNormalize comma-separated tokens (trim/lowercase/dedupe).\nConstraints: O(n) with set.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": " API, auth ,API, Cache ,, cache,Queue\n",
+          "output": "api|auth|cache|queue",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "a,b,c\n",
+          "output": "a|b|c",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": " , , \n",
+          "output": "empty",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "One, two, THREE, two\n",
+          "output": "one|two|three",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "x\n",
+          "output": "x",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "A,a,A,a\n",
+          "output": "a",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 3200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Mobile Development: Daily Step Range Sum",
+      "category": "Mobile Development",
+      "difficulty": "easy",
+      "seniority": "graduate",
+      "duration": 30,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nCompute sum from 1..n (or 0 when n<=0).\nConstraints: Use O(1) formula.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "1\n",
+          "output": "1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "5\n",
+          "output": "15",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "10\n",
+          "output": "55",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "0\n",
+          "output": "0",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "100\n",
+          "output": "5050",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "1000\n",
+          "output": "500500",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Mobile Development: Foreground Status Histogram",
+      "category": "Mobile Development",
+      "difficulty": "easy",
+      "seniority": "mid",
+      "duration": 30,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nPrint alphabetical status histogram key:count.\nConstraints: Normalize lowercase first.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "5\nopen\nclosed\nopen\npending\nclosed\n",
+          "output": "closed:2,open:2,pending:1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "3\nOK\nok\nOk\n",
+          "output": "ok:3",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "1\nqueued\n",
+          "output": "queued:1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "4\na\nb\nc\nd\n",
+          "output": "a:1,b:1,c:1,d:1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "4\nwarn\nwarn\nwarn\nwarn\n",
+          "output": "warn:4",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "2\nup\ndown\n",
+          "output": "down:1,up:1",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "Mobile Development: Input Reverse Preview",
+      "category": "Mobile Development",
+      "difficulty": "easy",
+      "seniority": "senior",
+      "duration": 30,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nReverse the input line.\nConstraints: O(n).\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "hello\n",
+          "output": "olleh",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "Yo Score\n",
+          "output": "erocS oY",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "abc123\n",
+          "output": "321cba",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "racecar\n",
+          "output": "racecar",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "a b c\n",
+          "output": "c b a",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "!@#\n",
+          "output": "#@!",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "QA Testing: Test Case Label Cleaner (AI Fix)",
+      "category": "QA Testing",
+      "difficulty": "easy",
+      "seniority": "senior",
+      "duration": 35,
+      "ai_fix": true,
+      "mistake_class": "messy parsing code",
+      "description": "AI-generated code attempt contains common mistake class: messy parsing code. Fix the logic and produce correct output.\nNormalize comma-separated tokens (trim/lowercase/dedupe).\nConstraints: O(n) with set.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": " API, auth ,API, Cache ,, cache,Queue\n",
+          "output": "api|auth|cache|queue",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "a,b,c\n",
+          "output": "a|b|c",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": " , , \n",
+          "output": "empty",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "One, two, THREE, two\n",
+          "output": "one|two|three",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "x\n",
+          "output": "x",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "A,a,A,a\n",
+          "output": "a",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "QA Testing: Fault Log Severity Counter (AI Fix)",
+      "category": "QA Testing",
+      "difficulty": "easy",
+      "seniority": "senior",
+      "duration": 35,
+      "ai_fix": true,
+      "mistake_class": "input parsing faults",
+      "description": "AI-generated code attempt contains common mistake class: input parsing faults. Fix the logic and produce correct output.\nCount INFO/WARN/ERROR lines from log input.\nConstraints: Case-insensitive line checks.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "4\nINFO ok\nWARN disk\nERROR fail\nINFO done\n",
+          "output": "INFO:2,WARN:1,ERROR:1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "2\nDEBUG hi\nTRACE no\n",
+          "output": "INFO:0,WARN:0,ERROR:0",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "3\nERROR a\nERROR b\nWARN c\n",
+          "output": "INFO:0,WARN:1,ERROR:2",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "5\ninfo a\nwarn b\nwarn c\nerror d\nINFO e\n",
+          "output": "INFO:2,WARN:2,ERROR:1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "1\nWARN only\n",
+          "output": "INFO:0,WARN:1,ERROR:0",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "3\nerror\nwarn\ninfo\n",
+          "output": "INFO:1,WARN:1,ERROR:1",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "QA Testing: Boundary Range Verifier (AI Fix)",
+      "category": "QA Testing",
+      "difficulty": "hard",
+      "seniority": "mid",
+      "duration": 60,
+      "ai_fix": true,
+      "mistake_class": "off-by-one logic bugs",
+      "description": "AI-generated code attempt contains common mistake class: off-by-one logic bugs. Fix the logic and produce correct output.\nCount numbers divisible by k in inclusive [a,b].\nConstraints: O(1) arithmetic.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "1 10 2\n",
+          "output": "5",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "5 5 5\n",
+          "output": "1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "6 14 7\n",
+          "output": "2",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "2 3 5\n",
+          "output": "0",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "-10 10 5\n",
+          "output": "5",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "100 130 10\n",
+          "output": "4",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 3200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "QA Testing: Defect Status Histogram",
+      "category": "QA Testing",
+      "difficulty": "easy",
+      "seniority": "graduate",
+      "duration": 30,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nPrint alphabetical status histogram key:count.\nConstraints: Normalize lowercase first.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "5\nopen\nclosed\nopen\npending\nclosed\n",
+          "output": "closed:2,open:2,pending:1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "3\nOK\nok\nOk\n",
+          "output": "ok:3",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "1\nqueued\n",
+          "output": "queued:1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "4\na\nb\nc\nd\n",
+          "output": "a:1,b:1,c:1,d:1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "4\nwarn\nwarn\nwarn\nwarn\n",
+          "output": "warn:4",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "2\nup\ndown\n",
+          "output": "down:1,up:1",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "QA Testing: Bracket Sequence Validator",
+      "category": "QA Testing",
+      "difficulty": "medium",
+      "seniority": "junior",
+      "duration": 40,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nValidate bracket sequence and print VALID/INVALID.\nConstraints: O(n) stack.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "([]){}\n",
+          "output": "VALID",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "([)]\n",
+          "output": "INVALID",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "((()))\n",
+          "output": "VALID",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "((()\n",
+          "output": "INVALID",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "{[()]}[]\n",
+          "output": "VALID",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "}{\n",
+          "output": "INVALID",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "IT Support: Ticket Tag Normalizer (AI Fix)",
+      "category": "IT Support",
+      "difficulty": "easy",
+      "seniority": "graduate",
+      "duration": 35,
+      "ai_fix": true,
+      "mistake_class": "input parsing faults",
+      "description": "AI-generated code attempt contains common mistake class: input parsing faults. Fix the logic and produce correct output.\nNormalize comma-separated tokens (trim/lowercase/dedupe).\nConstraints: O(n) with set.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": " API, auth ,API, Cache ,, cache,Queue\n",
+          "output": "api|auth|cache|queue",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "a,b,c\n",
+          "output": "a|b|c",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": " , , \n",
+          "output": "empty",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "One, two, THREE, two\n",
+          "output": "one|two|three",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "x\n",
+          "output": "x",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "A,a,A,a\n",
+          "output": "a",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "IT Support: Suspicious Path Blocker (AI Fix)",
+      "category": "IT Support",
+      "difficulty": "medium",
+      "seniority": "mid",
+      "duration": 45,
+      "ai_fix": true,
+      "mistake_class": "unsafe validation/security issues",
+      "description": "AI-generated code attempt contains common mistake class: unsafe validation/security issues. Fix the logic and produce correct output.\nBlock traversal tokens (../, ..\\, %2e%2e).\nConstraints: Case-insensitive encoded checks.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "images/profile.png\n",
+          "output": "SAFE",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "../etc/passwd\n",
+          "output": "BLOCK",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "..\\windows\\system32\n",
+          "output": "BLOCK",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "/public/%2E%2E/secrets\n",
+          "output": "BLOCK",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "assets/icons/menu.svg\n",
+          "output": "SAFE",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "./safe/path\n",
+          "output": "SAFE",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "IT Support: Helpdesk Priority Max of Three",
+      "category": "IT Support",
+      "difficulty": "medium",
+      "seniority": "senior",
+      "duration": 40,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nPrint max of three integers.\nConstraints: O(1).\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "1 5 3\n",
+          "output": "5",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "-1 -5 -3\n",
+          "output": "-1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "10 10 7\n",
+          "output": "10",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "0 0 0\n",
+          "output": "0",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "99 4 98\n",
+          "output": "99",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "-9 8 -10\n",
+          "output": "8",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2600,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "IT Support: Escalation Retry Schedule",
+      "category": "IT Support",
+      "difficulty": "hard",
+      "seniority": "senior",
+      "duration": 55,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nGenerate exponential backoff sequence.\nConstraints: O(r).\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "100 4\n",
+          "output": "100,200,400,800",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "50 1\n",
+          "output": "50",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "10 3\n",
+          "output": "10,20,40",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "1 5\n",
+          "output": "1,2,4,8,16",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "7 2\n",
+          "output": "7,14",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "3 6\n",
+          "output": "3,6,12,24,48,96",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 6000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 3200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    },
+    {
+      "title": "IT Support: Shift Log Counter",
+      "category": "IT Support",
+      "difficulty": "easy",
+      "seniority": "graduate",
+      "duration": 30,
+      "ai_fix": false,
+      "mistake_class": null,
+      "description": "Solve the task using clean, deterministic logic and stable output formatting.\nCount INFO/WARN/ERROR lines from log input.\nConstraints: Case-insensitive line checks.\nExpected runtime envelope: accepted solutions should generally run below 2.5 seconds on baseline limits.",
+      "tests": [
+        {
+          "name": "case-1",
+          "input": "4\nINFO ok\nWARN disk\nERROR fail\nINFO done\n",
+          "output": "INFO:2,WARN:1,ERROR:1",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-2",
+          "input": "2\nDEBUG hi\nTRACE no\n",
+          "output": "INFO:0,WARN:0,ERROR:0",
+          "points": 1,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-3",
+          "input": "3\nERROR a\nERROR b\nWARN c\n",
+          "output": "INFO:0,WARN:1,ERROR:2",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-4",
+          "input": "5\ninfo a\nwarn b\nwarn c\nerror d\nINFO e\n",
+          "output": "INFO:2,WARN:2,ERROR:1",
+          "points": 2,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-5",
+          "input": "1\nWARN only\n",
+          "output": "INFO:0,WARN:1,ERROR:0",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        },
+        {
+          "name": "case-6",
+          "input": "3\nerror\nwarn\ninfo\n",
+          "output": "INFO:1,WARN:1,ERROR:1",
+          "points": 3,
+          "is_hidden": true,
+          "timeout_ms": 5000,
+          "memory_mb": 256
+        }
+      ],
+      "supported_languages": [
+        "javascript",
+        "python",
+        "java",
+        "cpp",
+        "go",
+        "csharp"
+      ],
+      "baseline": {
+        "runtime_ms": 2200,
+        "memory_mb": 256,
+        "lint_rules": {}
+      }
+    }
+  ]
+}
