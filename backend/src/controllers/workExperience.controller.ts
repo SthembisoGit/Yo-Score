@@ -32,13 +32,22 @@ export class WorkExperienceController {
         });
       }
 
+      const normalizedEvidenceLinks = Array.isArray(evidence_links)
+        ? evidence_links
+        : typeof evidence_links === 'string'
+          ? evidence_links
+              .split(/\r?\n|,/g)
+              .map((link) => link.trim())
+              .filter((link) => link.length > 0)
+          : [];
+
       const experience = await workExperienceService.addWorkExperience(
         req.user.id,
         {
           company_name: String(company_name).trim(),
           role: String(role).trim(),
           duration_months: months,
-          evidence_links: Array.isArray(evidence_links) ? evidence_links : [],
+          evidence_links: normalizedEvidenceLinks,
         },
       );
 

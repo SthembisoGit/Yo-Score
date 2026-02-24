@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Plus, Briefcase, Calendar } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { BadgeCheck, Briefcase, Calendar, ExternalLink, Plus, ShieldAlert } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,23 @@ interface ExperienceFormData {
 
 const calculateTotalMonths = (experiences: WorkExperienceRecord[]) =>
   experiences.reduce((total, experience) => total + experience.duration_months, 0);
+
+const getVerificationTone = (status: WorkExperienceRecord['verification_status']) => {
+  if (status === 'verified') {
+    return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
+  }
+  if (status === 'flagged' || status === 'rejected') {
+    return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+  }
+  return 'bg-muted text-muted-foreground';
+};
+
+const formatAddedDate = (dateValue: string | null | undefined) => {
+  if (!dateValue) return null;
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleDateString();
+};
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (typeof error === 'object' && error !== null && 'response' in error) {
@@ -119,7 +136,21 @@ export default function WorkExperience() {
     }
   };
 
-  const totalMonths = calculateTotalMonths(experiences);
+  const summary = useMemo(() => {
+    const totalMonths = calculateTotalMonths(experiences);
+    const flaggedEntries = experiences.filter(
+      (experience) =>
+        experience.verification_status === 'flagged' ||
+        experience.verification_status === 'rejected',
+    ).length;
+
+    return {
+      totalEntries: experiences.length,
+      totalMonths,
+      trustContribution: Math.min(20, Math.floor(totalMonths / 1.2)),
+      flaggedEntries,
+    };
+  }, [experiences]);
 
   if (!user) {
     return (
@@ -146,7 +177,7 @@ export default function WorkExperience() {
           <div>
             <h1 className="text-3xl font-bold mb-2">Work Experience</h1>
             <p className="text-muted-foreground">
-              Add verified experience that contributes to your trust score
+              Add your professional history to strengthen trust scoring and seniority mapping.
             </p>
           </div>
           <Button
@@ -161,19 +192,23 @@ export default function WorkExperience() {
           </Button>
         </div>
 
-        <div className="bg-primary text-primary-foreground rounded-lg p-6 mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-primary-foreground/80 text-sm mb-1">Experience Score Contribution</p>
-              <p className="text-3xl font-bold font-mono">
-                {Math.min(20, Math.floor(totalMonths / 1.2))}/20
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-primary-foreground/80 text-sm mb-1">Total Experience</p>
-              <p className="text-2xl font-bold font-mono">{totalMonths} months</p>
-            </div>
-          </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+          <article className="bg-card border border-border rounded-lg p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Total Entries</p>
+            <p className="text-2xl font-semibold mt-2">{summary.totalEntries}</p>
+          </article>
+          <article className="bg-card border border-border rounded-lg p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Total Months</p>
+            <p className="text-2xl font-semibold mt-2">{summary.totalMonths}</p>
+          </article>
+          <article className="bg-card border border-border rounded-lg p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Trust Contribution</p>
+            <p className="text-2xl font-semibold mt-2">{summary.trustContribution}/20</p>
+          </article>
+          <article className="bg-card border border-border rounded-lg p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Flagged Entries</p>
+            <p className="text-2xl font-semibold mt-2">{summary.flaggedEntries}</p>
+          </article>
         </div>
 
         {showForm && (
@@ -236,9 +271,7 @@ export default function WorkExperience() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="evidence_links">
-                  Evidence Links (optional, one URL per line)
-                </Label>
+                <Label htmlFor="evidence_links">Evidence Links (optional)</Label>
                 <textarea
                   id="evidence_links"
                   name="evidence_links"
@@ -253,7 +286,7 @@ export default function WorkExperience() {
                   disabled={isSaving}
                 />
                 <p className="text-xs text-muted-foreground">
-                  One link per line. Evidence improves verification confidence.
+                  Add one link per line, for example LinkedIn, GitHub, or company profile links.
                 </p>
               </div>
 
@@ -286,6 +319,12 @@ export default function WorkExperience() {
           </div>
         )}
 
+        {isLoading && (
+          <div className="bg-card border border-border rounded-lg p-6 text-sm text-muted-foreground">
+            Loading work experience records...
+          </div>
+        )}
+
         <div className="space-y-4">
           {!isLoading && experiences.length > 0 ? (
             experiences.map((experience) => (
@@ -296,60 +335,63 @@ export default function WorkExperience() {
                 }
                 className="bg-card border border-border rounded-lg p-6 hover:shadow-md transition-shadow"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                      <Briefcase className="h-6 w-6 text-muted-foreground" />
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex gap-3 min-w-0">
+                    <div className="w-11 h-11 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                      <Briefcase className="h-5 w-5 text-muted-foreground" />
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">{experience.role}</h3>
-                      <p className="text-muted-foreground">{experience.company_name}</p>
-                      <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-                        <Calendar className="h-4 w-4" />
-                        <span>{experience.duration_months} months</span>
-                        {experience.added_at && new Date(experience.added_at).getTime() > 0 && (
-                          <span>
-                            - Added {new Date(experience.added_at).toLocaleDateString()}
-                          </span>
-                        )}
+                    <div className="min-w-0">
+                      <p className="text-lg font-semibold truncate">{experience.role}</p>
+                      <p className="text-muted-foreground truncate">{experience.company_name}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          {experience.duration_months} months
+                        </span>
+                        {formatAddedDate(experience.added_at) ? (
+                          <span>Added {formatAddedDate(experience.added_at)}</span>
+                        ) : null}
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span
-                      className={`text-xs rounded-full px-2 py-1 ${
-                        experience.verification_status === 'verified'
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                          : experience.verification_status === 'flagged'
-                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                            : 'bg-muted text-muted-foreground'
-                      }`}
+                      className={`text-xs rounded-full px-2 py-1 ${getVerificationTone(
+                        experience.verification_status,
+                      )}`}
                     >
                       {(experience.verification_status || 'pending').toUpperCase()}
                     </span>
-                    <span className="text-xs text-muted-foreground">
-                      Risk Score: {experience.risk_score ?? 0}
+                    <span className="text-xs rounded-full px-2 py-1 bg-muted text-muted-foreground">
+                      Risk {experience.risk_score ?? 0}
+                    </span>
+                    <span className="text-xs rounded-full px-2 py-1 bg-muted text-muted-foreground inline-flex items-center gap-1">
+                      <BadgeCheck className="h-3.5 w-3.5" />
+                      {experience.verified ? 'Verified flag set' : 'Awaiting review'}
                     </span>
                   </div>
                 </div>
                 {experience.evidence_links && experience.evidence_links.length > 0 && (
-                  <div className="mt-3 text-xs text-muted-foreground">
-                    <p className="font-medium mb-1">Evidence links</p>
-                    <ul className="space-y-1">
+                  <details className="mt-4 rounded border border-border bg-muted/20 p-3">
+                    <summary className="cursor-pointer text-sm font-medium">
+                      Evidence links ({experience.evidence_links.length})
+                    </summary>
+                    <ul className="mt-2 space-y-1 text-sm">
                       {experience.evidence_links.map((link) => (
                         <li key={link} className="truncate">
                           <a
                             href={link}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-primary hover:underline"
+                            className="inline-flex items-center gap-1 text-primary hover:underline"
                           >
                             {link}
+                            <ExternalLink className="h-3.5 w-3.5" />
                           </a>
                         </li>
                       ))}
                     </ul>
-                  </div>
+                  </details>
                 )}
               </div>
             ))
@@ -357,7 +399,7 @@ export default function WorkExperience() {
 
           {!isLoading && experiences.length === 0 ? (
             <div className="text-center py-12 bg-card border border-border rounded-lg">
-              <Briefcase className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <ShieldAlert className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <p className="text-muted-foreground mb-4">No work experience added yet</p>
               <Button onClick={() => setShowForm(true)} className="gap-2">
                 <Plus className="h-4 w-4" />

@@ -16,18 +16,86 @@ export class WorkExperienceService {
   }
 
   private normalizeEvidenceLinks(rawLinks: unknown): string[] {
-    if (!Array.isArray(rawLinks)) return [];
+    if (Array.isArray(rawLinks)) {
+      const links = rawLinks
+        .map((link) => String(link ?? '').trim())
+        .filter((link) => link.length > 0)
+        .slice(0, 5);
 
-    const links = rawLinks
-      .map((link) => String(link ?? '').trim())
-      .filter((link) => link.length > 0)
-      .slice(0, 5);
-
-    const deduped: string[] = [];
-    for (const link of links) {
-      if (!deduped.includes(link)) deduped.push(link);
+      const deduped: string[] = [];
+      for (const link of links) {
+        if (!deduped.includes(link)) deduped.push(link);
+      }
+      return deduped;
     }
-    return deduped;
+
+    if (typeof rawLinks === 'string' && rawLinks.trim().length > 0) {
+      try {
+        const parsed = JSON.parse(rawLinks);
+        if (Array.isArray(parsed)) {
+          return this.normalizeEvidenceLinks(parsed);
+        }
+      } catch {
+        const fallback = rawLinks
+          .split(/\r?\n|,/g)
+          .map((link) => link.trim())
+          .filter((link) => link.length > 0)
+          .slice(0, 5);
+        const deduped: string[] = [];
+        for (const link of fallback) {
+          if (!deduped.includes(link)) deduped.push(link);
+        }
+        return deduped;
+      }
+    }
+
+    return [];
+  }
+
+  private mapExperienceRow(
+    experience: Record<string, unknown>,
+  ): {
+    experience_id: string;
+    company_name: string;
+    role: string;
+    duration_months: number;
+    verified: boolean;
+    evidence_links: string[];
+    verification_status: 'pending' | 'verified' | 'flagged' | 'rejected';
+    risk_score: number;
+    added_at: string | null;
+  } {
+    const verificationStatus = String(experience.verification_status ?? 'pending');
+    const normalizedStatus: 'pending' | 'verified' | 'flagged' | 'rejected' =
+      verificationStatus === 'verified' ||
+      verificationStatus === 'flagged' ||
+      verificationStatus === 'rejected'
+        ? verificationStatus
+        : 'pending';
+
+    const addedAtRaw = experience.added_at;
+    let addedAt: string | null = null;
+    if (typeof addedAtRaw === 'string' && addedAtRaw.trim().length > 0) {
+      addedAt = addedAtRaw;
+    } else if (addedAtRaw instanceof Date && !Number.isNaN(addedAtRaw.getTime())) {
+      addedAt = addedAtRaw.toISOString();
+    }
+
+    return {
+      experience_id: String(experience.id ?? experience.experience_id ?? ''),
+      company_name: String(experience.company_name ?? ''),
+      role: String(experience.role ?? ''),
+      duration_months: Number(experience.duration_months ?? 0),
+      verified:
+        experience.verified === true ||
+        experience.verified === 'true' ||
+        experience.verified === 1 ||
+        experience.verified === '1',
+      evidence_links: this.normalizeEvidenceLinks(experience.evidence_links),
+      verification_status: normalizedStatus,
+      risk_score: Number(experience.risk_score ?? 0),
+      added_at: addedAt,
+    };
   }
 
   private computeRiskScore(durationMonths: number, evidenceLinks: string[]): number {
@@ -96,25 +164,15 @@ export class WorkExperienceService {
         `INSERT INTO work_experience
            (user_id, company_name, role, duration_months, verified)
          VALUES ($1, $2, $3, $4, false)
-         RETURNING id, user_id, company_name, role, duration_months, verified, added_at`,
+         RETURNING id, user_id, company_name, role, duration_months, verified`,
         [userId, data.company_name, data.role, data.duration_months],
       );
     }
 
-    const experience = result.rows[0];
+    const experience = this.mapExperienceRow(result.rows[0] as Record<string, unknown>);
     await scoringService.recomputeTrustScore(userId);
 
-    return {
-      experience_id: experience.id,
-      company_name: experience.company_name,
-      role: experience.role,
-      duration_months: Number(experience.duration_months ?? 0),
-      verified: experience.verified,
-      evidence_links: Array.isArray(experience.evidence_links) ? experience.evidence_links : [],
-      verification_status: experience.verification_status,
-      risk_score: Number(experience.risk_score ?? 0),
-      added_at: experience.added_at,
-    };
+    return experience;
   }
 
   async getUserWorkExperiences(userId: string) {
@@ -131,25 +189,28 @@ export class WorkExperienceService {
       if (!this.isMissingSchemaError(error)) {
         throw error;
       }
-      result = await query(
-        `SELECT id, company_name, role, duration_months, verified, added_at
-         FROM work_experience
-         WHERE user_id = $1
-         ORDER BY added_at DESC`,
-        [userId],
-      );
+      try {
+        result = await query(
+          `SELECT id, company_name, role, duration_months, verified, added_at
+           FROM work_experience
+           WHERE user_id = $1
+           ORDER BY added_at DESC`,
+          [userId],
+        );
+      } catch (legacyError) {
+        if (!this.isMissingSchemaError(legacyError)) {
+          throw legacyError;
+        }
+        result = await query(
+          `SELECT id, company_name, role, duration_months, verified
+           FROM work_experience
+           WHERE user_id = $1
+           ORDER BY id DESC`,
+          [userId],
+        );
+      }
     }
 
-    return result.rows.map((exp) => ({
-      experience_id: exp.id,
-      company_name: exp.company_name,
-      role: exp.role,
-      duration_months: Number(exp.duration_months ?? 0),
-      verified: exp.verified,
-      evidence_links: Array.isArray(exp.evidence_links) ? exp.evidence_links : [],
-      verification_status: exp.verification_status,
-      risk_score: Number(exp.risk_score ?? 0),
-      added_at: exp.added_at,
-    }));
+    return result.rows.map((exp) => this.mapExperienceRow(exp as Record<string, unknown>));
   }
 }

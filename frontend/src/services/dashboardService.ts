@@ -33,7 +33,7 @@ export interface WorkExperience {
   evidence_links?: string[] | unknown;
   verification_status?: 'pending' | 'verified' | 'flagged' | 'rejected';
   risk_score?: number;
-  added_at: string;
+  added_at: string | null;
 }
 
 export interface AddWorkExperienceInput {
@@ -97,20 +97,31 @@ class DashboardService {
             evidenceLinks = parsed.map((link) => String(link ?? '').trim()).filter((link) => link.length > 0);
           }
         } catch {
-          evidenceLinks = [];
+          evidenceLinks = raw
+            .split(/\r?\n|,/g)
+            .map((link) => link.trim())
+            .filter((link) => link.length > 0);
         }
       }
+      const dedupedEvidence = [...new Set(evidenceLinks)].slice(0, 5);
+      const rawAddedAt =
+        typeof row.added_at === 'string' && row.added_at.trim().length > 0
+          ? row.added_at
+          : typeof (row as WorkExperience & { created_at?: unknown }).created_at === 'string' &&
+              String((row as WorkExperience & { created_at?: unknown }).created_at).trim().length > 0
+            ? String((row as WorkExperience & { created_at?: unknown }).created_at)
+            : null;
+      const parsedAddedAt =
+        rawAddedAt && !Number.isNaN(new Date(rawAddedAt).getTime()) ? rawAddedAt : null;
+
       return {
         ...row,
         experience_id: String(record.experience_id ?? record.id ?? ''),
         duration_months: Number(row.duration_months ?? 0),
         risk_score: Number(row.risk_score ?? 0),
         verification_status: row.verification_status ?? 'pending',
-        added_at:
-          typeof row.added_at === 'string' && row.added_at.trim().length > 0
-            ? row.added_at
-            : new Date(0).toISOString(),
-        evidence_links: evidenceLinks,
+        added_at: parsedAddedAt,
+        evidence_links: dedupedEvidence,
       };
     });
   }
