@@ -27,10 +27,13 @@ export function Navbar() {
       ? adminNavLinks
       : developerNavLinks;
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-    setIsOpen(false);
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      navigate('/');
+      setIsOpen(false);
+    }
   };
 
   const isActive = (path: string) => location.pathname === path;
@@ -84,7 +87,7 @@ export function Navbar() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={handleLogout}
+                    onClick={() => void handleLogout()}
                     className="gap-2"
                   >
                     <LogOut className="h-4 w-4" />
@@ -171,7 +174,7 @@ export function Navbar() {
                     <span className="ml-2 text-[11px] uppercase tracking-wide opacity-70">{roleLabel}</span>
                   </div>
                   <button
-                    onClick={handleLogout}
+                    onClick={() => void handleLogout()}
                     className="flex items-center gap-3 w-full px-4 py-3 rounded-md text-sm font-medium hover:bg-primary-foreground/10 transition-colors"
                   >
                     <LogOut className="h-5 w-5" />

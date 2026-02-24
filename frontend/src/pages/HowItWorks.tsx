@@ -20,7 +20,7 @@ const steps = [
   {
     title: '4. Submit And Judge',
     description:
-      'Your code is queued for automated test execution. The judge returns correctness, efficiency, and style components.',
+      'Your code is queued for automated test execution. The judge returns correctness, efficiency, and style components using hidden tests and language baselines.',
   },
   {
     title: '5. Receive Trust Feedback',
@@ -55,6 +55,22 @@ export default function HowItWorks() {
           <p className="text-sm text-muted-foreground">
             Drafts autosave locally while coding. If network drops, the timer still runs and the
             latest draft is submitted automatically once connection returns (within grace window).
+          </p>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-6">
+          <h2 className="text-lg font-semibold mb-2">Scoring Principles</h2>
+          <p className="text-sm text-muted-foreground">
+            YoScore does not require exact code matches. Correctness is based on hidden case outcomes,
+            so alternative valid implementations are scored fairly. Partial progress earns partial credit.
+          </p>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-6">
+          <h2 className="text-lg font-semibold mb-2">Challenge Rotation Rules</h2>
+          <p className="text-sm text-muted-foreground">
+            Completed challenges are excluded from automatic reassignment for 30 days per category, so
+            users keep receiving fresh, level-appropriate tasks.
           </p>
         </section>
       </main>

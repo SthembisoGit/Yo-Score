@@ -40,6 +40,31 @@ export default function About() {
             proctoring evidence when needed.
           </p>
         </section>
+
+        <section className="rounded-xl border border-border bg-card p-6 space-y-3">
+          <h2 className="text-xl font-semibold">Assessment Design</h2>
+          <p className="text-sm text-muted-foreground">
+            Challenges are matched by category and seniority band. Each submission is judged by hidden
+            test cases, runtime baselines, and code-quality heuristics across six supported languages.
+          </p>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-6 space-y-3">
+          <h2 className="text-xl font-semibold">AI-Fix Challenges</h2>
+          <p className="text-sm text-muted-foreground">
+            A large part of the challenge set simulates common AI coding mistakes (security checks,
+            boundary bugs, parsing issues, or unsafe assumptions). Developers are scored on how well
+            they identify and correct those problems.
+          </p>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-6 space-y-3">
+          <h2 className="text-xl font-semibold">Proctoring Transparency</h2>
+          <p className="text-sm text-muted-foreground">
+            Browser-side integrity checks run continuously. When ML capacity is degraded, YoScore keeps
+            core checks active and labels the degradation clearly so users understand confidence limits.
+          </p>
+        </section>
       </main>
       <Footer />
     </div>
