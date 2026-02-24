@@ -59,6 +59,9 @@ const createDefaultBaselineMap = () =>
 
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
+  const [activeSection, setActiveSection] = useState<'overview' | 'operations' | 'governance'>(
+    'overview',
+  );
   const [summary, setSummary] = useState<AdminDashboardSummary | null>(null);
   const [challenges, setChallenges] = useState<AdminChallenge[]>([]);
   const [runs, setRuns] = useState<AdminJudgeRun[]>([]);
@@ -340,6 +343,44 @@ export default function AdminDashboard() {
           <Button onClick={() => void loadData()}>Refresh</Button>
         </header>
 
+        <section className="rounded-xl border border-border bg-card p-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => setActiveSection('overview')}
+              className={`rounded-md px-3 py-2 text-sm font-medium ${
+                activeSection === 'overview'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              Overview & Challenges
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSection('operations')}
+              className={`rounded-md px-3 py-2 text-sm font-medium ${
+                activeSection === 'operations'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              Judge & Proctoring
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSection('governance')}
+              className={`rounded-md px-3 py-2 text-sm font-medium ${
+                activeSection === 'governance'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              Users & Audit
+            </button>
+          </div>
+        </section>
+
         <section className="grid grid-cols-2 gap-3 md:grid-cols-6">
           <Metric label="Users" value={summary?.users_total ?? 0} />
           <Metric label="Challenges" value={summary?.challenges_total ?? 0} />
@@ -349,6 +390,7 @@ export default function AdminDashboard() {
           <Metric label="Violations" value={violationSummary?.totalViolations ?? 0} />
         </section>
 
+        {activeSection === 'overview' && (
         <section className="rounded-xl border border-border bg-card p-4 space-y-3">
           <h2 className="font-semibold">Create Challenge</h2>
           <input
@@ -459,7 +501,9 @@ export default function AdminDashboard() {
             </div>
           </div>
         </section>
+        )}
 
+        {activeSection === 'overview' && (
         <section className="rounded-xl border border-border bg-card p-4 space-y-3">
           <h2 className="font-semibold">Challenges</h2>
           {challenges.map((c) => (
@@ -513,8 +557,9 @@ export default function AdminDashboard() {
             </div>
           ))}
         </section>
+        )}
 
-        {selectedChallengeId && (
+        {activeSection === 'overview' && selectedChallengeId && (
           <section className="rounded-xl border border-border bg-card p-4 space-y-3">
             <h2 className="font-semibold">Challenge Config ({selectedChallengeId})</h2>
             <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
@@ -595,6 +640,7 @@ export default function AdminDashboard() {
           </section>
         )}
 
+        {activeSection === 'operations' && (
         <section className="rounded-xl border border-border bg-card p-4 space-y-2">
           <h2 className="font-semibold">Judge Runs</h2>
           {runs.map((run) => (
@@ -605,7 +651,9 @@ export default function AdminDashboard() {
             </div>
           ))}
         </section>
+        )}
 
+        {activeSection === 'operations' && (
         <section className="rounded-xl border border-border bg-card p-4 space-y-2">
           <h2 className="font-semibold">Proctoring Settings</h2>
           <label className="flex items-center gap-2"><input type="checkbox" checked={settings.requireCamera} onChange={(e) => setSettings((p) => ({ ...p, requireCamera: e.target.checked }))} />Require camera</label>
@@ -616,7 +664,9 @@ export default function AdminDashboard() {
           <input type="number" className="rounded border px-2 py-1" value={settings.allowedViolationsBeforeWarning} onChange={(e) => setSettings((p) => ({ ...p, allowedViolationsBeforeWarning: Number(e.target.value) || p.allowedViolationsBeforeWarning }))} />
           <Button onClick={() => void onSaveSettings()}>Save Settings</Button>
         </section>
+        )}
 
+        {activeSection === 'operations' && (
         <section className="rounded-xl border border-border bg-card p-4 space-y-2">
           <h2 className="font-semibold">Proctoring Sessions</h2>
           <div className="grid gap-2 md:grid-cols-2">
@@ -640,7 +690,9 @@ export default function AdminDashboard() {
             </div>
           </div>
         </section>
+        )}
 
+        {activeSection === 'governance' && (
         <section className="rounded-xl border border-border bg-card p-4 space-y-2">
           <h2 className="font-semibold">User Roles</h2>
           {users.map((u) => (
@@ -654,7 +706,9 @@ export default function AdminDashboard() {
             </div>
           ))}
         </section>
+        )}
 
+        {activeSection === 'governance' && (
         <section className="rounded-xl border border-border bg-card p-4 space-y-2">
           <h2 className="font-semibold">Audit Logs</h2>
           {auditLogs.map((log) => (
@@ -664,7 +718,9 @@ export default function AdminDashboard() {
             </div>
           ))}
         </section>
+        )}
 
+        {activeSection === 'governance' && (
         <section className="rounded-xl border border-border bg-card p-4 space-y-2">
           <h2 className="font-semibold">Flagged Work Experience</h2>
           {flaggedWorkExperience.length === 0 ? (
@@ -683,6 +739,7 @@ export default function AdminDashboard() {
             ))
           )}
         </section>
+        )}
       </main>
     </div>
   );

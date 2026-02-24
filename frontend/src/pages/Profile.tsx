@@ -127,6 +127,10 @@ export default function Profile() {
     );
   }
 
+  const formErrors = [saveError, avatarUploadError].filter(
+    (message): message is string => Boolean(message),
+  );
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData((previous) => ({ ...previous, [e.target.name]: e.target.value }));
     if (saveError) {
@@ -290,6 +294,20 @@ export default function Profile() {
                   </Button>
                 )}
               </div>
+
+              {isEditing && formErrors.length > 0 && (
+                <div
+                  role="alert"
+                  className="mb-4 rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive"
+                >
+                  <p className="font-medium mb-1">Please fix the following:</p>
+                  <ul className="list-disc pl-4 space-y-1">
+                    {formErrors.map((message, index) => (
+                      <li key={`${message}-${index}`}>{message}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="flex items-center gap-4 mb-6">
                 <button
