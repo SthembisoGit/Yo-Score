@@ -165,18 +165,17 @@ export default function Challenges() {
       <Navbar />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-3xl font-bold mb-2">Coding Challenges</h1>
           <p className="text-muted-foreground">
-            Test your skills across multiple domains and difficulty levels
+            Pick a category, get matched to your seniority, and submit for real scoring.
           </p>
         </div>
 
         <div className="bg-card border border-border rounded-xl p-4 mb-6">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="font-medium">Start a Seniority-Matched Challenge</p>
+              <p className="font-semibold">Start Matched Challenge</p>
               <p className="text-sm text-muted-foreground">
                 Pick a category and YoScore assigns the next challenge for your level.
               </p>
@@ -204,8 +203,7 @@ export default function Challenges() {
           </div>
         </div>
 
-        {/* Search and Filters Bar */}
-        <div className="bg-card border border-border rounded-xl p-4 mb-8 shadow-sm">
+        <div className="bg-card border border-border rounded-xl p-4 mb-6 shadow-sm">
           <div className="flex flex-col lg:flex-row lg:items-center gap-4">
             {/* Search Input */}
             <div className="relative flex-1">
@@ -422,7 +420,7 @@ export default function Challenges() {
             </p>
           </div>
           
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-full bg-green-500"></div>
               Completed
@@ -465,13 +463,6 @@ export default function Challenges() {
           </div>
         )}
 
-        {/* Loading indicator for search */}
-        {isSearching && (
-          <div className="fixed bottom-6 right-6 bg-card border border-border rounded-lg p-3 shadow-lg flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            <span className="text-sm">Searching...</span>
-          </div>
-        )}
       </main>
     </div>
   );

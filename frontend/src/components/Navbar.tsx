@@ -34,6 +34,7 @@ export function Navbar() {
   };
 
   const isActive = (path: string) => location.pathname === path;
+  const roleLabel = user?.role === 'admin' ? 'Admin' : 'Developer';
 
   return (
     <nav className="bg-primary text-primary-foreground sticky top-0 z-50">
@@ -55,7 +56,7 @@ export function Navbar() {
                     to={link.to}
                     className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                       isActive(link.to)
-                        ? 'bg-primary-foreground/20'
+                        ? 'bg-primary-foreground text-primary shadow-sm'
                         : 'hover:bg-primary-foreground/10'
                     }`}
                   >
@@ -68,7 +69,7 @@ export function Navbar() {
                     to={link.to}
                     className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                       isActive(link.to)
-                        ? 'bg-primary-foreground/20'
+                        ? 'bg-primary-foreground text-primary shadow-sm'
                         : 'hover:bg-primary-foreground/10'
                     }`}
                   >
@@ -76,7 +77,10 @@ export function Navbar() {
                   </Link>
                 ))}
                 <div className="ml-4 pl-4 border-l border-primary-foreground/20 flex items-center gap-3">
-                  <span className="text-sm opacity-80">{user?.name}</span>
+                  <div className="text-right leading-tight">
+                    <p className="text-sm opacity-90">{user?.name}</p>
+                    <p className="text-[11px] uppercase tracking-wide opacity-70">{roleLabel}</p>
+                  </div>
                   <Button
                     variant="secondary"
                     size="sm"
@@ -96,7 +100,7 @@ export function Navbar() {
                     to={link.to}
                     className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                       isActive(link.to)
-                        ? 'bg-primary-foreground/20'
+                        ? 'bg-primary-foreground text-primary shadow-sm'
                         : 'hover:bg-primary-foreground/10'
                     }`}
                   >
@@ -139,7 +143,7 @@ export function Navbar() {
                     onClick={() => setIsOpen(false)}
                     className={`flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors ${
                       isActive(link.to)
-                        ? 'bg-primary-foreground/20'
+                        ? 'bg-primary-foreground text-primary shadow-sm'
                         : 'hover:bg-primary-foreground/10'
                     }`}
                   >
@@ -154,7 +158,7 @@ export function Navbar() {
                     onClick={() => setIsOpen(false)}
                     className={`flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors ${
                       isActive(link.to)
-                        ? 'bg-primary-foreground/20'
+                        ? 'bg-primary-foreground text-primary shadow-sm'
                         : 'hover:bg-primary-foreground/10'
                     }`}
                   >
@@ -162,7 +166,10 @@ export function Navbar() {
                   </Link>
                 ))}
                 <div className="pt-4 mt-4 border-t border-primary-foreground/20">
-                  <div className="px-4 py-2 text-sm opacity-80">{user?.email}</div>
+                  <div className="px-4 py-2 text-sm opacity-80">
+                    {user?.email}
+                    <span className="ml-2 text-[11px] uppercase tracking-wide opacity-70">{roleLabel}</span>
+                  </div>
                   <button
                     onClick={handleLogout}
                     className="flex items-center gap-3 w-full px-4 py-3 rounded-md text-sm font-medium hover:bg-primary-foreground/10 transition-colors"
@@ -181,7 +188,7 @@ export function Navbar() {
                     onClick={() => setIsOpen(false)}
                     className={`block px-4 py-3 rounded-md text-center font-medium transition-colors ${
                       isActive(link.to)
-                        ? 'bg-primary-foreground/20'
+                        ? 'bg-primary-foreground text-primary shadow-sm'
                         : 'hover:bg-primary-foreground/10'
                     }`}
                   >

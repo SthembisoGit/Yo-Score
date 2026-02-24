@@ -171,9 +171,42 @@ export default function Dashboard() {
             Welcome back, {user.name.split(' ')[0]}
           </h1>
           <p className="text-muted-foreground">
-            Here is your skill overview and recent activity
+            Continue your assessment flow and track your trusted performance.
           </p>
         </header>
+
+        <section className="mb-6 rounded-xl border border-border bg-card p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Primary Action</h2>
+              <p className="text-sm text-muted-foreground">
+                Start the next matched challenge or update your experience evidence.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="sm:w-[220px]">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableCategories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={() => void handleStartMatchedChallenge()} disabled={isAssigning || isLoading}>
+                {isAssigning ? 'Assigning...' : 'Start Matched Challenge'}
+              </Button>
+              <Link to="/work-experience">
+                <Button variant="outline" disabled={isLoading}>
+                  Add Experience
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
 
         <section className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div>
@@ -220,33 +253,6 @@ export default function Dashboard() {
                     Take Challenge
                   </Button>
                 </Link>
-
-                <Link to="/work-experience" className="flex-1">
-                  <Button variant="outline" className="w-full" disabled={isLoading}>
-                    Add Experience
-                  </Button>
-                </Link>
-              </div>
-            </div>
-
-            <div className="mt-4 border-t border-border pt-4">
-              <p className="text-sm font-medium mb-2">Start Seniority-Matched Challenge</p>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className="sm:w-[220px]">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableCategories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button onClick={() => void handleStartMatchedChallenge()} disabled={isAssigning || isLoading}>
-                  {isAssigning ? 'Assigning...' : 'Start Matched Challenge'}
-                </Button>
               </div>
             </div>
           </div>
