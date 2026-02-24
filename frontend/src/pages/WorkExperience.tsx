@@ -42,6 +42,7 @@ export default function WorkExperience() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [formData, setFormData] = useState<ExperienceFormData>({
     company_name: '',
     role: '',
@@ -76,6 +77,7 @@ export default function WorkExperience() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((previous) => ({ ...previous, [e.target.name]: e.target.value }));
+    if (formError) setFormError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -83,11 +85,17 @@ export default function WorkExperience() {
 
     const durationMonths = Number(formData.duration_months);
     if (!Number.isFinite(durationMonths) || durationMonths <= 0) {
+      setFormError('Duration must be greater than 0 months.');
       toast.error('Duration must be greater than 0 months.');
+      return;
+    }
+    if (!formData.company_name.trim() || !formData.role.trim()) {
+      setFormError('Company name and role are required.');
       return;
     }
 
     setIsSaving(true);
+    setFormError(null);
     try {
       await dashboardService.addWorkExperience({
         company_name: formData.company_name.trim(),
@@ -104,6 +112,7 @@ export default function WorkExperience() {
       toast.success('Work experience added');
     } catch (error: unknown) {
       const message = getErrorMessage(error, 'Failed to save work experience.');
+      setFormError(message);
       toast.error(message);
     } finally {
       setIsSaving(false);
@@ -140,7 +149,13 @@ export default function WorkExperience() {
               Add verified experience that contributes to your trust score
             </p>
           </div>
-          <Button onClick={() => setShowForm(!showForm)} className="gap-2">
+          <Button
+            onClick={() => {
+              setShowForm((previous) => !previous);
+              setFormError(null);
+            }}
+            className="gap-2"
+          >
             <Plus className="h-4 w-4" />
             Add Experience
           </Button>
@@ -164,6 +179,15 @@ export default function WorkExperience() {
         {showForm && (
           <div className="bg-card border border-border rounded-lg p-6 mb-8">
             <h2 className="text-xl font-semibold mb-4">Add Work Experience</h2>
+            {formError && (
+              <div
+                role="alert"
+                className="mb-4 rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive"
+              >
+                <p className="font-medium mb-1">Please fix the following:</p>
+                <p>{formError}</p>
+              </div>
+            )}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -206,6 +230,9 @@ export default function WorkExperience() {
                   required
                   disabled={isSaving}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Use whole months only, for example: 12.
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -217,17 +244,29 @@ export default function WorkExperience() {
                   name="evidence_links"
                   rows={4}
                   value={formData.evidence_links}
-                  onChange={(e) =>
-                    setFormData((previous) => ({ ...previous, evidence_links: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    setFormData((previous) => ({ ...previous, evidence_links: e.target.value }));
+                    if (formError) setFormError(null);
+                  }}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   placeholder="https://linkedin.com/in/your-profile"
                   disabled={isSaving}
                 />
+                <p className="text-xs text-muted-foreground">
+                  One link per line. Evidence improves verification confidence.
+                </p>
               </div>
 
               <div className="flex gap-3 justify-end">
-                <Button type="button" variant="outline" onClick={() => setShowForm(false)} disabled={isSaving}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowForm(false);
+                    setFormError(null);
+                  }}
+                  disabled={isSaving}
+                >
                   Cancel
                 </Button>
                 <Button type="submit" disabled={isSaving}>
@@ -270,7 +309,7 @@ export default function WorkExperience() {
                         <span>{experience.duration_months} months</span>
                         {experience.added_at && new Date(experience.added_at).getTime() > 0 && (
                           <span>
-                            • Added {new Date(experience.added_at).toLocaleDateString()}
+                            - Added {new Date(experience.added_at).toLocaleDateString()}
                           </span>
                         )}
                       </div>
