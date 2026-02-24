@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { AlertTriangle, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, Info, XCircle } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import {
   submissionService,
@@ -14,6 +14,7 @@ const trustLevelClass: Record<'Low' | 'Medium' | 'High', string> = {
   Medium: 'text-amber-600',
   High: 'text-green-600',
 };
+const RESULT_HELP_STORAGE_KEY = 'yoscore_result_help_seen';
 
 export default function SubmissionResult() {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +25,7 @@ export default function SubmissionResult() {
   const [pollTimedOut, setPollTimedOut] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [pollNotice, setPollNotice] = useState<string | null>(null);
+  const [showResultHelp, setShowResultHelp] = useState(false);
 
   const loadSubmission = useCallback(
     async (enablePolling: boolean) => {
@@ -113,6 +115,25 @@ export default function SubmissionResult() {
     void loadSubmission(true);
   }, [loadSubmission]);
 
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem(RESULT_HELP_STORAGE_KEY)) {
+        setShowResultHelp(true);
+      }
+    } catch {
+      setShowResultHelp(true);
+    }
+  }, []);
+
+  const dismissResultHelp = () => {
+    setShowResultHelp(false);
+    try {
+      localStorage.setItem(RESULT_HELP_STORAGE_KEY, '1');
+    } catch {
+      // ignore storage errors
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -175,6 +196,26 @@ export default function SubmissionResult() {
           <p className="text-muted-foreground">{submission.challenge_title}</p>
         </div>
 
+        {showResultHelp && (
+          <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/20 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex gap-2 text-sm">
+                <Info className="h-4 w-4 mt-0.5 text-blue-600" />
+                <div>
+                  <p className="font-medium text-foreground">How to read this result</p>
+                  <p className="text-muted-foreground">
+                    Correctness comes from hidden tests, efficiency compares runtime against baseline,
+                    and behavior reflects proctoring evidence. Use “What To Practice Next” for targeted improvement.
+                  </p>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={dismissResultHelp}>
+                Got it
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             {(isJudgePending || pollTimedOut) && (
@@ -236,6 +277,24 @@ export default function SubmissionResult() {
                   <span className="font-medium text-foreground">{submission.total_score}</span>
                 </p>
               )}
+            </div>
+
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h3 className="text-lg font-semibold mb-4">Assessment Snapshot</h3>
+              <div className="grid gap-3 sm:grid-cols-3 text-sm">
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-muted-foreground">Correctness</p>
+                  <p className="text-xl font-semibold">{components.correctness}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-muted-foreground">Efficiency</p>
+                  <p className="text-xl font-semibold">{components.efficiency}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-muted-foreground">Behavior Penalty</p>
+                  <p className="text-xl font-semibold">-{totalPenalty}</p>
+                </div>
+              </div>
             </div>
 
             <div className="bg-card border border-border rounded-xl p-6">
@@ -400,9 +459,9 @@ export default function SubmissionResult() {
               <Link to="/challenges" className="block">
                 <Button className="w-full">Take Another Challenge</Button>
               </Link>
-              <Link to={`/challenges/${submission.challenge_id}`} className="block">
+              <Link to="/dashboard" className="block">
                 <Button variant="outline" className="w-full">
-                  Retry This Challenge
+                  Back to Dashboard
                 </Button>
               </Link>
             </div>

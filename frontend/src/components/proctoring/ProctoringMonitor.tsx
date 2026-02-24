@@ -1322,7 +1322,7 @@ const ProctoringMonitor: React.FC<Props> = ({
         if (!mlHealthAlertShownRef.current) {
           mlHealthAlertShownRef.current = true;
           addAlert(
-            'ML analysis degraded. Core proctoring checks continue, but face/audio confidence may be reduced.',
+            'ML analysis degraded. Core proctoring checks continue, and the developer is still improving this component.',
             'medium',
           );
         }
@@ -1691,7 +1691,9 @@ const ProctoringMonitor: React.FC<Props> = ({
                   <p>- Camera and microphone must stay on</p>
                   <p>- Session pauses automatically on device-off</p>
                   <p>- Browser-first face/audio checks with consensus policy</p>
-                  {mlDegraded && <p>- ML analysis currently degraded</p>}
+                  {mlDegraded && (
+                    <p>- ML analysis currently degraded. Core checks continue; the developer is still improving this component.</p>
+                  )}
                 </div>
               )}
             </div>
