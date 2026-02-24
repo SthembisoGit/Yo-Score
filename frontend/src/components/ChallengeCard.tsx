@@ -51,20 +51,24 @@ export function ChallengeCard({ challenge, className }: ChallengeCardProps) {
     >
       <div className={cn('border-l-4', statusAccentClass[challenge.status])}>
         <div className="p-5">
-          <div className="flex items-start justify-between gap-4 mb-3">
-            <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
-              {challenge.title}
-            </h3>
-            {challenge.status === 'completed' && (
-              <CheckCircle className="h-5 w-5 text-success flex-shrink-0" />
-            )}
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <span className={cn('text-xs font-medium px-2 py-1 rounded', statusBadgeClass[challenge.status])}>
+              {statusLabel[challenge.status]}
+            </span>
+            {challenge.status === 'completed' && <CheckCircle className="h-4 w-4 text-success flex-shrink-0" />}
           </div>
 
-          <p className="text-muted-foreground text-sm mb-4 line-clamp-2">
+          <div className="mb-3">
+            <h3 className="font-semibold text-lg leading-tight group-hover:text-primary transition-colors">
+              {challenge.title}
+            </h3>
+          </div>
+
+          <p className="text-muted-foreground text-sm mb-4 line-clamp-2 min-h-[2.5rem]">
             {challenge.description}
           </p>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <span className={cn('text-xs font-medium px-2 py-1 bg-muted rounded', categoryTone)}>
               {challenge.category}
             </span>
@@ -75,9 +79,6 @@ export function ChallengeCard({ challenge, className }: ChallengeCardProps) {
               )}
             >
               {challenge.difficulty}
-            </span>
-            <span className={cn('text-xs font-medium px-2 py-1 rounded', statusBadgeClass[challenge.status])}>
-              {statusLabel[challenge.status]}
             </span>
           </div>
 
