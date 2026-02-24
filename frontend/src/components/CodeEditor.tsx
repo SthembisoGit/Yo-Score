@@ -122,9 +122,9 @@ public class Program
 };
 
 const toDisplay = (code: SupportedLanguageCode): string => CODE_TO_DISPLAY[code];
-const DEFAULT_EDITOR_HEIGHT = 560;
-const MIN_EDITOR_HEIGHT = 420;
-const MAX_EDITOR_HEIGHT = 920;
+const DEFAULT_EDITOR_HEIGHT = 640;
+const MIN_EDITOR_HEIGHT = 360;
+const MAX_EDITOR_HEIGHT = 980;
 const EDITOR_HEIGHT_STORAGE_KEY = 'yoscore:editor-height';
 
 export function CodeEditor({
@@ -147,6 +147,7 @@ export function CodeEditor({
   const [stdin, setStdin] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [output, setOutput] = useState<string>('');
+  const [showExecutionMeta, setShowExecutionMeta] = useState(false);
   const [editorHeight, setEditorHeight] = useState<number>(() => {
     if (typeof window === 'undefined') return DEFAULT_EDITOR_HEIGHT;
     const raw = window.localStorage.getItem(EDITOR_HEIGHT_STORAGE_KEY);
@@ -223,9 +224,12 @@ export function CodeEditor({
       const stdout = String(result.stdout ?? '');
       const stderr = String(result.stderr ?? '');
       const sections: string[] = [];
+      const meta: string[] = [];
 
       if (stdout.length > 0) {
         sections.push(stdout.trimEnd());
+      } else if (stderr.length > 0) {
+        sections.push('(Program ended without stdout output.)');
       } else if (stdin.trim().length === 0) {
         sections.push(
           '(No stdout output. Add input in the stdin box and run again if the program expects input.)',
@@ -243,9 +247,18 @@ export function CodeEditor({
       if (result.truncated) {
         sections.push('Output was truncated to protect performance limits.');
       }
-      sections.push(
-        `[meta] exit_code=${result.exit_code} runtime=${result.runtime_ms}ms memory=${result.memory_kb}KB provider=${result.provider}`,
+      meta.push(
+        `exit_code=${result.exit_code}`,
+        `runtime=${result.runtime_ms}ms`,
+        `memory=${result.memory_kb}KB`,
+        `provider=${result.provider}`,
       );
+      if (result.error_class) {
+        meta.push(`error_class=${result.error_class}`);
+      }
+      if (showExecutionMeta) {
+        sections.push(`[meta] ${meta.join(' ')}`);
+      }
 
       setOutput(sections.join('\n\n'));
     } catch (error) {
@@ -329,56 +342,59 @@ export function CodeEditor({
 
   return (
     <div className={cn('flex flex-col bg-card border border-border rounded-lg overflow-hidden', className)}>
-      <div className="flex flex-col gap-2 border-b border-border bg-muted px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          {showLanguageSelector ? (
-            <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-              <SelectTrigger className="h-8 w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {availableLanguageCodes.map((item) => (
-                  <SelectItem key={item.code} value={item.code}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <span className="text-sm font-medium">{toDisplay(selectedLanguage)}</span>
-          )}
+      <div className="flex flex-col gap-2 border-b border-border bg-muted px-4 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            {showLanguageSelector ? (
+              <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+                <SelectTrigger className="h-8 w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableLanguageCodes.map((item) => (
+                    <SelectItem key={item.code} value={item.code}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <span className="text-sm font-medium">{toDisplay(selectedLanguage)}</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => void handleRun()} disabled={isRunning || readOnly}>
+              {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+              Run
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleReset} disabled={readOnly}>
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset
+            </Button>
+            {onSubmit && (
+              <Button size="sm" onClick={handleSubmit} disabled={readOnly}>
+                <Save className="h-3.5 w-3.5" />
+                Submit
+              </Button>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="hidden items-center gap-2 rounded border border-border bg-background px-2 py-1 text-xs text-muted-foreground md:flex">
-            <span>Editor Height</span>
-            <input
-              type="range"
-              min={MIN_EDITOR_HEIGHT}
-              max={MAX_EDITOR_HEIGHT}
-              step={10}
-              value={editorHeight}
-              onChange={(event) => handleEditorHeightChange(Number(event.target.value))}
-              disabled={readOnly}
-              className="h-3 w-24"
-              aria-label="Editor height"
-            />
-            <span>{editorHeight}px</span>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => void handleRun()} disabled={isRunning || readOnly}>
-            {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-            Run
-          </Button>
-          <Button variant="ghost" size="sm" onClick={handleReset} disabled={readOnly}>
-            <RotateCcw className="h-3.5 w-3.5" />
-            Reset
-          </Button>
-          {onSubmit && (
-            <Button size="sm" onClick={handleSubmit} disabled={readOnly}>
-              <Save className="h-3.5 w-3.5" />
-              Submit
-            </Button>
-          )}
+        <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-background px-2 py-1 text-xs text-muted-foreground">
+          <span>Editor Height</span>
+          <input
+            type="range"
+            min={MIN_EDITOR_HEIGHT}
+            max={MAX_EDITOR_HEIGHT}
+            step={10}
+            value={editorHeight}
+            onChange={(event) => handleEditorHeightChange(Number(event.target.value))}
+            disabled={readOnly}
+            className="h-3 w-28 sm:w-40"
+            aria-label="Editor height"
+          />
+          <span>{editorHeight}px</span>
         </div>
       </div>
 
@@ -420,17 +436,29 @@ export function CodeEditor({
         />
       </div>
 
-      <div className="border-t border-border h-5">
+      <div className="border-t border-border bg-background">
         <div className="flex items-center justify-between border-b border-border bg-muted/50 px-4 py-2 text-xs font-medium text-muted-foreground">
           <span className="flex items-center gap-2">
             <Terminal className="h-3.5 w-3.5" />
             Terminal
           </span>
-          <button type="button" className="hover:text-foreground" onClick={() => setOutput('')}>
-            Clear
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className={cn(
+                'rounded px-2 py-0.5',
+                showExecutionMeta ? 'bg-primary/15 text-primary' : 'hover:text-foreground',
+              )}
+              onClick={() => setShowExecutionMeta((previous) => !previous)}
+            >
+              Meta
+            </button>
+            <button type="button" className="hover:text-foreground" onClick={() => setOutput('')}>
+              Clear
+            </button>
+          </div>
         </div>
-        <pre className="max-h-52 overflow-auto bg-background p-4 font-mono text-xs whitespace-pre-wrap">
+        <pre className="min-h-[140px] max-h-64 overflow-auto bg-background p-4 font-mono text-xs whitespace-pre-wrap">
           {output || 'Run your code to see real output.'}
         </pre>
       </div>

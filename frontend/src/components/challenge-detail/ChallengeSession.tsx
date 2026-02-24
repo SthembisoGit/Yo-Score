@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Camera, FileText, Loader2, Mic, Shield, Sparkles } from 'lucide-react';
+import {
+  AlertCircle,
+  Camera,
+  FileText,
+  Loader2,
+  Mic,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Shield,
+  Sparkles,
+  WifiOff,
+} from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -34,6 +45,15 @@ interface ChallengeSessionProps {
   pauseReason?: string;
   deadlineAt?: string | null;
   durationSeconds?: number;
+}
+
+type SessionRailTab = 'task' | 'assist' | 'integrity';
+type SessionBannerState = 'info' | 'warning' | 'error' | 'success';
+
+interface SessionBanner {
+  key: string;
+  state: SessionBannerState;
+  message: string;
 }
 
 const AUTO_SAVE_INTERVAL_MS = 3000;
@@ -95,7 +115,8 @@ export const ChallengeSession = ({
   durationSeconds = 0,
 }: ChallengeSessionProps) => {
   const navigate = useNavigate();
-  const [showDocs, setShowDocs] = useState(false);
+  const [activeRailTab, setActiveRailTab] = useState<SessionRailTab>('task');
+  const [isRailCollapsed, setIsRailCollapsed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [code, setCode] = useState<string>('// Write your solution here\n');
@@ -146,6 +167,74 @@ export const ChallengeSession = ({
   const canRequestHint = coachHints.length < 3 && Boolean(sessionId) && !isSessionEnded;
   const readOnlyEditor = isSubmitting || isSessionEnded || isSessionPaused || timeExpired;
   const [lastClipboardWarningAt, setLastClipboardWarningAt] = useState<number>(0);
+  const sessionStateLabel = timeExpired
+    ? 'Time Expired'
+    : isSessionEnded
+      ? 'Session Ended'
+      : isSessionPaused
+        ? 'Paused'
+        : 'Active';
+  const sessionStateClass = timeExpired || isSessionPaused
+    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+    : isSessionEnded
+      ? 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+      : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
+
+  const sessionBanners = useMemo<SessionBanner[]>(() => {
+    const banners: SessionBanner[] = [];
+
+    if (submissionError) {
+      banners.push({
+        key: 'submission-error',
+        state: 'error',
+        message: submissionError,
+      });
+    }
+
+    if (!isOnline) {
+      banners.push({
+        key: 'offline',
+        state: 'warning',
+        message: 'Network offline. Timer continues and your draft autosaves locally.',
+      });
+    }
+
+    if (!proctoringReady && sessionId) {
+      banners.push({
+        key: 'proctoring-init',
+        state: 'info',
+        message: 'Proctoring is initializing. Ensure camera and microphone are enabled.',
+      });
+    }
+
+    if (isSessionPaused) {
+      banners.push({
+        key: 'paused',
+        state: 'error',
+        message:
+          pauseReason || 'Session paused by proctoring. Restore required devices to continue.',
+      });
+    }
+
+    if (timeExpired && pendingReconnectSubmit) {
+      banners.push({
+        key: 'time-expired-offline',
+        state: 'error',
+        message: 'Time expired while offline. Auto-submit will run when connection returns.',
+      });
+    }
+
+    return banners;
+  }, [
+    isOnline,
+    isSessionPaused,
+    pauseReason,
+    pendingReconnectSubmit,
+    proctoringReady,
+    sessionId,
+    submissionError,
+    timeExpired,
+  ]);
 
   const loadDraft = useCallback(() => {
     if (!draftKey) return;
@@ -390,11 +479,6 @@ export const ChallengeSession = ({
     void handleSubmit(true);
   }, [handleSubmit, isOnline, isSessionEnded, isSubmitting, pendingReconnectSubmit]);
 
-  useEffect(() => {
-    if (!timeExpired && !isSessionEnded) return;
-    setShowDocs(false);
-  }, [isSessionEnded, timeExpired]);
-
   const handleClipboardBlocked = useCallback(() => {
     const now = Date.now();
     if (now - lastClipboardWarningAt < 1200) return;
@@ -403,108 +487,179 @@ export const ChallengeSession = ({
   }, [lastClipboardWarningAt]);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 min-h-[680px] lg:h-[calc(100vh-140px)]">
-      <div className="lg:w-1/3 flex flex-col">
-        <div className="bg-card border border-border rounded-xl overflow-hidden flex-1 flex flex-col shadow-sm">
-          <div className="flex border-b border-border">
+    <div className="flex flex-col gap-4 min-h-[680px]">
+      <section className="sticky top-20 z-20 rounded-xl border border-border bg-card/95 backdrop-blur-sm p-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 justify-between">
+          <div className="flex items-center gap-2 text-sm">
+            {isOnline ? (
+              <span className="rounded-full bg-green-100 px-2 py-1 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                Online
+              </span>
+            ) : (
+              <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 inline-flex items-center gap-1">
+                <WifiOff className="h-3.5 w-3.5" />
+                Offline
+              </span>
+            )}
+            <span className={`rounded-full px-2 py-1 text-xs font-medium ${sessionStateClass}`}>
+              {sessionStateLabel}
+            </span>
+            <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
+              {violationCount} violation(s)
+            </span>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-muted-foreground">Challenge Timer</p>
+            <strong className={`font-mono text-base ${timeExpired ? 'text-red-600' : ''}`}>
+              {formatRemaining(remainingSeconds)}
+            </strong>
+          </div>
+        </div>
+      </section>
+
+      {sessionBanners.map((banner) => {
+        const tone =
+          banner.state === 'error'
+            ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20'
+            : banner.state === 'warning'
+              ? 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20'
+              : banner.state === 'success'
+                ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/20'
+                : 'border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/20';
+        return (
+          <Alert key={banner.key} className={tone}>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{banner.message}</AlertDescription>
+          </Alert>
+        );
+      })}
+
+      <div className="flex flex-col xl:flex-row gap-4">
+        <section className="min-w-0 flex-1 flex flex-col gap-4">
+          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+            <CodeEditor
+              language={mapToSubmissionLanguage(selectedLanguage)}
+              value={code}
+              onChange={setCode}
+              onRun={async ({ language, code: sourceCode, stdin }): Promise<RunCodeResponse> =>
+                challengeService.runCode({
+                  language,
+                  code: sourceCode,
+                  stdin,
+                  challenge_id: challengeId,
+                })
+              }
+              className="h-full"
+              readOnly={readOnlyEditor}
+              disableClipboardActions
+              onClipboardBlocked={handleClipboardBlocked}
+            />
+          </div>
+
+          <div className="sticky bottom-2 rounded-xl border border-border bg-card/95 backdrop-blur-sm p-3 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                Writing solution in <span className="font-medium text-foreground">{selectedLanguage}</span>
+              </p>
+              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:items-center">
+                <Button
+                  variant="outline"
+                  onClick={handleEndSessionEarly}
+                  disabled={!sessionId || isSessionEnded || isSubmitting || isSessionPaused}
+                  className="sm:px-4"
+                >
+                  End Session
+                </Button>
+                <Button
+                  onClick={() => void handleSubmit(false)}
+                  disabled={
+                    isSubmitting ||
+                    !selectedLanguage ||
+                    isSessionEnded ||
+                    isSessionPaused ||
+                    !isOnline ||
+                    timeExpired
+                  }
+                  className="sm:px-8"
+                  size="lg"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Submitting...
+                    </>
+                  ) : (
+                    'Submit Solution'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside
+          className={`bg-card border border-border rounded-xl overflow-hidden shadow-sm transition-all ${
+            isRailCollapsed ? 'xl:w-[72px]' : 'xl:w-[360px]'
+          }`}
+          aria-label="Session assist rail"
+        >
+          <div className="border-b border-border p-2 flex items-center justify-between">
+            {!isRailCollapsed && (
+              <div className="grid grid-cols-3 gap-1 flex-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveRailTab('task')}
+                  className={`rounded-md px-2 py-2 text-xs font-medium ${
+                    activeRailTab === 'task'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  Task
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveRailTab('assist')}
+                  className={`rounded-md px-2 py-2 text-xs font-medium ${
+                    activeRailTab === 'assist'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  Assist
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveRailTab('integrity')}
+                  className={`rounded-md px-2 py-2 text-xs font-medium ${
+                    activeRailTab === 'integrity'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  Integrity
+                </button>
+              </div>
+            )}
             <button
-              onClick={() => setShowDocs(false)}
-              className={`flex-1 px-4 py-3.5 text-sm font-medium transition-colors ${
-                !showDocs
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-muted/50 text-muted-foreground hover:text-foreground'
-              }`}
+              type="button"
+              onClick={() => setIsRailCollapsed((prev) => !prev)}
+              className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+              aria-label={isRailCollapsed ? 'Expand assist rail' : 'Collapse assist rail'}
             >
-              Description
-            </button>
-            <button
-              onClick={() => setShowDocs(true)}
-              className={`flex-1 px-4 py-3.5 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                showDocs
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-muted/50 text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <FileText className="h-4 w-4" />
-              Reference
-              {referenceDocs.length > 0 && (
-                <span className="bg-primary/20 text-primary text-xs px-1.5 py-0.5 rounded">
-                  {referenceDocs.length}
-                </span>
-              )}
-              {docsError && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/20 text-destructive">
-                  unavailable
-                </span>
+              {isRailCollapsed ? (
+                <PanelLeftOpen className="h-4 w-4" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" />
               )}
             </button>
           </div>
 
-          <div className="flex-1 overflow-auto p-4">
-            {!showDocs ? (
-              <div className="space-y-6">
+          <div className={`${isRailCollapsed ? 'hidden' : 'block'} p-4 max-h-[68vh] overflow-auto`}>
+            {activeRailTab === 'task' && (
+              <div className="space-y-4">
                 <DescriptionPanel challenge={challenge} compact />
-
-                {sessionId && (
-                  <div className="pt-4 border-t border-border">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-4 w-4 text-primary" />
-                        <h4 className="font-medium text-sm">Proctoring Status</h4>
-                      </div>
-                      <span
-                        className={`text-xs px-2 py-1 rounded-full ${
-                          proctoringReady
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                            : 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
-                        }`}
-                      >
-                        {proctoringReady ? 'Active' : 'Starting...'}
-                      </span>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                          <Camera className="h-3 w-3" />
-                          <span>Camera</span>
-                        </div>
-                        <span className={proctoringReady ? 'text-green-600' : 'text-muted-foreground'}>
-                          {proctoringReady ? 'Monitoring' : 'Initializing'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                          <Mic className="h-3 w-3" />
-                          <span>Microphone</span>
-                        </div>
-                        <span className={proctoringReady ? 'text-green-600' : 'text-muted-foreground'}>
-                          {proctoringReady ? 'Monitoring' : 'Initializing'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                          <AlertCircle className="h-3 w-3" />
-                          <span>Violations</span>
-                        </div>
-                        <span className={violationCount > 0 ? 'text-amber-600' : 'text-green-600'}>
-                          {violationCount} detected
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={handleEndSessionEarly}
-                      className="mt-3 w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      End session early
-                    </button>
-                  </div>
-                )}
-
-                <div className="pt-4 border-t border-border">
+                <div className="pt-3 border-t border-border">
                   <LanguageSelector
                     selectedLanguage={selectedLanguage}
                     onLanguageChange={onLanguageChange}
@@ -513,8 +668,20 @@ export const ChallengeSession = ({
                     size="sm"
                   />
                 </div>
+              </div>
+            )}
 
-                <div className="pt-4 border-t border-border">
+            {activeRailTab === 'assist' && (
+              <div className="space-y-4">
+                <section className="rounded-lg border border-border bg-muted/20 p-3">
+                  <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
+                    <FileText className="h-4 w-4 text-primary" />
+                    Reference Docs
+                  </h4>
+                  <ReferenceDocsPanel docs={referenceDocs} error={docsError} onRetry={onRetryDocs} />
+                </section>
+
+                <section className="rounded-lg border border-border bg-muted/20 p-3">
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-medium text-sm flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-primary" />
@@ -536,11 +703,11 @@ export const ChallengeSession = ({
                   {coachHints.length > 0 && (
                     <div className="mt-3 space-y-2">
                       {coachHints.map((hint) => (
-                        <div key={hint.hint_index} className="rounded-md border border-border p-2 bg-muted/30">
+                        <div key={hint.hint_index} className="rounded-md border border-border p-2 bg-background">
                           <p className="text-xs font-medium mb-1">Hint {hint.hint_index}</p>
                           <p className="text-xs text-muted-foreground">{hint.hint}</p>
                           {hint.snippet && (
-                            <pre className="mt-2 p-2 rounded bg-background border text-[11px] overflow-x-auto">
+                            <pre className="mt-2 p-2 rounded bg-muted border text-[11px] overflow-x-auto">
                               <code>{hint.snippet}</code>
                             </pre>
                           )}
@@ -548,136 +715,101 @@ export const ChallengeSession = ({
                       ))}
                     </div>
                   )}
-                </div>
+                </section>
               </div>
-            ) : (
-              <ReferenceDocsPanel docs={referenceDocs} error={docsError} onRetry={onRetryDocs} />
             )}
-          </div>
-        </div>
-      </div>
 
-      <div className="lg:w-2/3 flex flex-col gap-4">
-        {submissionError && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{submissionError}</AlertDescription>
-          </Alert>
-        )}
+            {activeRailTab === 'integrity' && (
+              <div className="space-y-4">
+                <section className="rounded-lg border border-border bg-muted/20 p-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-primary" />
+                      <h4 className="font-medium text-sm">Proctoring Status</h4>
+                    </div>
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full ${
+                        proctoringReady
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                          : 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
+                      }`}
+                    >
+                      {proctoringReady ? 'Active' : 'Starting...'}
+                    </span>
+                  </div>
 
-        {!isOnline && (
-          <Alert className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
-            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            <AlertDescription className="text-amber-800 dark:text-amber-300">
-              Network offline. Timer continues and your code is saved locally every few seconds.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <Alert className={timeExpired ? 'border-red-200 bg-red-50 dark:bg-red-950/20' : ''}>
-          <AlertCircle className={timeExpired ? 'h-4 w-4 text-red-600' : 'h-4 w-4'} />
-          <AlertDescription className="flex items-center justify-between">
-            <span>
-              Challenge Timer
-              {timeExpired ? ': Time expired.' : ':'}
-            </span>
-            <strong className={timeExpired ? 'text-red-600' : ''}>{formatRemaining(remainingSeconds)}</strong>
-          </AlertDescription>
-        </Alert>
-
-        {!proctoringReady && sessionId && (
-          <Alert className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
-            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            <AlertDescription className="text-amber-800 dark:text-amber-300">
-              Proctoring is initializing. Ensure camera and microphone are enabled.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {isSessionPaused && (
-          <Alert className="bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
-            <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-            <AlertDescription className="text-red-800 dark:text-red-300">
-              Session paused by proctoring.{' '}
-              {pauseReason || 'Restore required devices from the proctoring modal to continue.'}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {timeExpired && pendingReconnectSubmit && (
-          <Alert className="bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
-            <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-            <AlertDescription className="text-red-800 dark:text-red-300">
-              Time expired while offline. Editor is locked and auto-submit will execute on reconnect.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <div className="bg-card border border-border rounded-xl overflow-hidden flex-1 shadow-sm">
-          <CodeEditor
-            language={mapToSubmissionLanguage(selectedLanguage)}
-            value={code}
-            onChange={setCode}
-            onRun={async ({ language, code: sourceCode, stdin }): Promise<RunCodeResponse> =>
-              challengeService.runCode({
-                language,
-                code: sourceCode,
-                stdin,
-                challenge_id: challengeId,
-              })
-            }
-            className="h-full"
-            readOnly={readOnlyEditor}
-            disableClipboardActions
-            onClipboardBlocked={handleClipboardBlocked}
-          />
-        </div>
-
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <p className="text-sm text-muted-foreground">Writing solution in {selectedLanguage}</p>
-            {violationCount > 0 && (
-              <div className="flex items-center gap-1 text-sm">
-                <Shield className="h-3 w-3 text-amber-600" />
-                <span className="text-amber-600">{violationCount} violation(s)</span>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Camera className="h-3 w-3" />
+                        <span>Camera</span>
+                      </div>
+                      <span className={proctoringReady ? 'text-green-600' : 'text-muted-foreground'}>
+                        {proctoringReady ? 'Monitoring' : 'Initializing'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Mic className="h-3 w-3" />
+                        <span>Microphone</span>
+                      </div>
+                      <span className={proctoringReady ? 'text-green-600' : 'text-muted-foreground'}>
+                        {proctoringReady ? 'Monitoring' : 'Initializing'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-3 w-3" />
+                        <span>Violations</span>
+                      </div>
+                      <span className={violationCount > 0 ? 'text-amber-600' : 'text-green-600'}>
+                        {violationCount} detected
+                      </span>
+                    </div>
+                  </div>
+                </section>
               </div>
             )}
           </div>
 
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={handleEndSessionEarly}
-              disabled={!sessionId || isSessionEnded || isSubmitting || isSessionPaused}
-              className="px-4"
-            >
-              End Session
-            </Button>
-
-            <Button
-              onClick={() => void handleSubmit(false)}
-              disabled={
-                isSubmitting ||
-                !selectedLanguage ||
-                isSessionEnded ||
-                isSessionPaused ||
-                !isOnline ||
-                timeExpired
-              }
-              className="px-8"
-              size="lg"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Submitting...
-                </>
-              ) : (
-                'Submit Solution'
-              )}
-            </Button>
-          </div>
-        </div>
+          {isRailCollapsed && (
+            <div className="p-2 flex flex-col gap-2 items-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveRailTab('task');
+                  setIsRailCollapsed(false);
+                }}
+                className="w-10 h-10 rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                aria-label="Open task panel"
+              >
+                <FileText className="h-4 w-4 mx-auto" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveRailTab('assist');
+                  setIsRailCollapsed(false);
+                }}
+                className="w-10 h-10 rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                aria-label="Open assist panel"
+              >
+                <Sparkles className="h-4 w-4 mx-auto" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveRailTab('integrity');
+                  setIsRailCollapsed(false);
+                }}
+                className="w-10 h-10 rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                aria-label="Open integrity panel"
+              >
+                <Shield className="h-4 w-4 mx-auto" />
+              </button>
+            </div>
+          )}
+        </aside>
       </div>
     </div>
   );
