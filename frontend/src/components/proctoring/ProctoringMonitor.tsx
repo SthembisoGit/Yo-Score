@@ -136,6 +136,7 @@ const ProctoringMonitor: React.FC<Props> = ({
   const [position, setPosition] = useState({ x: window.innerWidth - 340, y: 20 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [showGuidance, setShowGuidance] = useState(false);
 
   const getSupportedRecorderOptions = useCallback((): MediaRecorderOptions | undefined => {
     if (typeof MediaRecorder === 'undefined') return undefined;
@@ -1457,11 +1458,22 @@ const ProctoringMonitor: React.FC<Props> = ({
                 </div>
               </div>
             </div>
-            <div className="px-3 pb-3 text-xs text-muted-foreground space-y-1">
-              <p>- Camera and microphone must stay on</p>
-              <p>- Session pauses automatically on device-off</p>
-              <p>- Browser-first face/audio checks with consensus policy</p>
-              {mlDegraded && <p>- ML analysis currently degraded</p>}
+            <div className="px-3 pb-3">
+              <button
+                type="button"
+                onClick={() => setShowGuidance((previous) => !previous)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                {showGuidance ? 'Hide guidance' : 'Show guidance'}
+              </button>
+              {showGuidance && (
+                <div className="mt-2 text-xs text-muted-foreground space-y-1">
+                  <p>- Camera and microphone must stay on</p>
+                  <p>- Session pauses automatically on device-off</p>
+                  <p>- Browser-first face/audio checks with consensus policy</p>
+                  {mlDegraded && <p>- ML analysis currently degraded</p>}
+                </div>
+              )}
             </div>
           </div>
         )}
