@@ -56,15 +56,14 @@ const LOOK_AWAY_CONTINUOUS_MS = 60000;
 const LOOK_AWAY_WINDOW_MS = 60000;
 const LOOK_AWAY_THRESHOLD = 3;
 const NO_FACE_STREAK_THRESHOLD = 4;
+const DEVICE_MISSING_STREAK_THRESHOLD = 2;
+const DEVICE_READY_STREAK_THRESHOLD = 2;
 const MAX_EVENT_BUFFER = 100;
 const SNAPSHOT_INTERVAL_MS = 25000;
 const SNAPSHOT_SAMPLE_RATE = 0.18;
 const MODEL_VERSION = 'browser-v2-consensus';
 const EMPTY_MISSING: MissingDevices = { camera: false, microphone: false, audio: false };
-const isSameMissingState = (a: MissingDevices, b: MissingDevices) =>
-  a.camera === b.camera &&
-  a.microphone === b.microphone &&
-  a.audio === b.audio;
+type PauseSource = 'device' | 'risk' | 'server' | 'manual';
 
 const ProctoringMonitor: React.FC<Props> = ({
   sessionId,
@@ -90,7 +89,13 @@ const ProctoringMonitor: React.FC<Props> = ({
   const lastAudioChunkTimeRef = useRef(Date.now());
   const alertTimeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
   const pausedRef = useRef(false);
+  const pauseReasonRef = useRef('');
+  const pauseTransitionInFlightRef = useRef<'pause' | 'resume' | null>(null);
+  const pauseTransitionVersionRef = useRef(0);
+  const lastPauseSourceRef = useRef<PauseSource | null>(null);
   const missingDevicesRef = useRef<MissingDevices>(EMPTY_MISSING);
+  const deviceMissingStreakRef = useRef(0);
+  const deviceReadyStreakRef = useRef(0);
   const cameraReadyRef = useRef(false);
   const micReadyRef = useRef(false);
   const audioReadyRef = useRef(false);
@@ -102,6 +107,10 @@ const ProctoringMonitor: React.FC<Props> = ({
   const lastRiskPauseReasonRef = useRef('');
   const audioRecorderUnsupportedRef = useRef(false);
   const connectionIssueAlertShownRef = useRef(false);
+  const audioCapabilityAlertShownRef = useRef(false);
+  const audioCapabilityEventLoggedRef = useRef(false);
+  const mlHealthFailureStreakRef = useRef(0);
+  const mlHealthAlertShownRef = useRef(false);
 
   const frameIntervalRef = useRef<NodeJS.Timeout>();
   const cameraCheckIntervalRef = useRef<NodeJS.Timeout>();
@@ -113,12 +122,12 @@ const ProctoringMonitor: React.FC<Props> = ({
   const [cameraReady, setCameraReady] = useState(false);
   const [micReady, setMicReady] = useState(false);
   const [audioReady, setAudioReady] = useState(false);
-  const [violationCount, setViolationCount] = useState(0);
   const [isMinimized, setIsMinimized] = useState(false);
   const [alerts, setAlerts] = useState<ViolationAlert[]>([]);
   const [isPaused, setIsPaused] = useState(false);
   const [pauseReason, setPauseReason] = useState('');
   const [missingDevices, setMissingDevices] = useState<MissingDevices>(EMPTY_MISSING);
+  const [isResumingSession, setIsResumingSession] = useState(false);
   const [isRecovering, setIsRecovering] = useState<null | 'camera' | 'microphone' | 'audio' | 'all'>(null);
   const [faceGuidance, setFaceGuidance] = useState(
     'Align your face in view. Slight left/right/up/down movement is fine.',
@@ -287,21 +296,12 @@ const ProctoringMonitor: React.FC<Props> = ({
   const logViolation = useCallback(
     async (type: string, description: string) => {
       try {
-        const violation = await proctoringService.logViolation(sessionId, type, description);
-        setViolationCount((prev) => prev + 1);
-        onViolation(type, {
-          ...violation,
-          description,
-          timestamp: new Date().toISOString(),
-          sessionId,
-          userId,
-          challengeId,
-        });
+        await proctoringService.logViolation(sessionId, type, description);
       } catch (error) {
         console.error('Error logging violation:', error);
       }
     },
-    [challengeId, onViolation, sessionId, userId],
+    [sessionId],
   );
 
   const triggerViolation = useCallback(
@@ -336,6 +336,19 @@ const ProctoringMonitor: React.FC<Props> = ({
         confidence,
         duration_ms: durationMs,
       });
+      onViolation(type, {
+        type,
+        description,
+        severity,
+        confidence,
+        duration_ms: durationMs,
+        sessionId,
+        userId,
+        challengeId,
+        source: 'frontend-live',
+        persisted: options?.persist !== false,
+        timestamp: new Date().toISOString(),
+      });
       if (severity === 'high') {
         void uploadSnapshot(type, { description, severity, confidence, duration_ms: durationMs, risk_state: riskState });
       }
@@ -344,7 +357,7 @@ const ProctoringMonitor: React.FC<Props> = ({
       }
       addAlert(message, severity);
     },
-    [addAlert, canTrigger, logViolation, queueEvent, riskState, uploadSnapshot],
+    [addAlert, canTrigger, challengeId, logViolation, onViolation, queueEvent, riskState, sessionId, uploadSnapshot, userId],
   );
 
   const buildMissingDevices = useCallback(
@@ -356,45 +369,92 @@ const ProctoringMonitor: React.FC<Props> = ({
     [],
   );
 
-  const applyPauseState = useCallback(
-    async (
-      paused: boolean,
-      reason: string,
-      missing: MissingDevices,
-      syncWithBackend = true,
-    ) => {
-      const previousPaused = pausedRef.current;
-      const previousReason = pauseReason;
-      const previousMissing = missingDevicesRef.current;
+  const equalMissingDevices = useCallback((left: MissingDevices, right: MissingDevices) => {
+    return (
+      left.camera === right.camera &&
+      left.microphone === right.microphone &&
+      left.audio === right.audio
+    );
+  }, []);
 
+  const commitPauseState = useCallback(
+    (paused: boolean, reason: string, missing: MissingDevices, source: PauseSource) => {
       setIsPaused(paused);
       setPauseReason(reason);
       setMissingDevices(missing);
+      pauseReasonRef.current = reason;
+      lastPauseSourceRef.current = source;
       onPauseStateChange?.({ isPaused: paused, reason, missingDevices: missing });
+    },
+    [onPauseStateChange],
+  );
 
-      if (!syncWithBackend) return;
+  const applyPauseState = useCallback(
+    async (
+      options: {
+        paused: boolean;
+        reason: string;
+        missing: MissingDevices;
+        source: PauseSource;
+        syncWithBackend?: boolean;
+      },
+    ) => {
+      const { paused, reason, missing, source, syncWithBackend = true } = options;
+      const normalizedReason = reason.trim();
+      const stateAlreadyApplied =
+        pausedRef.current === paused &&
+        pauseReasonRef.current === normalizedReason &&
+        equalMissingDevices(missingDevicesRef.current, missing) &&
+        lastPauseSourceRef.current === source;
+
+      if (stateAlreadyApplied) return;
+
+      const direction: 'pause' | 'resume' = paused ? 'pause' : 'resume';
+      if (pauseTransitionInFlightRef.current === direction) return;
+
+      const transitionVersion = ++pauseTransitionVersionRef.current;
+      pauseTransitionInFlightRef.current = direction;
+
+      if (!paused) {
+        setIsResumingSession(true);
+      } else {
+        commitPauseState(true, normalizedReason, missing, source);
+      }
+
+      if (!syncWithBackend) {
+        if (!paused) {
+          commitPauseState(false, '', EMPTY_MISSING, source);
+        }
+        pauseTransitionInFlightRef.current = null;
+        setIsResumingSession(false);
+        return;
+      }
+
       try {
         if (paused) {
-          await proctoringService.pauseSession(sessionId, reason);
+          await proctoringService.pauseSession(sessionId, normalizedReason || 'Session paused');
         } else {
           await proctoringService.resumeSession(sessionId);
+          if (transitionVersion !== pauseTransitionVersionRef.current) {
+            return;
+          }
+          commitPauseState(false, '', EMPTY_MISSING, source);
         }
       } catch (error) {
         console.error('Failed syncing pause state with backend:', error);
-        setIsPaused(previousPaused);
-        setPauseReason(previousReason);
-        setMissingDevices(previousMissing);
-        onPauseStateChange?.({
-          isPaused: previousPaused,
-          reason: previousReason,
-          missingDevices: previousMissing,
-        });
         if (!paused && error instanceof Error && error.message.toLowerCase().includes('liveness')) {
           addAlert('Complete liveness verification before resuming.', 'medium');
+        } else if (!paused) {
+          addAlert('Unable to resume session right now. Confirm devices and try again.', 'medium');
+        }
+      } finally {
+        if (transitionVersion === pauseTransitionVersionRef.current) {
+          pauseTransitionInFlightRef.current = null;
+          setIsResumingSession(false);
         }
       }
     },
-    [addAlert, onPauseStateChange, pauseReason, sessionId],
+    [addAlert, commitPauseState, equalMissingDevices, sessionId],
   );
 
   const flushEventBuffer = useCallback(async () => {
@@ -411,14 +471,18 @@ const ProctoringMonitor: React.FC<Props> = ({
       setRiskState(response.risk_state);
       if (
         response.pause_recommended &&
-        !pausedRef.current &&
         response.risk_state === 'paused'
       ) {
         const reasonDetail =
           response.reasons?.[0] || 'high-risk behavior detected by consensus policy.';
         const reason = `Consensus risk pause: ${reasonDetail}`;
         lastRiskPauseReasonRef.current = reason;
-        await applyPauseState(true, reason, missingDevicesRef.current);
+        await applyPauseState({
+          paused: true,
+          reason,
+          missing: missingDevicesRef.current,
+          source: 'risk',
+        });
         if (response.liveness_required) {
           const issued = await proctoringService.livenessCheck(sessionId).catch(() => null);
           if (issued?.challenge_id && issued.prompt && issued.expires_at) {
@@ -689,10 +753,12 @@ const ProctoringMonitor: React.FC<Props> = ({
     (stream: MediaStream) => {
       if (audioRecorderUnsupportedRef.current) {
         mediaRecorderRef.current = null;
+        setAudioReady(false);
         return;
       }
       if (stream.getAudioTracks().length === 0 || typeof MediaRecorder === 'undefined') {
         mediaRecorderRef.current = null;
+        setAudioReady(false);
         return;
       }
 
@@ -702,16 +768,36 @@ const ProctoringMonitor: React.FC<Props> = ({
           mediaRecorderRef.current = null;
           if (!audioRecorderUnsupportedRef.current) {
             audioRecorderUnsupportedRef.current = true;
-            addAlert(
-              'Audio recording unsupported in this browser. Speech checks are limited.',
-              'low',
-            );
+            if (!audioCapabilityAlertShownRef.current) {
+              audioCapabilityAlertShownRef.current = true;
+              addAlert(
+                'Audio recording unsupported in this browser. Speech checks are limited.',
+                'low',
+              );
+            }
+            if (!audioCapabilityEventLoggedRef.current) {
+              audioCapabilityEventLoggedRef.current = true;
+              queueEvent({
+                event_type: 'audio_capability_limited',
+                severity: 'low',
+                payload: {
+                  reason: 'media_recorder_not_supported',
+                  source: 'frontend-live',
+                },
+                confidence: 1,
+                duration_ms: 0,
+              });
+            }
           }
+          setAudioReady(false);
           return;
         }
 
         const recorder = new MediaRecorder(stream, recorderOptions);
         mediaRecorderRef.current = recorder;
+        setAudioReady(true);
+        audioCapabilityAlertShownRef.current = false;
+        audioCapabilityEventLoggedRef.current = false;
 
         recorder.ondataavailable = async (event) => {
           if (!event.data || event.data.size <= 0 || pausedRef.current) return;
@@ -778,11 +864,28 @@ const ProctoringMonitor: React.FC<Props> = ({
           mediaRecorderRef.current = null;
           if (!audioRecorderUnsupportedRef.current) {
             audioRecorderUnsupportedRef.current = true;
-            addAlert(
-              'Audio recording unavailable in this browser. Speech checks are limited.',
-              'low',
-            );
+            if (!audioCapabilityAlertShownRef.current) {
+              audioCapabilityAlertShownRef.current = true;
+              addAlert(
+                'Audio recording unavailable in this browser. Speech checks are limited.',
+                'low',
+              );
+            }
+            if (!audioCapabilityEventLoggedRef.current) {
+              audioCapabilityEventLoggedRef.current = true;
+              queueEvent({
+                event_type: 'audio_capability_limited',
+                severity: 'low',
+                payload: {
+                  reason: 'media_recorder_error',
+                  source: 'frontend-live',
+                },
+                confidence: 1,
+                duration_ms: 0,
+              });
+            }
           }
+          setAudioReady(false);
         };
 
         recorder.start(AUDIO_CHUNK_DURATION);
@@ -791,14 +894,31 @@ const ProctoringMonitor: React.FC<Props> = ({
         console.error('Audio recorder unavailable:', error);
         if (!audioRecorderUnsupportedRef.current) {
           audioRecorderUnsupportedRef.current = true;
-          addAlert(
-            'Audio recording unsupported in this browser. Speech checks are limited.',
-            'low',
-          );
+          if (!audioCapabilityAlertShownRef.current) {
+            audioCapabilityAlertShownRef.current = true;
+            addAlert(
+              'Audio recording unsupported in this browser. Speech checks are limited.',
+              'low',
+            );
+          }
+          if (!audioCapabilityEventLoggedRef.current) {
+            audioCapabilityEventLoggedRef.current = true;
+            queueEvent({
+              event_type: 'audio_capability_limited',
+              severity: 'low',
+              payload: {
+                reason: 'media_recorder_exception',
+                source: 'frontend-live',
+              },
+              confidence: 1,
+              duration_ms: 0,
+            });
+          }
         }
+        setAudioReady(false);
       }
     },
-    [addAlert, estimateSpeechFromAudio, getSupportedRecorderOptions, sessionId, triggerViolation],
+    [addAlert, estimateSpeechFromAudio, getSupportedRecorderOptions, queueEvent, sessionId, triggerViolation],
   );
 
   const restartStream = useCallback(async () => {
@@ -845,18 +965,76 @@ const ProctoringMonitor: React.FC<Props> = ({
     setMicReady(micOn);
 
     const missing = buildMissingDevices(cameraOn, micOn, audioOn);
-    const hasMissing = missing.camera || missing.microphone || missing.audio;
+    const hasBlockingMissing = missing.camera || missing.microphone;
     const blockedByRiskPause =
       (typeof pauseReason === 'string' && pauseReason.startsWith('Consensus risk pause:')) ||
       Boolean(livenessChallenge);
-    if (!hasMissing) {
-      if (pausedRef.current && !blockedByRiskPause) {
-        await applyPauseState(false, '', EMPTY_MISSING);
+
+    if (hasBlockingMissing) {
+      deviceMissingStreakRef.current += 1;
+      deviceReadyStreakRef.current = 0;
+    } else {
+      deviceReadyStreakRef.current += 1;
+      deviceMissingStreakRef.current = 0;
+    }
+
+    if (missing.audio) {
+      if (!audioCapabilityAlertShownRef.current) {
+        audioCapabilityAlertShownRef.current = true;
+        addAlert('Audio capability is limited. Session continues with reduced speech checks.', 'low');
+      }
+      if (!audioCapabilityEventLoggedRef.current) {
+        audioCapabilityEventLoggedRef.current = true;
+        queueEvent({
+          event_type: 'audio_capability_limited',
+          severity: 'low',
+          payload: {
+            reason: 'audio_support_unavailable',
+            source: 'frontend-live',
+          },
+          confidence: 1,
+          duration_ms: 0,
+        });
+      }
+    } else {
+      audioCapabilityAlertShownRef.current = false;
+      audioCapabilityEventLoggedRef.current = false;
+    }
+
+    if (!hasBlockingMissing) {
+      if (
+        pausedRef.current &&
+        !blockedByRiskPause &&
+        deviceReadyStreakRef.current >= DEVICE_READY_STREAK_THRESHOLD
+      ) {
+        const shouldMarkReadyToResume =
+          missingDevicesRef.current.camera ||
+          missingDevicesRef.current.microphone ||
+          lastPauseSourceRef.current === 'device';
+
+        if (shouldMarkReadyToResume) {
+          await applyPauseState({
+            paused: true,
+            reason: 'All required devices are detected. Click "Resume session" to continue.',
+            missing: EMPTY_MISSING,
+            source: 'device',
+            syncWithBackend: false,
+          });
+        }
       }
       return;
     }
 
-    if (pausedRef.current && isSameMissingState(missingDevicesRef.current, missing)) {
+    if (deviceMissingStreakRef.current < DEVICE_MISSING_STREAK_THRESHOLD) {
+      return;
+    }
+
+    if (
+      pausedRef.current &&
+      missingDevicesRef.current.camera === missing.camera &&
+      missingDevicesRef.current.microphone === missing.microphone &&
+      lastPauseSourceRef.current === 'device'
+    ) {
       return;
     }
 
@@ -866,13 +1044,9 @@ const ProctoringMonitor: React.FC<Props> = ({
     if (missing.microphone) {
       triggerViolation('microphone_off', 'Microphone unavailable', 'Microphone is off. Session paused.', 'high', CAMERA_COOLDOWN_MS);
     }
-    if (missing.audio) {
-      triggerViolation('audio_off', 'Audio support unavailable', 'Audio support is required. Session paused.', 'high', CAMERA_COOLDOWN_MS);
-    }
     const reason = `Required device unavailable: ${[
       missing.camera ? 'camera' : '',
       missing.microphone ? 'microphone' : '',
-      missing.audio ? 'audio' : '',
     ]
       .filter(Boolean)
       .join(', ')}`;
@@ -881,8 +1055,13 @@ const ProctoringMonitor: React.FC<Props> = ({
       severity: 'high',
       payload: { reason, missing },
     });
-    await applyPauseState(true, reason, missing);
-  }, [applyPauseState, buildMissingDevices, livenessChallenge, pauseReason, queueEvent, triggerViolation]);
+    await applyPauseState({
+      paused: true,
+      reason,
+      missing,
+      source: 'device',
+    });
+  }, [addAlert, applyPauseState, buildMissingDevices, livenessChallenge, pauseReason, queueEvent, triggerViolation]);
 
   const applyFaceSignal = useCallback(
     (result: FaceMonitorResult, source: 'browser' | 'ml') => {
@@ -1003,12 +1182,22 @@ const ProctoringMonitor: React.FC<Props> = ({
       if (status.riskState) {
         setRiskState(status.riskState);
       }
-      if (status.status === 'paused' && !pausedRef.current) {
+      if (status.status === 'paused') {
         const reason = status.pauseReason || 'Session paused by server';
         if (reason.startsWith('Consensus risk pause:')) {
           lastRiskPauseReasonRef.current = reason;
         }
-        await applyPauseState(true, reason, buildMissingDevices(cameraReadyRef.current, micReadyRef.current, audioReadyRef.current), false);
+        await applyPauseState({
+          paused: true,
+          reason,
+          missing: buildMissingDevices(
+            cameraReadyRef.current,
+            micReadyRef.current,
+            audioReadyRef.current,
+          ),
+          source: 'server',
+          syncWithBackend: false,
+        });
       }
       connectionIssueAlertShownRef.current = false;
     } catch (error) {
@@ -1028,11 +1217,16 @@ const ProctoringMonitor: React.FC<Props> = ({
       const risk = await proctoringService.getSessionRisk(sessionId);
       setRiskState(risk.risk_state);
 
-      if (risk.risk_state === 'paused' && risk.pause_recommended && !pausedRef.current) {
+      if (risk.risk_state === 'paused' && risk.pause_recommended) {
         const reasonDetail = risk.reasons?.[0] || 'session paused by consensus proctoring policy';
         const reason = `Consensus risk pause: ${reasonDetail}`;
         lastRiskPauseReasonRef.current = reason;
-        await applyPauseState(true, reason, missingDevicesRef.current);
+        await applyPauseState({
+          paused: true,
+          reason,
+          missing: missingDevicesRef.current,
+          source: 'risk',
+        });
       }
 
       if (risk.liveness_required && !livenessChallenge) {
@@ -1115,6 +1309,25 @@ const ProctoringMonitor: React.FC<Props> = ({
     };
 
     const runHealthCheck = async (isRetry: boolean) => {
+      const markDegraded = () => {
+        mlHealthFailureStreakRef.current += 1;
+        if (mlHealthFailureStreakRef.current < 2) {
+          if (!isRetry) {
+            scheduleRetry();
+          }
+          return;
+        }
+
+        setMlDegraded(true);
+        if (!mlHealthAlertShownRef.current) {
+          mlHealthAlertShownRef.current = true;
+          addAlert(
+            'ML analysis degraded. Core proctoring checks continue, but face/audio confidence may be reduced.',
+            'medium',
+          );
+        }
+      };
+
       try {
         const health = await proctoringService.healthCheck();
         if (cancelled) return;
@@ -1126,34 +1339,16 @@ const ProctoringMonitor: React.FC<Props> = ({
           degradedReasons.every((reason) => reason === 'audio_detector_unavailable');
 
         if (health.degraded && !isAudioOnlyDegraded) {
-          if (!isRetry) {
-            scheduleRetry();
-            return;
-          }
-          setMlDegraded(true);
-          if (!mlDegradedRef.current) {
-            addAlert(
-              'ML analysis degraded. Core proctoring checks continue, but face/audio confidence may be reduced.',
-              'medium',
-            );
-          }
+          markDegraded();
           return;
         }
 
+        mlHealthFailureStreakRef.current = 0;
+        mlHealthAlertShownRef.current = false;
         setMlDegraded(false);
       } catch {
         if (cancelled) return;
-        if (!isRetry) {
-          scheduleRetry();
-          return;
-        }
-        setMlDegraded(true);
-        if (!mlDegradedRef.current) {
-          addAlert(
-            'ML analysis degraded. Core proctoring checks continue, but face/audio confidence may be reduced.',
-            'medium',
-          );
-        }
+        markDegraded();
       }
     };
 
@@ -1266,10 +1461,21 @@ const ProctoringMonitor: React.FC<Props> = ({
       if (result.verified) {
         setLivenessChallenge(null);
         setRiskState(result.risk_state || 'observe');
-        if (pausedRef.current && !missingDevices.camera && !missingDevices.microphone && !missingDevices.audio) {
-          await applyPauseState(false, '', EMPTY_MISSING);
+        const currentMissing = buildMissingDevices(
+          cameraReadyRef.current,
+          micReadyRef.current,
+          audioReadyRef.current,
+        );
+        if (pausedRef.current && !currentMissing.camera && !currentMissing.microphone) {
+          await applyPauseState({
+            paused: true,
+            reason: 'Liveness verified. Click "Resume session" to continue.',
+            missing: currentMissing,
+            source: 'risk',
+            syncWithBackend: false,
+          });
         }
-        toast.success('Liveness verified. You may continue.');
+        toast.success('Liveness verified. You can resume the session.');
       } else {
         addAlert(result.message || 'Liveness check failed.', 'medium');
       }
@@ -1279,7 +1485,7 @@ const ProctoringMonitor: React.FC<Props> = ({
     } finally {
       setIsVerifyingLiveness(false);
     }
-  }, [addAlert, applyPauseState, livenessAction, livenessChallenge, missingDevices.audio, missingDevices.camera, missingDevices.microphone, sessionId]);
+  }, [addAlert, applyPauseState, buildMissingDevices, livenessAction, livenessChallenge, sessionId]);
 
   const handleDragStart = (event: React.MouseEvent) => {
     if ((event.target as HTMLElement).closest('button')) return;
@@ -1314,7 +1520,10 @@ const ProctoringMonitor: React.FC<Props> = ({
     Boolean(livenessChallenge) ||
     (typeof pauseReason === 'string' && pauseReason.startsWith('Consensus risk pause:'));
   const canResume =
-    !missingDevices.camera && !missingDevices.microphone && !missingDevices.audio && !requiresLiveness;
+    !missingDevices.camera &&
+    !missingDevices.microphone &&
+    !requiresLiveness &&
+    !isResumingSession;
 
   return (
     <>
@@ -1410,8 +1619,19 @@ const ProctoringMonitor: React.FC<Props> = ({
                 <RefreshCw className={`h-4 w-4 ${isRecovering ? 'animate-spin' : ''}`} />
                 Re-check all
               </button>
-              <button onClick={() => void applyPauseState(false, '', EMPTY_MISSING)} disabled={!canResume || isRecovering !== null} className="flex-1 px-3 py-2 rounded bg-primary text-primary-foreground text-sm disabled:opacity-60">
-                Resume session
+              <button
+                onClick={() =>
+                  void applyPauseState({
+                    paused: false,
+                    reason: '',
+                    missing: missingDevicesRef.current,
+                    source: 'manual',
+                  })
+                }
+                disabled={!canResume || isRecovering !== null}
+                className="flex-1 px-3 py-2 rounded bg-primary text-primary-foreground text-sm disabled:opacity-60"
+              >
+                {isResumingSession ? 'Resuming...' : 'Resume session'}
               </button>
             </div>
           </div>
