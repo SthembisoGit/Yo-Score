@@ -466,7 +466,7 @@ export const ChallengeSession = ({
     updateRemaining();
     const timer = window.setInterval(updateRemaining, 1000);
     return () => window.clearInterval(timer);
-  }, [deadlineAt, handleSubmit, isOnline, isSessionEnded]);
+  }, [challengeDurationSeconds, deadlineAt, handleSubmit, isOnline, isSessionEnded]);
 
   useEffect(() => {
     if (!draftKey || isSessionEnded || readOnlyEditor) return;

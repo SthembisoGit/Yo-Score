@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Search, Filter, X, Loader2 } from 'lucide-react';
+import { Search, Filter, X, Loader2, LayoutGrid, List } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { ChallengeCard } from '@/components/ChallengeCard';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useChallenges, type Difficulty } from '@/context/ChallengeContext';
 import { useAuth, type Category } from '@/context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import {
   Select,
@@ -16,11 +16,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
+
+const PAGE_SIZE = 12;
+type ChallengeViewMode = 'grid' | 'list';
 
 export default function Challenges() {
   const { challenges, isLoading, error, fetchChallenges, getAssignedChallenge } = useChallenges();
   const { availableCategories } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   const categories: (Category | 'All')[] = ['All', ...availableCategories];
   const difficulties: (Difficulty | 'All')[] = ['All', 'Easy', 'Medium', 'Hard'];
@@ -30,6 +42,13 @@ export default function Challenges() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | 'All'>('All');
   const [isSearching, setIsSearching] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(() => {
+    const raw = Number(searchParams.get('page') || '1');
+    return Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : 1;
+  });
+  const [viewMode, setViewMode] = useState<ChallengeViewMode>(() =>
+    searchParams.get('view') === 'list' ? 'list' : 'grid',
+  );
   const [assignmentCategory, setAssignmentCategory] = useState<Category>(
     availableCategories[0] ?? 'Frontend',
   );
@@ -46,6 +65,13 @@ export default function Challenges() {
 
     return () => clearTimeout(timer);
   }, [search]);
+
+  useEffect(() => {
+    const params: Record<string, string> = {};
+    if (currentPage > 1) params.page = String(currentPage);
+    if (viewMode === 'list') params.view = 'list';
+    setSearchParams(params, { replace: true });
+  }, [currentPage, setSearchParams, viewMode]);
 
   const filteredChallenges = useMemo(() => {
     if (!challenges) return [];
@@ -66,10 +92,28 @@ export default function Challenges() {
     });
   }, [challenges, search, selectedCategory, selectedDifficulty]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredChallenges.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedChallenges = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filteredChallenges.slice(start, start + PAGE_SIZE);
+  }, [filteredChallenges, safePage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedCategory, selectedDifficulty]);
+
+  useEffect(() => {
+    if (safePage !== currentPage) {
+      setCurrentPage(safePage);
+    }
+  }, [currentPage, safePage]);
+
   const handleClearFilters = useCallback(() => {
     setSearch('');
     setSelectedCategory('All');
     setSelectedDifficulty('All');
+    setCurrentPage(1);
   }, []);
 
   const getActiveFilterCount = useCallback(() => {
@@ -420,28 +464,101 @@ export default function Challenges() {
             </p>
           </div>
           
-          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              Completed
-            </span>
-            <span className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-              In Progress
-            </span>
-            <span className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-full bg-muted border"></div>
-              Not Started
-            </span>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1 rounded-md border border-border p-1">
+              <Button
+                type="button"
+                variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('grid')}
+                className="h-8 px-2"
+              >
+                <LayoutGrid className="h-4 w-4 mr-1" />
+                Grid
+              </Button>
+              <Button
+                type="button"
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+                className="h-8 px-2"
+              >
+                <List className="h-4 w-4 mr-1" />
+                List
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                Completed
+              </span>
+              <span className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                In Progress
+              </span>
+              <span className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-muted border"></div>
+                Not Started
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Challenge Grid */}
         {filteredChallenges.length > 0 ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredChallenges.map((challenge) => (
-              <ChallengeCard key={challenge.id} challenge={challenge} />
-            ))}
+          <div className="space-y-4">
+            <div className={viewMode === 'grid' ? 'grid sm:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'}>
+              {paginatedChallenges.map((challenge) => (
+                <ChallengeCard key={challenge.id} challenge={challenge} viewMode={viewMode} />
+              ))}
+            </div>
+
+            {totalPages > 1 && (
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        setCurrentPage((prev) => Math.max(1, prev - 1));
+                      }}
+                      className={safePage === 1 ? 'pointer-events-none opacity-50' : ''}
+                    />
+                  </PaginationItem>
+                  {Array.from({ length: totalPages }).map((_, index) => {
+                    const page = index + 1;
+                    if (page !== 1 && page !== totalPages && Math.abs(page - safePage) > 1) {
+                      return null;
+                    }
+                    return (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          href="#"
+                          isActive={page === safePage}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            setCurrentPage(page);
+                          }}
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  })}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+                      }}
+                      className={safePage === totalPages ? 'pointer-events-none opacity-50' : ''}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            )}
           </div>
         ) : (
           <div className="bg-card border border-border rounded-xl p-12 text-center">
