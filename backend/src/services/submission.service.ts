@@ -207,7 +207,7 @@ export class SubmissionService {
       0,
     );
     const storedPenalty = Number(submission.component_penalty ?? 0);
-    const totalPenalty = Math.max(storedPenalty, violationPenaltyTotal);
+    const totalPenalty = storedPenalty > 0 ? storedPenalty : violationPenaltyTotal;
 
     const latestRun = runSummaryResult.rows[0];
     const testsSummary = latestRun
