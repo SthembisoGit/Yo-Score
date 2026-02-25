@@ -1307,7 +1307,9 @@ export class ProctoringService {
   }
 
   async getMLAnalysisResults(sessionId: string, analysisType?: string): Promise<any[]> {
-    let sql = `SELECT * FROM ml_analysis_results WHERE session_id = $1`;
+    let sql = `SELECT id, session_id, analysis_type, timestamp, results, violations_detected, created_at
+               FROM ml_analysis_results
+               WHERE session_id = $1`;
     const params: unknown[] = [sessionId];
 
     if (analysisType) {
