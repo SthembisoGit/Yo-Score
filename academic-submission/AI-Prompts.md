@@ -1,6 +1,6 @@
-# AI Prompt Kit (Free Tools)
+# Assistant Prompt Kit (Free Tools, Human Reviewed)
 
-Use these prompts in any free LLM (ChatGPT free, Gemini free, Copilot free tier).
+Use these templates only as drafting aids. All outputs require human review and editing before submission.
 
 ## 1) Proposal Refinement Prompt
 ```
