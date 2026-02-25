@@ -15,10 +15,12 @@ const validate =
   (req: Request, res: Response, next: NextFunction) => {
     const parsed = schema.safeParse(req[target]);
     if (!parsed.success) {
+      const correlationId = req.correlationId || 'unknown';
       return res.status(400).json({
         success: false,
         message: fromError(parsed.error),
         error: 'VALIDATION_FAILED',
+        meta: { correlationId },
       });
     }
     (req as unknown as Record<ValidationTarget, unknown>)[target] = parsed.data;
