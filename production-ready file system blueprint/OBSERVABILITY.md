@@ -5,7 +5,7 @@
 
 ---
 
-## Rules of Observability Enforcement (AI MUST FOLLOW)
+## Rules of Observability Enforcement 
 
 1. All critical flows must be observable.
 2. All errors must be logged with correlation IDs.

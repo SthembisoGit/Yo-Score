@@ -6,7 +6,7 @@
 
 ---
 
-## Rules of API Enforcement (AI MUST FOLLOW)
+## Rules of API Enforcement 
 
 1. Preserve backward compatibility by default.
 2. Every endpoint must have:
@@ -15,7 +15,7 @@
    - auth requirements
    - error cases (mapped to ERROR_HANDLING_POLICY.md)
 3. All responses must use a consistent envelope.
-4. Input must be validated server-side (see SECURITY_AI_CHECKLIST.md Step 13).
+4. Input must be validated server-side (see SECURITY_CHECKLIST.md Step 13).
 5. Authorization must be enforced server-side (see ARCHITECTURE.md).
 
 Do NOT:
@@ -220,7 +220,7 @@ Body:
 
 ---
 
-# 12. Change Control Rule for AI
+# 12. Change Control Rule for Contributors
 
 When implementing or modifying APIs:
 
@@ -235,7 +235,7 @@ When implementing or modifying APIs:
 
 ---
 
-## How to run this API contract (copy/paste instruction to AI)
+## How to run this API contract (operator procedure)
 
 **Command template:**
 

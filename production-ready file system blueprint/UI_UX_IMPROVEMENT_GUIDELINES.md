@@ -6,7 +6,7 @@
 
 ---
 
-## Rules of UI/UX Enforcement (AI MUST FOLLOW)
+## Rules of UI/UX Enforcement 
 
 1. Do NOT change business logic.
 2. Do NOT change API contracts.
@@ -179,7 +179,7 @@ If adding dependency:
 
 ---
 
-# 10. Change Control Rule for AI
+# 10. Change Control Rule for Contributors
 
 When improving UI:
 
@@ -208,7 +208,7 @@ An improvement is complete when:
 
 ---
 
-## How to run this UI/UX improvement guide (copy/paste instruction to AI)
+## How to run this UI/UX improvement guide (operator procedure)
 
 **Command template:**
 

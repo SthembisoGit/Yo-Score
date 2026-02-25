@@ -6,7 +6,7 @@
 
 ---
 
-## Rules of Deployment Enforcement (AI MUST FOLLOW)
+## Rules of Deployment Enforcement 
 
 1. Treat production as hostile and irreversible.
 2. Never deploy untested code.
@@ -196,7 +196,7 @@ Deployment is NOT complete unless:
 
 ---
 
-## How to run this deployment checklist (copy/paste instruction to AI)
+## How to run this deployment checklist (operator procedure)
 
 **Command template:**
 

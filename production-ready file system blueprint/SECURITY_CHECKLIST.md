@@ -1,8 +1,8 @@
-# SECURITY_AI_CHECKLIST.md
-> Use this file as the security checklist + instruction contract for AI changes.
-> You (AI) must follow the "Rules of Engagement" and then execute Steps 1 → N exactly.
+# SECURITY_CHECKLIST.md
+> Use this file as the security checklist + instruction contract for engineering changes.
+> Contributors must follow the "Rules of Engagement" and then execute Steps 1 → N exactly.
 
-## Rules of Engagement (AI MUST FOLLOW)
+## Rules of Engagement 
 1. Work step-by-step from **Step 1 to Step N** only (N will be provided by me).
 2. For EACH step:
    - ✅ Explain the risk in 1–2 lines
@@ -313,8 +313,8 @@
 ---
 ---
 
-## How to run this checklist (copy/paste instruction to AI)
+## How to run this checklist (operator procedure)
 **Command template:**
-“Using SECURITY_AI_CHECKLIST.md, run Steps 1 → {N} in order on this codebase.
+“Using SECURITY_CHECKLIST.md, run Steps 1 → {N} in order on this codebase.
 For each step: explain risk, implement minimal fix, show exact file edits, add tests, and give a manual test checklist.
 Do not change product behavior beyond what security requires.”

@@ -6,7 +6,7 @@
 
 ---
 
-## Rules of Error Enforcement (AI MUST FOLLOW)
+## Rules of Error Enforcement 
 
 1. All errors must be structured.
 2. Services throw domain errors — not HTTP responses.
@@ -226,7 +226,7 @@ Errors must not:
 
 ---
 
-# 10. Change Control Rule for AI
+# 10. Change Control Rule for Contributors
 
 When modifying error logic:
 
@@ -250,7 +250,7 @@ A feature is NOT complete unless:
 
 ---
 
-## How to run this error policy (copy/paste instruction to AI)
+## How to run this error policy (operator procedure)
 
 **Command template:**
 

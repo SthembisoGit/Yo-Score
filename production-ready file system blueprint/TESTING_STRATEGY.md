@@ -6,7 +6,7 @@
 
 ---
 
-## Rules of Testing Enforcement (AI MUST FOLLOW)
+## Rules of Testing Enforcement 
 
 1. Every business logic change requires tests.
 2. Security-sensitive logic must always be tested.
@@ -194,7 +194,7 @@ If tests fail:
 
 ---
 
-# 10. Change Control Rule for AI
+# 10. Change Control Rule for Contributors
 
 When implementing features:
 
@@ -221,7 +221,7 @@ A feature is NOT complete unless:
 
 ---
 
-## How to run this testing strategy (copy/paste instruction to AI)
+## How to run this testing strategy (operator procedure)
 
 **Command template:**
 
