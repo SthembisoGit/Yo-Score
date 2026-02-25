@@ -13,6 +13,8 @@ import codeRoutes from './routes/code.routes';
 import { enableJudge, runJudgeInApi } from './config';
 import { getCorsConfig } from './utils/corsConfig';
 import { captureException, initSentry } from './observability/sentry';
+import { getMetricsSnapshot, observeRequest } from './observability/metrics';
+import { evaluateReadiness } from './observability/readiness';
 import { requestContext } from './middleware/requestContext.middleware';
 import { enforceHttps } from './middleware/https.middleware';
 import { logger } from './utils/logger';
@@ -59,6 +61,33 @@ export function createApp() {
 
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+  app.use((req, res, next) => {
+    const startedAt = process.hrtime.bigint();
+    res.on('finish', () => {
+      const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+      const routePath =
+        typeof req.route?.path === 'string'
+          ? `${req.baseUrl}${req.route.path}`
+          : req.path || req.originalUrl;
+      observeRequest({
+        method: req.method,
+        path: routePath,
+        statusCode: res.statusCode,
+        durationMs,
+      });
+
+      if (durationMs >= 1_000) {
+        logger.warn('Slow HTTP request detected', {
+          correlationId: req.correlationId || 'unknown',
+          method: req.method,
+          path: req.originalUrl,
+          statusCode: res.statusCode,
+          durationMs: Math.round(durationMs),
+        });
+      }
+    });
+    next();
+  });
 
   app.get('/', (_, res) => {
     res.status(200).json({
@@ -80,6 +109,28 @@ export function createApp() {
         status: 'OK',
         service: 'YoScore API',
         timestamp: new Date().toISOString(),
+      },
+    });
+  });
+  app.get('/ready', async (req, res) => {
+    const readiness = await evaluateReadiness();
+    const statusCode = readiness.ready ? 200 : 503;
+    res.status(statusCode).json({
+      success: readiness.ready,
+      message: readiness.ready ? 'Service ready' : 'Service not ready',
+      data: readiness.checks,
+      meta: {
+        correlationId: req.correlationId || 'unknown',
+      },
+    });
+  });
+  app.get('/metrics', (req, res) => {
+    res.status(200).json({
+      success: true,
+      message: 'Service metrics',
+      data: getMetricsSnapshot(),
+      meta: {
+        correlationId: req.correlationId || 'unknown',
       },
     });
   });

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthService, type UserPayload } from '../services/auth.service';
 import { buildStructuredErrorResponse } from '../utils/errorResponse';
+import { observeAuthFailure } from '../observability/metrics';
 
 const authService = new AuthService();
 
@@ -13,6 +14,7 @@ export const authenticate = (req: AuthenticatedRequest, res: Response, next: Nex
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      observeAuthFailure();
       return res
         .status(401)
         .json(buildStructuredErrorResponse(req, 'UNAUTHORIZED', 'No authentication token provided'));
@@ -25,6 +27,7 @@ export const authenticate = (req: AuthenticatedRequest, res: Response, next: Nex
     next();
 
   } catch (error) {
+    observeAuthFailure();
     return res
       .status(401)
       .json(buildStructuredErrorResponse(req, 'INVALID_TOKEN', 'Invalid or expired token'));

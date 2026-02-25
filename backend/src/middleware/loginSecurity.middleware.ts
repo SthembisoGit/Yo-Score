@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import type { Request, RequestHandler, Response } from 'express';
 import { logger } from '../utils/logger';
 import { buildStructuredErrorResponse } from '../utils/errorResponse';
+import { observeAuthFailure, observeRateLimit } from '../observability/metrics';
 
 type AttemptRecord = {
   failures: number;
@@ -104,6 +105,7 @@ export const loginSecurityGuard: RequestHandler = (req, res, next) => {
       Math.ceil((Math.max(ipRecord.lockUntilMs, accountRecord.lockUntilMs) - now()) / 1000),
     );
     res.setHeader('Retry-After', String(retryAfterSeconds));
+    observeRateLimit();
     logger.warn('Authentication lockout triggered', {
       ip,
       email_hash: fingerprintEmail(email),
@@ -126,6 +128,7 @@ export const loginSecurityGuard: RequestHandler = (req, res, next) => {
 
     applyFailure(ipRecord);
     applyFailure(accountRecord);
+    observeAuthFailure();
     logger.warn('Authentication failure recorded', {
       ip,
       email_hash: fingerprintEmail(email),
