@@ -553,3 +553,14 @@ Last Updated: Judge runner & stack script added; build passing.
 ### Notes
 - Behavior and UX flow were preserved; hardening focused on security, maintainability, and operational safety.
 - Remaining recommended follow-up: tighten dev-tooling vulnerability chain in frontend when safe upgrade path is validated for Tailwind/Sucrase toolchain.
+
+## AI Red-Flag Language Cleanup (Rollback Index)
+
+- Group A `docs(blueprint): remove AI-agent directives and enforce contributor ownership`
+  - Commit: `75b1c61`
+- Group B `docs(core): normalize ownership language and remove AI-authorship tone`
+  - Commit: `dec071b`
+- Group C `docs(academic): reframe assistant usage with human accountability language`
+  - Commit: `0b05352`
+- Group D `docs(frontend-copy): refine AI wording while preserving AI Coach and AI-Fix features`
+  - Commit: `01f9e24`
