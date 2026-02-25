@@ -1,4 +1,5 @@
 import type { Request, RequestHandler, Response } from 'express';
+import { buildStructuredErrorResponse } from '../utils/errorResponse';
 
 type CounterRecord = {
   count: number;
@@ -72,11 +73,9 @@ export const createRateLimiter = (options: RateLimitOptions): RequestHandler => 
     if (current.count >= max) {
       const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - timestamp) / 1000));
       res.setHeader('Retry-After', String(retryAfterSeconds));
-      return res.status(429).json({
-        success: false,
-        message,
-        error: code,
-      });
+      return res
+        .status(429)
+        .json(buildStructuredErrorResponse(req, code, message, { retryAfterSeconds }));
     }
 
     current.count += 1;

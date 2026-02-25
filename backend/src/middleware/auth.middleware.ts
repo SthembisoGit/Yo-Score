@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthService, type UserPayload } from '../services/auth.service';
+import { buildStructuredErrorResponse } from '../utils/errorResponse';
 
 const authService = new AuthService();
 
@@ -7,21 +8,14 @@ export interface AuthenticatedRequest extends Request {
   user?: UserPayload;
 }
 
-const getCorrelationMeta = (req: Request) => ({
-  correlationId: req.correlationId || 'unknown',
-});
-
 export const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'No authentication token provided',
-        error: 'UNAUTHORIZED',
-        meta: getCorrelationMeta(req),
-      });
+      return res
+        .status(401)
+        .json(buildStructuredErrorResponse(req, 'UNAUTHORIZED', 'No authentication token provided'));
     }
 
     const token = authHeader.split(' ')[1];
@@ -31,24 +25,18 @@ export const authenticate = (req: AuthenticatedRequest, res: Response, next: Nex
     next();
 
   } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid or expired token',
-      error: 'INVALID_TOKEN',
-      meta: getCorrelationMeta(req),
-    });
+    return res
+      .status(401)
+      .json(buildStructuredErrorResponse(req, 'INVALID_TOKEN', 'Invalid or expired token'));
   }
 };
 
 export const authorize = (...roles: string[]) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not authenticated',
-        error: 'UNAUTHORIZED',
-        meta: getCorrelationMeta(req),
-      });
+      return res
+        .status(401)
+        .json(buildStructuredErrorResponse(req, 'UNAUTHORIZED', 'User not authenticated'));
     }
 
     // Convert both to lowercase for consistent comparison
@@ -56,12 +44,9 @@ export const authorize = (...roles: string[]) => {
     const requiredRoles = roles.map(role => role.toLowerCase());
 
     if (!requiredRoles.includes(userRole)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Insufficient permissions',
-        error: 'FORBIDDEN',
-        meta: getCorrelationMeta(req),
-      });
+      return res
+        .status(403)
+        .json(buildStructuredErrorResponse(req, 'FORBIDDEN', 'Insufficient permissions'));
     }
 
     next();

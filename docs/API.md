@@ -29,12 +29,17 @@
     "code": "ERROR_CODE",
     "message": "User-safe error message",
     "correlationId": "uuid"
+  },
+  "error_response": {
+    "code": "ERROR_CODE",
+    "message": "User-safe error message",
+    "correlationId": "uuid"
   }
 }
 ```
 - Backward compatibility:
   - `message` and top-level `error` fields are preserved for existing clients.
-  - `meta.correlationId` and `error_details` are additive.
+  - `meta.correlationId`, `error_details`, and `error_response` are additive.
 
 ## Auth
 ### `POST /api/auth/signup`

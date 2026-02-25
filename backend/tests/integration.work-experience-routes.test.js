@@ -39,6 +39,8 @@ test('GET /api/users/me/work-experience requires authentication', async () => {
   assert.equal(res.body.success, false);
   assert.equal(res.body.error, 'UNAUTHORIZED');
   assert.ok(res.body.meta && typeof res.body.meta.correlationId === 'string');
+  assert.equal(res.body.error_details.code, 'UNAUTHORIZED');
+  assert.equal(res.body.error_response.correlationId, res.body.meta.correlationId);
 });
 
 test('POST /api/users/me/work-experience rejects missing required fields at boundary', async () => {
@@ -58,6 +60,7 @@ test('POST /api/users/me/work-experience rejects missing required fields at boun
   assert.equal(res.body.success, false);
   assert.equal(res.body.error, 'VALIDATION_FAILED');
   assert.ok(res.body.meta && typeof res.body.meta.correlationId === 'string');
+  assert.equal(res.body.error_response.code, 'VALIDATION_FAILED');
 });
 
 test('POST /api/users/me/work-experience enforces field validation rules', async () => {
@@ -77,4 +80,5 @@ test('POST /api/users/me/work-experience enforces field validation rules', async
   assert.equal(res.status, 400);
   assert.equal(res.body.success, false);
   assert.equal(res.body.error, 'VALIDATION_FAILED');
+  assert.equal(res.body.error_details.code, 'VALIDATION_FAILED');
 });
