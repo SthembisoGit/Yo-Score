@@ -287,6 +287,13 @@ All proctoring routes require auth.
 
 ### Health
 - `GET /api/proctoring/health`
+- `GET /api/proctoring/privacy`
+  - Returns server-authoritative proctoring notice metadata:
+    - `require_consent`
+    - `policy_version`
+    - `policy_url` (optional)
+    - `retention_days`
+    - `capture_scope[]`
 
 ### Session lifecycle
 - `POST /api/proctoring/session/start`
@@ -300,10 +307,20 @@ All proctoring routes require auth.
 - `GET /api/proctoring/session/:sessionId/risk`
 - `POST /api/proctoring/session/:sessionId/liveness-check`
 - `POST /api/proctoring/session/:sessionId/review/enqueue` (admin only)
+- `POST /api/proctoring/session/start` request body includes:
+  - `challengeId`
+  - `consent` object:
+    - `accepted` (must be `true` when consent is required)
+    - `accepted_at` (ISO timestamp)
+    - `policy_version` (must match server policy version)
+    - optional `locale`, `scope[]`
 - `POST /api/proctoring/session/start` response includes:
   - `sessionId`
   - `deadline_at`
   - `duration_seconds`
+  - `privacy_notice`:
+    - `policy_version`
+    - `retention_days`
 - `POST /api/proctoring/events/batch`
   - Body: `session_id`, optional `sequence_start`, `events[]` with:
     - `event_type`, `severity`

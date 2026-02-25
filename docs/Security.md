@@ -36,9 +36,12 @@ This document defines all **security requirements and measures** for YoScore MVP
 
 ## 5. Data Privacy
 
-- **Sensitive Data:** Passwords, trust scores, and behavior logs are **encrypted at rest**.  
+- **Explicit Consent:** Proctored sessions require acceptance of a versioned privacy notice before capture begins.  
+- **Data Minimization:** Live proctoring stores event-level signals and limited trigger-based snapshots, not continuous raw media streams.  
+- **Retention Controls:** Proctoring evidence is stored with expiry metadata and purged automatically by a scheduled backend job.  
+- **Sensitive Data:** Passwords, trust scores, and behavior logs are protected at rest and in transit.  
 - **Transmission:** All API traffic uses **HTTPS** with TLS 1.2+ encryption.  
-- **Access Control:** Only authorized users can access sensitive data.  
+- **Access Control:** Only authorized users can access sensitive data; admin access to sensitive proctoring session views is audit logged.  
 - **Reference Docs:** Developers cannot upload arbitrary files or access external links.  
 
 ---

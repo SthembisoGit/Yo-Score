@@ -1,10 +1,15 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Camera, Mic, AlertTriangle, Shield } from 'lucide-react';
+import {
+  proctoringService,
+  type ProctoringConsentPayload,
+  type ProctoringPrivacyNotice,
+} from '@/services/proctoring.service';
 
 interface ProctoringModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (consent: ProctoringConsentPayload) => void;
   isLoading?: boolean;
 }
 
@@ -22,6 +27,19 @@ const defaultDeviceReadiness: DeviceReadiness = {
   audio: false,
 };
 
+const fallbackPrivacyNotice: ProctoringPrivacyNotice = {
+  require_consent: true,
+  policy_version: '2026-02-25',
+  policy_url: null,
+  retention_days: 7,
+  capture_scope: [
+    'camera_presence_signals',
+    'microphone_device_state',
+    'proctoring_events',
+    'limited_snapshots_on_triggers',
+  ],
+};
+
 export const ProctoringModal = ({
   isOpen,
   onClose,
@@ -35,6 +53,9 @@ export const ProctoringModal = ({
   const [deviceError, setDeviceError] = useState<string | null>(null);
   const [deviceReadiness, setDeviceReadiness] =
     useState<DeviceReadiness>(defaultDeviceReadiness);
+  const [privacyNotice, setPrivacyNotice] = useState<ProctoringPrivacyNotice>(fallbackPrivacyNotice);
+  const [privacyChecked, setPrivacyChecked] = useState(false);
+  const [privacyError, setPrivacyError] = useState<string | null>(null);
 
   const allDevicesReady =
     deviceReadiness.camera && deviceReadiness.microphone && deviceReadiness.audio;
@@ -128,7 +149,27 @@ export const ProctoringModal = ({
     });
     setDeviceReadiness(defaultDeviceReadiness);
     setDeviceError(null);
+    setPrivacyChecked(false);
+    setPrivacyError(null);
     void checkAudioSupport();
+
+    let cancelled = false;
+    void proctoringService
+      .getPrivacyNotice()
+      .then((notice) => {
+        if (!cancelled) {
+          setPrivacyNotice(notice);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPrivacyNotice(fallbackPrivacyNotice);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen, checkAudioSupport]);
 
   const handleDragStart = (e: React.MouseEvent) => {
@@ -173,6 +214,22 @@ export const ProctoringModal = ({
       : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
 
   const isBusy = isLoading || checkingDevice !== null;
+
+  const handleConfirm = () => {
+    if (!privacyChecked) {
+      setPrivacyError('Please accept the proctoring privacy notice before starting.');
+      return;
+    }
+
+    setPrivacyError(null);
+    onConfirm({
+      accepted: true,
+      accepted_at: new Date().toISOString(),
+      policy_version: privacyNotice.policy_version,
+      locale: typeof navigator?.language === 'string' ? navigator.language : 'en-US',
+      scope: privacyNotice.capture_scope,
+    });
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -281,6 +338,49 @@ export const ProctoringModal = ({
               If camera, microphone, or audio is turned off during the challenge, the session will pause.
             </p>
           </div>
+
+          <div className="p-3 bg-muted rounded-lg border border-border space-y-2">
+            <p className="text-sm font-medium">Privacy notice</p>
+            <p className="text-xs text-muted-foreground">
+              Proctoring captures device state, event logs, and limited snapshots when risk triggers occur.
+              Evidence is retained for {privacyNotice.retention_days} days.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Policy version: <span className="font-medium">{privacyNotice.policy_version}</span>
+              {privacyNotice.policy_url ? (
+                <>
+                  {' '}
+                  -{' '}
+                  <a
+                    href={privacyNotice.policy_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    View policy
+                  </a>
+                </>
+              ) : null}
+            </p>
+            <label className="flex items-start gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={privacyChecked}
+                onChange={(event) => {
+                  setPrivacyChecked(event.target.checked);
+                  if (event.target.checked) setPrivacyError(null);
+                }}
+                className="mt-0.5"
+                disabled={isBusy}
+              />
+              <span>
+                I understand and consent to proctoring capture and retention for assessment integrity.
+              </span>
+            </label>
+            {privacyError ? (
+              <p className="text-xs text-red-700 dark:text-red-400">{privacyError}</p>
+            ) : null}
+          </div>
         </div>
 
         <div className="flex gap-3">
@@ -302,8 +402,8 @@ export const ProctoringModal = ({
           </button>
           <button
             type="button"
-            onClick={onConfirm}
-            disabled={isBusy || !allDevicesReady}
+            onClick={handleConfirm}
+            disabled={isBusy || !allDevicesReady || !privacyChecked}
             className="flex-1 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-70 disabled:cursor-not-allowed"
             title={allDevicesReady ? 'Start session' : 'Enable camera, mic, and audio first'}
           >

@@ -1,12 +1,17 @@
 import { Response } from 'express';
+import { createHash } from 'crypto';
 import { ProctoringService, ProctoringSettings } from '../services/proctoring.service';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { config } from '../config';
 
 export class ProctoringController {
   private readonly proctoringService = new ProctoringService();
   private readonly maxSnapshotBytes = 2 * 1024 * 1024;
   private readonly maxFaceFrameBytes = 5 * 1024 * 1024;
   private readonly maxAudioChunkBytes = 10 * 1024 * 1024;
+  private readonly requireConsent =
+    String(config.PROCTORING_REQUIRE_CONSENT).toLowerCase() === 'true';
+  private readonly policyVersion = String(config.PROCTORING_PRIVACY_POLICY_VERSION || '2026-02-25');
 
   private asBuffer(payload: unknown): Buffer {
     if (Buffer.isBuffer(payload)) return payload;
@@ -130,6 +135,14 @@ export class ProctoringController {
     return userId;
   }
 
+  private hashIp(ip?: string): string | null {
+    if (!ip || ip.trim().length === 0) return null;
+    return createHash('sha256')
+      .update(`${ip}:${config.JWT_SECRET}`)
+      .digest('hex')
+      .slice(0, 64);
+  }
+
   async health(_req: AuthenticatedRequest, res: Response) {
     try {
       const health = await this.proctoringService.healthCheck();
@@ -142,6 +155,23 @@ export class ProctoringController {
       return res.status(500).json({
         success: false,
         message: 'Failed to retrieve proctoring health',
+        error: 'PROCTORING_REQUEST_FAILED',
+      });
+    }
+  }
+
+  async privacyNotice(_req: AuthenticatedRequest, res: Response) {
+    try {
+      const notice = this.proctoringService.getPrivacyNotice();
+      return res.status(200).json({
+        success: true,
+        message: 'Proctoring privacy notice',
+        data: notice,
+      });
+    } catch {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve proctoring privacy notice',
         error: 'PROCTORING_REQUEST_FAILED',
       });
     }
@@ -161,7 +191,88 @@ export class ProctoringController {
         });
       }
 
-      const session = await this.proctoringService.startSession(userId, challengeId);
+      const rawConsent = req.body?.consent;
+      if (this.requireConsent) {
+        if (!rawConsent || typeof rawConsent !== 'object') {
+          return res.status(400).json({
+            success: false,
+            message: 'Proctoring privacy consent is required',
+            error: 'CONSENT_REQUIRED',
+            data: {
+              required_policy_version: this.policyVersion,
+            },
+          });
+        }
+
+        const accepted =
+          rawConsent.accepted === true ||
+          rawConsent.consentAccepted === true ||
+          (typeof rawConsent.accepted_at === 'string' && rawConsent.accepted_at.trim().length > 0) ||
+          (typeof rawConsent.acceptedAt === 'string' && rawConsent.acceptedAt.trim().length > 0);
+        if (!accepted) {
+          return res.status(400).json({
+            success: false,
+            message: 'You must accept the proctoring privacy notice before starting',
+            error: 'CONSENT_REQUIRED',
+            data: {
+              required_policy_version: this.policyVersion,
+            },
+          });
+        }
+
+        const requestedVersion =
+          typeof rawConsent.policy_version === 'string'
+            ? rawConsent.policy_version
+            : typeof rawConsent.policyVersion === 'string'
+              ? rawConsent.policyVersion
+              : '';
+        if (!requestedVersion || requestedVersion !== this.policyVersion) {
+          return res.status(409).json({
+            success: false,
+            message: 'Proctoring privacy notice has changed. Please review and accept the latest version.',
+            error: 'CONSENT_VERSION_MISMATCH',
+            data: {
+              required_policy_version: this.policyVersion,
+            },
+          });
+        }
+      }
+
+      const acceptedAtRaw =
+        typeof rawConsent?.accepted_at === 'string'
+          ? rawConsent.accepted_at
+          : typeof rawConsent?.acceptedAt === 'string'
+            ? rawConsent.acceptedAt
+            : new Date().toISOString();
+      const acceptedAtDate = new Date(acceptedAtRaw);
+      const acceptedAt = Number.isNaN(acceptedAtDate.getTime())
+        ? new Date().toISOString()
+        : acceptedAtDate.toISOString();
+
+      const consentScope = Array.isArray(rawConsent?.scope)
+        ? rawConsent.scope.filter((scope: unknown) => typeof scope === 'string')
+        : Array.isArray(rawConsent?.consentScope)
+          ? rawConsent.consentScope.filter((scope: unknown) => typeof scope === 'string')
+          : [
+              'camera_presence_signals',
+              'microphone_device_state',
+              'proctoring_events',
+              'limited_snapshots_on_triggers',
+            ];
+
+      const session = await this.proctoringService.startSession(userId, challengeId, {
+        policyVersion: this.policyVersion,
+        acceptedAt,
+        noticeLocale:
+          typeof rawConsent?.locale === 'string'
+            ? rawConsent.locale
+            : typeof rawConsent?.notice_locale === 'string'
+              ? rawConsent.notice_locale
+              : null,
+        userAgent: String(req.headers['user-agent'] ?? '').slice(0, 512) || null,
+        ipHash: this.hashIp(req.ip),
+        consentScope,
+      });
 
       return res.status(201).json({
         success: true,
@@ -170,9 +281,20 @@ export class ProctoringController {
           sessionId: session.sessionId,
           deadline_at: session.deadlineAt,
           duration_seconds: session.durationSeconds,
+          privacy_notice: {
+            policy_version: this.policyVersion,
+            retention_days: this.proctoringService.getPrivacyNotice().retention_days,
+          },
         },
       });
-    } catch {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message.includes('consent')) {
+        return res.status(400).json({
+          success: false,
+          message: error.message,
+          error: 'CONSENT_REQUIRED',
+        });
+      }
       return res.status(500).json({
         success: false,
         message: 'Failed to start proctoring session',

@@ -52,7 +52,14 @@ CREATE TABLE IF NOT EXISTS proctoring_sessions (
     liveness_required BOOLEAN DEFAULT false,
     liveness_challenge JSONB DEFAULT '{}'::jsonb,
     liveness_completed_at TIMESTAMP,
-    last_sequence_id BIGINT DEFAULT 0
+    last_sequence_id BIGINT DEFAULT 0,
+    privacy_consent_at TIMESTAMP,
+    privacy_policy_version VARCHAR(40),
+    privacy_notice_locale VARCHAR(16),
+    privacy_ip_hash VARCHAR(64),
+    privacy_user_agent TEXT,
+    privacy_consent_scope JSONB DEFAULT '[]'::jsonb,
+    evidence_retention_days INTEGER DEFAULT 7
 );
 
 CREATE TABLE IF NOT EXISTS submissions (
@@ -301,6 +308,27 @@ ALTER TABLE proctoring_sessions
 
 ALTER TABLE proctoring_sessions
     ADD COLUMN IF NOT EXISTS last_sequence_id BIGINT DEFAULT 0;
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS privacy_consent_at TIMESTAMP;
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS privacy_policy_version VARCHAR(40);
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS privacy_notice_locale VARCHAR(16);
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS privacy_ip_hash VARCHAR(64);
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS privacy_user_agent TEXT;
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS privacy_consent_scope JSONB DEFAULT '[]'::jsonb;
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS evidence_retention_days INTEGER DEFAULT 7;
 
 ALTER TABLE proctoring_logs
     ADD COLUMN IF NOT EXISTS session_id UUID REFERENCES proctoring_sessions(id) ON DELETE CASCADE;

@@ -13,6 +13,7 @@ router.use(authenticate);
 
 // Health
 router.get('/health', proctoringController.health.bind(proctoringController));
+router.get('/privacy', proctoringController.privacyNotice.bind(proctoringController));
 
 // Session lifecycle
 router.post('/session/start', proctoringController.startSession.bind(proctoringController));
