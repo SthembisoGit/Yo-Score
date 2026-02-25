@@ -163,7 +163,7 @@ export default function WorkExperience() {
     <div className="min-h-screen bg-muted">
       <Navbar />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8" aria-busy={isLoading}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold mb-2">Work Experience</h1>
@@ -177,6 +177,7 @@ export default function WorkExperience() {
               setFormError(null);
             }}
             className="gap-2"
+            aria-label="Add a new work experience record"
           >
             <Plus className="h-4 w-4" />
             Add Experience
@@ -208,6 +209,7 @@ export default function WorkExperience() {
             {formError && (
               <div
                 role="alert"
+                aria-live="assertive"
                 className="mb-4 rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive"
               >
                 <p className="font-medium mb-1">Please fix the following:</p>
@@ -255,8 +257,9 @@ export default function WorkExperience() {
                   placeholder="e.g. 12"
                   required
                   disabled={isSaving}
+                  aria-describedby="duration-months-help"
                 />
-                <p className="text-xs text-muted-foreground">
+                <p id="duration-months-help" className="text-xs text-muted-foreground">
                   Use whole months only, for example: 12.
                 </p>
               </div>
@@ -275,8 +278,9 @@ export default function WorkExperience() {
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   placeholder="https://linkedin.com/in/your-profile"
                   disabled={isSaving}
+                  aria-describedby="evidence-links-help"
                 />
-                <p className="text-xs text-muted-foreground">
+                <p id="evidence-links-help" className="text-xs text-muted-foreground">
                   Add one link per line, for example LinkedIn, GitHub, or company profile links.
                 </p>
               </div>
@@ -302,7 +306,11 @@ export default function WorkExperience() {
         )}
 
         {loadError && (
-          <div className="mb-6 rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive space-y-3">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="mb-6 rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive space-y-3"
+          >
             <p className="font-medium">Could not load work experience history.</p>
             <p>{loadError}</p>
             <Button type="button" variant="outline" size="sm" onClick={() => void loadExperiences()}>
@@ -312,7 +320,11 @@ export default function WorkExperience() {
         )}
 
         {isLoading && (
-          <div className="bg-card border border-border rounded-lg p-6 text-sm text-muted-foreground">
+          <div
+            role="status"
+            aria-live="polite"
+            className="bg-card border border-border rounded-lg p-6 text-sm text-muted-foreground"
+          >
             Loading work experience records...
           </div>
         )}
