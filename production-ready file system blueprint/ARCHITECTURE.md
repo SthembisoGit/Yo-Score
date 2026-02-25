@@ -1,12 +1,12 @@
 # ARCHITECTURE.md
 
 > Use this file as the structural contract for all system changes.
-> You (AI) must follow the Architectural Rules of Enforcement before writing or modifying code.
+> Contributors must follow the Architectural Rules of Enforcement before writing or modifying code.
 > Do not introduce new patterns unless explicitly justified.
 
 ---
 
-## Rules of Architectural Enforcement (AI MUST FOLLOW)
+## Rules of Architectural Enforcement 
 
 1. Identify affected layer(s) before writing code:
    - Controller / Route
@@ -273,7 +273,7 @@ All logs should support correlation IDs.
 
 ---
 
-# 12. Change Control Rule for AI
+# 12. Change Control Rule for Contributors
 
 When modifying architecture:
 - Do not collapse layers.
@@ -285,7 +285,7 @@ When modifying architecture:
 ---
 
 ### IGNORE:
-## How to run this architecture contract (copy/paste instruction to AI)
+## How to run this architecture contract (operator procedure)
 
 **Command template:**
 

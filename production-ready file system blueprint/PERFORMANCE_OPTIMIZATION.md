@@ -5,7 +5,7 @@
 
 ---
 
-## Rules of Performance Enforcement (AI MUST FOLLOW)
+## Rules of Performance Enforcement 
 
 1. Measure before optimizing.
 2. Never sacrifice clarity for micro-optimization.

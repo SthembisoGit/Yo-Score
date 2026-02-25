@@ -5,7 +5,7 @@
 
 ---
 
-## Rules of Database Enforcement (AI MUST FOLLOW)
+## Rules of Database Enforcement 
 
 1. Never modify schema without migration.
 2. Never run destructive changes without backup strategy.

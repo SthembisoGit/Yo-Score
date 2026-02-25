@@ -6,7 +6,7 @@
 
 ---
 
-## Rules of Repository Enforcement (AI MUST FOLLOW)
+## Rules of Repository Enforcement 
 
 1. Never commit secrets.
 2. Never commit local configuration files.
@@ -92,7 +92,7 @@ Every production-ready repo must include:
 
 - README.md
 - LICENSE (if applicable)
-- SECURITY_AI_CHECKLIST.md
+- SECURITY_CHECKLIST.md
 - ARCHITECTURE.md
 - CODING_STANDARDS.md
 - TESTING_STRATEGY.md
@@ -221,7 +221,7 @@ Clean regularly.
 
 ---
 
-# 10. Change Control Rule for AI
+# 10. Change Control Rule for Contributors
 
 When modifying repo:
 
@@ -250,7 +250,7 @@ A repository is clean when:
 
 ---
 
-## How to run this repository hygiene guide (copy/paste instruction to AI)
+## How to run this repository hygiene guide (operator procedure)
 
 **Command template:**
 

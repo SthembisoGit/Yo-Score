@@ -6,7 +6,7 @@
 
 ---
 
-## Rules of Coding Enforcement (AI MUST FOLLOW)
+## Rules of Coding Enforcement 
 
 1. Follow ARCHITECTURE.md strictly.
 2. Write readable, explicit code.
@@ -219,7 +219,7 @@ All business logic must:
 
 ---
 
-# 14. Change Control Rule for AI
+# 14. Change Control Rule for Contributors
 
 When modifying code:
 - Do not refactor unrelated sections.
@@ -230,7 +230,7 @@ When modifying code:
 
 ---
 
-## How to run this coding standard (copy/paste instruction to AI)
+## How to run this coding standard (operator procedure)
 
 **Command template:**
 
