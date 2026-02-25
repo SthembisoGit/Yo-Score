@@ -15,7 +15,7 @@ const steps = [
   {
     title: '3. Solve With Timed Editor',
     description:
-      'Write your solution inside the built-in editor. You can request up to three AI coach hints for concept guidance.',
+      'Write your solution inside the built-in editor. You can request up to three AI Coach hints for concept guidance.',
   },
   {
     title: '4. Submit And Judge',
