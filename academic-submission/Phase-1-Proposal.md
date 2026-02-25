@@ -5,33 +5,33 @@
 
 ## 2. Domain Analysis
 ### 2.1 General Field of Business
-YoScore is in the software skills assessment and technical trust-verification domain. It supports developer evaluation for hiring, training, and progression decisions.
+YoScore operates in software development assessment, technical trust validation, and competency reporting. The platform supports assessment decisions for recruitment, internship placement, and skills development.
 
 ### 2.2 Terminology and Glossary
-- **Challenge**: timed technical task for a category and level.
-- **Category**: role track such as frontend, backend, cloud, or security.
-- **Seniority Band**: Graduate (0-6), Junior (7-24), Mid (25-60), Senior (61+ months).
-- **Submission**: code sent for automatic judging.
-- **Judge Run**: isolated execution against test cases.
-- **Baseline**: expected runtime or memory reference per language.
-- **Proctoring Session**: monitored challenge attempt.
-- **Violation**: suspicious event (tab switch, camera off, etc.).
-- **AI Coach**: constrained assistant that gives concept hints without full solutions.
-- **Trust Score**: combined output from technical score, behavior, and trusted experience.
+- **Challenge**: timed technical task assigned to a candidate.
+- **Category**: assessment track such as frontend, backend, cloud, or security.
+- **Seniority Band**: level derived from work-experience duration.
+- **Submission**: candidate solution sent for automated evaluation.
+- **Judge Run**: isolated execution of submitted code against test cases.
+- **Baseline**: language-specific runtime and memory reference values.
+- **Proctoring Session**: monitored assessment session.
+- **Violation**: suspicious event recorded during proctoring.
+- **AI Coach**: constrained guidance assistant for concept-level help.
+- **Trust Score**: aggregate outcome from correctness, behavior, and validated experience.
 
-### 2.3 Business Environment Understanding
-AI code assistants are widely adopted. This improves speed but can hide weak fundamentals when candidates cannot solve or explain work without direct code generation. Organizations need a system that allows AI support in a controlled way while still measuring real understanding.
+### 2.3 General Knowledge and Business Environment
+The current environment includes heavy AI tool usage in software development. This improves productivity but also introduces uncertainty in assessment credibility when candidates submit answers without demonstrating core understanding. Institutions and employers require auditable systems that measure both solution quality and candidate behavior during assessment.
 
-### 2.4 Current Tasks and Procedures
-- Candidates complete online coding tests with inconsistent proctoring.
-- Recruiters manually interpret results with low confidence in anti-cheating controls.
-- Work experience is often self-reported with limited verification.
-- Good candidates are sometimes rejected due to weak CV presentation despite strong practical skill.
+### 2.4 Tasks and Procedures Currently Performed
+- Online coding tests are conducted on various platforms with varying integrity controls.
+- Final assessment interpretation often depends on manual review by recruiters or mentors.
+- Work experience is commonly self-reported and may not include structured evidence.
+- Assessment feedback is often insufficiently specific for targeted learner improvement.
 
 ### 2.5 Customers and Users
-- Developers and students proving practical coding ability.
-- Admins operating challenges, judge settings, and policy controls.
-- Recruiters and institutions consuming trust outcomes (dedicated recruiter portal is future scope).
+- Student developers and junior developers.
+- Technical mentors and administrators.
+- Recruitment teams and academic evaluators.
 
 ### 2.6 Competing Software
 - HackerRank
@@ -40,164 +40,146 @@ AI code assistants are widely adopted. This improves speed but can hide weak fun
 - TestGorilla
 
 ### 2.7 Similarities to Other Domains
-- Online examinations (integrity and identity assurance)
-- E-learning competency platforms (rubric scoring and progression)
-- Compliance systems (audit logs and evidence workflows)
+- Online examination systems (identity and integrity controls).
+- Learning management systems (competency tracking and reporting).
+- Audit/compliance systems (event logging and traceability).
 
 ## 3. Define the Problem
-### 3.1 Difficulty
-Many assessment systems cannot reliably prove whether a candidate understands the solution process, especially with unrestricted AI usage and weak proctoring.
+The key difficulty is proving that a candidate can solve technical problems with understanding in an AI-assisted environment. Existing assessment approaches can produce scores without sufficiently reliable evidence of genuine capability or conduct.  
+The opportunity is to provide a three-tier client-server solution that combines automated code evaluation, monitored session behavior, and evidence-aware trust reporting to improve assessment quality and confidence.
 
-### 3.2 Opportunity
-Build a 3-tier system that:
-- evaluates real code outcomes using automatic judging,
-- monitors behavior with proctoring,
-- supports AI guidance without full answer generation,
-- routes tasks by category and seniority,
-- and produces auditable trust scores.
+## 4. Define the Scope
+### 4.1 Scope Boundary
+The implemented scope includes:
+- category-driven challenge assignment,
+- seniority-aware challenge routing,
+- timed proctored sessions,
+- automated submission judging with persisted run results,
+- AI coaching with policy limits,
+- work-experience capture with evidence links and risk status,
+- developer and admin reporting dashboards.
 
-## 4. Define the Scope (IRBM + Assess/Think/Envision/Plan)
-### 4.1 Scope for Release 1 (2-day delivery)
-In scope:
-- Coding-only assessment (JavaScript and Python)
-- Category plus seniority challenge assignment
-- Timed sessions with offline continuity and reconnect submit
-- Constrained AI coach (3 hints max)
-- Evidence-based work experience with risk status
-- Real developer and admin dashboards
-
-Out of scope for this release:
-- MCQ/explanation/scenario mixed assessments
-- CV intelligence
-- Soft-skill tracking
-
-### 4.2 IRBM
+### 4.2 Integrated Result Based Management (IRBM)
 **Inputs**
-- Developer profiles, challenge bank, test cases, baselines, work-experience evidence links, proctoring settings, cloud services.
+- user accounts, challenge bank, test cases, baselines, proctoring settings, work-experience evidence, cloud infrastructure.
 
 **Activities**
-- Authenticate users, assign challenge by category and seniority, run proctored timed session, queue submission, judge code, compute trust score, monitor flagged records.
+- authenticate users, assign challenges, run proctored sessions, evaluate submissions, compute scores, generate reports, perform admin audits.
 
 **Outputs**
-- Submission scores, run-level test outcomes, proctoring logs, trust score and seniority badge, admin audit and risk queues.
+- judged outcomes, run-level test results, trust scores, violation logs, risk queues, and dashboard summaries.
 
 **Outcomes**
-- More reliable technical assessments.
-- Lower cheating risk.
-- Faster operational control for admins.
+- improved assessment credibility,
+- reduced manual verification effort,
+- consistent reporting for academic and recruitment decisions.
 
 **Impact**
-- Better interview shortlisting quality and fairer opportunities for skilled developers.
+- fairer assessment opportunities and stronger evidence-based shortlisting.
 
 ### 4.3 Assess / Think / Envision / Plan
 **Assess**
-- Current hiring assessments are inconsistent and vulnerable to tool misuse.
+- assessment integrity is inconsistent across current processes.
 
 **Think**
-- Causes: unbounded AI usage, weak proctoring integration, and non-standard scoring.
-- Stakeholders: developers, employers, institutions, admins.
+- causes include unrestricted AI dependence, weak monitoring integration, and fragmented scoring evidence; stakeholders are developers, admins, mentors, institutions, and recruiters.
 
 **Envision**
-- Trusted AI-aware assessment where AI can assist understanding but cannot replace capability.
+- a trusted assessment environment where AI support is controlled and understanding is measurable.
 
 **Plan**
-- Use the existing YoScore architecture.
-- Ship Trust-Core MVP in 2 days.
-- Document deferred features for Release 1.1+.
+- implement and operate a complete three-tier assessment platform over the six-month WIL period, with documented results and evidence.
 
 ## 5. Vision and Objectives (SMART)
 ### 5.1 Vision
-Enable trusted developer assessment in the AI era by measuring both what candidates solve and how they solve it.
+Provide an auditable, fair, and practical developer assessment system that measures both problem-solving outcomes and assessment integrity.
 
 ### 5.2 SMART Objectives
-1. Deliver a complete 3-tier Trust-Core MVP by deadline with all critical flows operational.
-2. Ensure 100% of new submissions are judged asynchronously with lifecycle persistence.
-3. Enforce AI Coach limit so 100% of sessions allow at most 3 hints.
-4. Ensure timer and offline submit grace logic is enforced in 100% of session-linked submissions.
-5. Route 100% of assigned challenges by selected category and valid seniority fallback rules.
-6. Include evidence/risk status on all new work-experience entries.
+1. Maintain automated judging for all submitted challenges with stored run/test evidence.
+2. Enforce timed session controls and deadline validation for all proctored attempts.
+3. Enforce AI coaching policy limits for every active challenge session.
+4. Route assigned challenges according to category and seniority rules.
+5. Record work-experience entries with verification status and risk fields.
+6. Provide dashboard and report outputs for developer and admin stakeholders.
 
 ## 6. Users of the System
 - **Developer**
-  - register, login, start challenge, request AI hints, submit solution, view scores.
+  - register/login, request assigned challenge, solve and submit, view score and feedback.
 - **Admin**
-  - manage content, tests, baselines, publish status, queue health, proctoring policy, flagged experience, user roles.
-- **Recruiter (limited in MVP)**
-  - consumes outputs indirectly; dedicated portal deferred.
+  - configure and publish challenges, manage tests/baselines, monitor sessions, review risk records, manage roles.
+- **Recruiter/Evaluator**
+  - consume trust and performance outputs for decision support.
 
-## 7. Mandatory Functions (CRUD)
-- Add/register users.
-- Add/update/delete challenges.
-- Add/update/delete challenge test cases.
-- Upsert baselines.
-- Add/list reference documents.
-- Add/list work-experience entries with evidence links.
-- Update persistent proctoring settings.
+## 7. Mandatory Functions
+The system supports Add/Register, Delete/Remove, and Update operations on core data:
+- users,
+- challenges,
+- challenge test cases,
+- challenge baselines,
+- reference documents,
+- work-experience records,
+- proctoring settings.
 
 ## 8. Functional Requirements
-- FR-01: User registration and authentication with RBAC.
-- FR-02: Developer can request next challenge by category.
-- FR-03: System assigns challenge by exact seniority, then lower fallback only.
-- FR-04: Proctoring session start returns authoritative deadline metadata.
-- FR-05: Session timer is visible and continuous, including offline periods.
-- FR-06: Editor autosaves local draft during challenge.
-- FR-07: If offline at deadline, editor locks and queues reconnect auto-submit.
-- FR-08: Backend accepts reconnect submit only within 15-minute grace window.
-- FR-09: Submissions are judged asynchronously with persisted per-test outcomes.
-- FR-10: AI Coach provides concept guidance and small examples only.
-- FR-11: AI Coach blocks hint request after third hint.
-- FR-12: Work experience supports evidence links and risk-based status.
-- FR-13: Trust score excludes flagged and rejected experience rows.
-- FR-14: Dashboard shows trust score, seniority band, and score components.
-- FR-15: Admin can audit flagged experience entries.
+- FR-01: support registration and authentication with role-based access control.
+- FR-02: accept challenge requests by category.
+- FR-03: assign challenges using seniority matching with controlled fallback rules.
+- FR-04: start proctoring sessions with authoritative deadline metadata.
+- FR-05: accept code submissions and process them through queued judge execution.
+- FR-06: persist per-run and per-test outcomes.
+- FR-07: support constrained AI coaching requests and enforce hint limits.
+- FR-08: capture proctoring events and session status updates.
+- FR-09: capture work experience, evidence links, verification status, and risk score.
+- FR-10: compute and display trust score components on dashboards.
+- FR-11: provide admin monitoring and audit views.
 
-### Inputs, Outputs, Computations, Timing
-- Inputs: credentials, category, code, language, evidence links, proctoring events.
-- Outputs: judged result, score components, trust level, verification status, admin audit data.
-- Computations: correctness, efficiency, style, behavior penalties, trust aggregation.
-- Timing and synchronization: async queue processing with polling and deadline enforcement.
+### Inputs, Outputs, Computations, Timing and Synchronization
+- **Inputs**: credentials, category, language, code, evidence URLs, proctoring events.
+- **Outputs**: judged correctness outcomes, score components, trust values, reports.
+- **Computations**: test-case evaluation, weighted scoring, trust aggregation, risk classification.
+- **Timing/Synchronization**: queue-based processing, polling updates, and deadline enforcement.
 
 ## 9. Non-Functional Requirements
-- **Authentication**: JWT login/logout with protected admin routes.
-- **Availability**: health endpoints and queue-backed processing.
-- **Reliability**: persistent run logs and proctoring logs for audit.
-- **Security**: role checks, hashed passwords, controlled CORS.
-- **Performance**: submission endpoint returns quickly (queue-and-wait model).
-- **Maintainability**: modular backend services and versioned docs.
+- **Authentication (Login/Logout)**: secure token-based session handling and protected routes.
+- **Availability**: health endpoints and resilient queue-backed processing.
+- **Security**: password hashing, authorization checks, controlled CORS, audit logging.
+- **Reliability**: persistent run/proctoring/audit records.
+- **Performance**: bounded execution time and responsive API responses.
+- **Maintainability**: modular services with documented interfaces.
 
-## 10. Use Cases
-Diagram source: `academic-submission/diagrams/use-case.puml`
+## 10. Use Case
+Diagram source: `academic-submission/diagrams/use-case.puml`  
+Diagram export: `academic-submission/diagrams/exports/use-case.png`
 
-### UC-01 Developer completes a trusted challenge
-1. Developer selects category.
-2. System assigns seniority-matched challenge.
-3. Proctoring session starts with timer.
-4. Developer writes code, optionally requests AI hints (max 3).
-5. Submission is queued and judged.
-6. Results and trust updates are shown on dashboard.
+### UC-01: Developer Completes Challenge
+1. Developer selects category and requests challenge.
+2. System assigns a valid challenge and starts proctoring.
+3. Developer submits code solution.
+4. System evaluates submission and stores run/test outcomes.
+5. Dashboard displays results and trust updates.
 
-### UC-02 Admin publishes challenge safely
-1. Admin creates challenge and sets seniority and duration.
-2. Admin adds test cases and baselines.
-3. System checks readiness.
-4. Admin publishes challenge.
+### UC-02: Admin Publishes Assessment Content
+1. Admin creates or updates challenge.
+2. Admin configures test cases and baselines.
+3. System validates readiness constraints.
+4. Admin publishes challenge for assignment.
 
-### UC-03 System updates trust score
-1. On grade completion or work-experience update, system recomputes trust.
-2. Trust components are persisted and returned to dashboard.
+### UC-03: System Updates Trust Score
+1. Submission or work-experience event triggers recomputation.
+2. System updates trust record.
+3. Dashboard and reports reflect updated values.
 
 ## 11. Tools and Technologies to be Used
-### Product stack
-- Frontend: React + TypeScript + Vite
-- Backend: Node.js + Express + TypeScript
-- Queue: BullMQ + Redis (Upstash)
-- Database: PostgreSQL (Supabase)
-- Proctoring ML service: FastAPI (Python)
-- Deployment: Render
+### Product Technologies
+- Frontend: React, TypeScript, Vite.
+- Backend: Node.js, Express, TypeScript.
+- Queue: BullMQ with Redis.
+- Database: PostgreSQL.
+- Proctoring service: FastAPI (Python).
+- Deployment: Render, Supabase, Upstash.
 
-### Free tools for academic deliverables
-- PlantUML (diagram source)
-- Kroki (diagram rendering)
-- diagrams.net (optional final polish)
-- LibreOffice (DOCX and PDF output)
-- OBS Studio (prototype demo recording)
+### Academic Documentation Tools (Free)
+- PlantUML (diagram source),
+- Kroki (diagram rendering),
+- diagrams.net (diagram refinement),
+- LibreOffice and browser print-to-PDF (final document export).

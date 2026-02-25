@@ -1,9 +1,9 @@
 import { query } from '../db';
-import axios from 'axios';
 import { config } from '../config';
 import { getViolationPenalty, normalizeViolationType } from '../constants/violationPenalties';
 import { createHash } from 'crypto';
 import { logger } from '../utils/logger';
+import { MlServiceAdapter } from '../adapters/mlService.adapter';
 import {
   evaluateRiskSignals,
   type RiskEvaluation,
@@ -235,7 +235,7 @@ export class ProctoringService {
     },
   };
 
-  private readonly mlServiceUrl: string;
+  private readonly mlServiceAdapter: MlServiceAdapter;
   private schemaEnsured = false;
   private readonly heartbeatTimeoutSeconds = 15;
   private readonly evidenceRetentionDays = Math.max(1, Number(config.PROCTORING_EVIDENCE_RETENTION_DAYS ?? 7));
@@ -247,7 +247,7 @@ export class ProctoringService {
   );
 
   constructor() {
-    this.mlServiceUrl = config.ML_SERVICE_URL || 'http://localhost:5000';
+    this.mlServiceAdapter = new MlServiceAdapter(config.ML_SERVICE_URL || 'http://localhost:5000');
   }
 
   private async ensureSessionSchemaExtensions(): Promise<void> {
@@ -1167,32 +1167,11 @@ export class ProctoringService {
         throw new Error('Session not found');
       }
 
-      // Create FormData-like structure for multipart upload
-      const FormData = require('form-data');
-      const formData = new FormData();
-      formData.append('image', imageBuffer, {
-        filename: 'frame.jpg',
-        contentType: 'image/jpeg',
+      const mlResult = await this.mlServiceAdapter.analyzeFace({
+        sessionId,
+        timestamp,
+        imageBuffer,
       });
-
-      // FastAPI expects form fields, not query params for multipart
-      const response = await axios.post(
-        `${this.mlServiceUrl}/api/analyze/face`,
-        formData,
-        {
-          headers: {
-            ...formData.getHeaders(),
-          },
-          params: {
-            session_id: sessionId,
-            timestamp,
-            analysis_type: 'face',
-          },
-          timeout: 10_000,
-        },
-      );
-
-      const mlResult = response.data;
 
       if (!mlResult?.success) {
         throw new Error('ML analysis failed');
@@ -1210,8 +1189,10 @@ export class ProctoringService {
         this.mapMlViolation(mlViolation.type, mlViolation.description, mlViolation.confidence),
       );
 
+      const analysisResult = mlResult.results as unknown as FaceAnalysisResult;
+
       return {
-        result: mlResult.results,
+        result: analysisResult,
         violations,
       };
     } catch (error) {
@@ -1237,32 +1218,12 @@ export class ProctoringService {
         throw new Error('Session not found');
       }
 
-      // Create FormData-like structure for multipart upload
-      const FormData = require('form-data');
-      const formData = new FormData();
-      formData.append('audio', audioBuffer, {
-        filename: 'audio.webm',
-        contentType: 'audio/webm',
+      const mlResult = await this.mlServiceAdapter.analyzeAudio({
+        sessionId,
+        timestamp,
+        audioBuffer,
+        durationMs,
       });
-
-      const response = await axios.post(
-        `${this.mlServiceUrl}/api/analyze/audio`,
-        formData,
-        {
-          headers: {
-            ...formData.getHeaders(),
-          },
-          params: {
-            session_id: sessionId,
-            timestamp,
-            analysis_type: 'audio',
-            duration_ms: durationMs,
-          },
-          timeout: 15_000,
-        },
-      );
-
-      const mlResult = response.data;
 
       if (!mlResult?.success) {
         throw new Error('Audio analysis failed');
@@ -1280,8 +1241,10 @@ export class ProctoringService {
         this.mapMlViolation(mlViolation.type, mlViolation.description, mlViolation.confidence),
       );
 
+      const analysisResult = mlResult.results as unknown as AudioAnalysisResult;
+
       return {
-        result: mlResult.results,
+        result: analysisResult,
         violations,
       };
     } catch (error) {
@@ -2105,8 +2068,7 @@ export class ProctoringService {
     }
 
     try {
-      const response = await axios.get(`${this.mlServiceUrl}/health`, { timeout: 5000 });
-      const payload = response.data ?? {};
+      const payload = (await this.mlServiceAdapter.health()) ?? {};
       const payloadFlags =
         payload && typeof payload.flags === 'object' && payload.flags !== null
           ? (payload.flags as Record<string, unknown>)

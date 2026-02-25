@@ -1,10 +1,10 @@
-import { query } from '../db';
 import { executionService } from './execution.service';
 import {
   normalizeLanguage,
   type SupportedLanguage,
 } from '../constants/languages';
 import { logger } from '../utils/logger';
+import { challengeRepository } from '../repositories/challenge.repository';
 
 export interface RunCodeInput {
   language: string;
@@ -19,17 +19,11 @@ export class CodeRunService {
     const challengeId = input.challenge_id?.trim() || null;
 
     if (challengeId) {
-      const challengeResult = await query(
-        `SELECT id, publish_status
-         FROM challenges
-         WHERE id = $1`,
-        [challengeId],
-      );
-
-      if (challengeResult.rows.length === 0) {
+      const challenge = await challengeRepository.findChallengePublishState(challengeId);
+      if (!challenge) {
         throw new Error('Challenge not found');
       }
-      if (challengeResult.rows[0].publish_status !== 'published') {
+      if (challenge.publish_status !== 'published') {
         throw new Error('Challenge is not published');
       }
     }

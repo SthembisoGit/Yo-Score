@@ -1,7 +1,7 @@
 # YoScore Test Plan
 
 ## 1. Purpose
-Define the approach used to verify Trust-Core Release 1 requirements for academic submission.
+Define the approach used to verify Outcome 7 system requirements for final academic submission.
 
 ## 2. Scope
 In scope:
@@ -15,8 +15,8 @@ In scope:
 - dashboard and admin risk-audit outputs
 
 Out of scope:
-- mixed non-coding assessments (Release 1.1+)
-- CV intelligence and soft-skill features
+- monthly WIL administrative forms outside the system implementation
+- non-project institutional portal workflows
 
 ## 3. Test Levels
 - API smoke and integration tests
