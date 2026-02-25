@@ -1,7 +1,7 @@
 # Phase 1: Proposal
 
 ## 1. Name of the Project
-**YoScore: AI-Aware Developer Trust and Skill Scoring Platform**
+**YoScore: Developer Trust and Skill Scoring Platform**
 
 ## 2. Domain Analysis
 ### 2.1 General Field of Business
@@ -20,7 +20,7 @@ YoScore operates in software development assessment, technical trust validation,
 - **Trust Score**: aggregate outcome from correctness, behavior, and validated experience.
 
 ### 2.3 General Knowledge and Business Environment
-The current environment includes heavy AI tool usage in software development. This improves productivity but also introduces uncertainty in assessment credibility when candidates submit answers without demonstrating core understanding. Institutions and employers require auditable systems that measure both solution quality and candidate behavior during assessment.
+The current environment includes heavy coding-assistant tool usage in software development. This improves productivity but also introduces uncertainty in assessment credibility when candidates submit answers without demonstrating core understanding. Institutions and employers require auditable systems that measure both solution quality and candidate behavior during assessment.
 
 ### 2.4 Tasks and Procedures Currently Performed
 - Online coding tests are conducted on various platforms with varying integrity controls.
@@ -45,7 +45,7 @@ The current environment includes heavy AI tool usage in software development. Th
 - Audit/compliance systems (event logging and traceability).
 
 ## 3. Define the Problem
-The key difficulty is proving that a candidate can solve technical problems with understanding in an AI-assisted environment. Existing assessment approaches can produce scores without sufficiently reliable evidence of genuine capability or conduct.  
+The key difficulty is proving that a candidate can solve technical problems with understanding in a tool-assisted environment. Existing assessment approaches can produce scores without sufficiently reliable evidence of genuine capability or conduct.  
 The opportunity is to provide a three-tier client-server solution that combines automated code evaluation, monitored session behavior, and evidence-aware trust reporting to improve assessment quality and confidence.
 
 ## 4. Define the Scope
@@ -82,10 +82,10 @@ The implemented scope includes:
 - assessment integrity is inconsistent across current processes.
 
 **Think**
-- causes include unrestricted AI dependence, weak monitoring integration, and fragmented scoring evidence; stakeholders are developers, admins, mentors, institutions, and recruiters.
+- causes include unrestricted tooling dependence, weak monitoring integration, and fragmented scoring evidence; stakeholders are developers, admins, mentors, institutions, and recruiters.
 
 **Envision**
-- a trusted assessment environment where AI support is controlled and understanding is measurable.
+- a trusted assessment environment where assistant support is controlled and understanding is measurable.
 
 **Plan**
 - implement and operate a complete three-tier assessment platform over the six-month WIL period, with documented results and evidence.

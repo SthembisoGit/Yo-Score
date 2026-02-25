@@ -15,7 +15,7 @@ Key UI design characteristics:
 - visible seniority and trust indicators,
 - countdown timer and session status visibility,
 - integrated coding editor and run output panel,
-- AI helper panel with explicit policy limits,
+- AI Coach panel with explicit policy limits,
 - admin controls for challenge publishing workflow.
 
 ## 2. Demo the Prototype
@@ -36,7 +36,7 @@ Method used: Nielsen usability heuristics.
 | H-01 | Visibility of system status | Queue and timer status are separated in some flows | Medium | Session and result pages | Consolidate operational state indicators |
 | H-02 | Consistency and standards | Status labels differ across pages | Low | Dashboard and result pages | Use one standardized status vocabulary |
 | H-03 | Error prevention | Missing category selection can interrupt assignment flow | Low | Challenge start flow | Keep category as required before request |
-| H-04 | Help and documentation | AI helper boundaries may be unclear to first-time users | Medium | Challenge helper panel | Display concise policy note in panel header |
+| H-04 | Help and documentation | AI Coach boundaries may be unclear to first-time users | Medium | Challenge helper panel | Display concise policy note in panel header |
 | H-05 | Recognition over recall | Verification status terms need explicit meaning | Low | Work Experience page | Add short explanatory text/tooltips |
 
 ## 4. Validate Fields (Verification and Validation)
