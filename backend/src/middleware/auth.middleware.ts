@@ -7,6 +7,10 @@ export interface AuthenticatedRequest extends Request {
   user?: UserPayload;
 }
 
+const getCorrelationMeta = (req: Request) => ({
+  correlationId: req.correlationId || 'unknown',
+});
+
 export const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
@@ -15,7 +19,8 @@ export const authenticate = (req: AuthenticatedRequest, res: Response, next: Nex
       return res.status(401).json({
         success: false,
         message: 'No authentication token provided',
-        error: 'UNAUTHORIZED'
+        error: 'UNAUTHORIZED',
+        meta: getCorrelationMeta(req),
       });
     }
 
@@ -29,7 +34,8 @@ export const authenticate = (req: AuthenticatedRequest, res: Response, next: Nex
     return res.status(401).json({
       success: false,
       message: 'Invalid or expired token',
-      error: 'INVALID_TOKEN'
+      error: 'INVALID_TOKEN',
+      meta: getCorrelationMeta(req),
     });
   }
 };
@@ -40,7 +46,8 @@ export const authorize = (...roles: string[]) => {
       return res.status(401).json({
         success: false,
         message: 'User not authenticated',
-        error: 'UNAUTHORIZED'
+        error: 'UNAUTHORIZED',
+        meta: getCorrelationMeta(req),
       });
     }
 
@@ -52,7 +59,8 @@ export const authorize = (...roles: string[]) => {
       return res.status(403).json({
         success: false,
         message: 'Insufficient permissions',
-        error: 'FORBIDDEN'
+        error: 'FORBIDDEN',
+        meta: getCorrelationMeta(req),
       });
     }
 

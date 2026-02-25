@@ -10,7 +10,10 @@
 {
   "success": true,
   "message": "Human readable message",
-  "data": {}
+  "data": {},
+  "meta": {
+    "correlationId": "uuid"
+  }
 }
 ```
 - Error:
@@ -18,9 +21,20 @@
 {
   "success": false,
   "message": "Error message",
-  "error": "ERROR_CODE"
+  "error": "ERROR_CODE",
+  "meta": {
+    "correlationId": "uuid"
+  },
+  "error_details": {
+    "code": "ERROR_CODE",
+    "message": "User-safe error message",
+    "correlationId": "uuid"
+  }
 }
 ```
+- Backward compatibility:
+  - `message` and top-level `error` fields are preserved for existing clients.
+  - `meta.correlationId` and `error_details` are additive.
 
 ## Auth
 ### `POST /api/auth/signup`
@@ -59,14 +73,29 @@
 
 ### `POST /api/users/me/work-experience`
 - Auth required.
-- Body: `company_name`, `role`, `duration_months`, optional `evidence_links` (string array).
+- Request body (validated at boundary):
+  - `company_name`: string (required, 1..180)
+  - `role`: string (required, 1..180)
+  - `duration_months`: positive number (required, max 1200)
+  - `evidence_links`: optional string array (max 10) or comma/newline-delimited string
+- Unknown fields: accepted for backward compatibility and ignored by business logic.
 - Server computes:
   - `verification_status` (`pending|verified|flagged|rejected`)
   - `risk_score` (`0-100`)
   - legacy `verified` is no longer user-controlled.
+- Success: `201 Created`
+- Error cases:
+  - `400 VALIDATION_FAILED`
+  - `401 UNAUTHORIZED`
+  - `500 ADD_EXPERIENCE_FAILED`
 
 ### `GET /api/users/me/work-experience`
 - Auth required.
+- Success: `200 OK`
+- Response `data` is always an array.
+- Error cases:
+  - `401 UNAUTHORIZED`
+  - `500 GET_EXPERIENCES_FAILED`
 
 ## Dashboard
 ### `GET /api/dashboard/me`

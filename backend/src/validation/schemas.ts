@@ -35,6 +35,22 @@ export const codeRunSchema = z
   })
   .strict();
 
+const evidenceLinksSchema = z
+  .union([
+    z.array(z.string().trim().min(1).max(512)).max(10),
+    z.string().max(4096),
+  ])
+  .optional();
+
+export const addWorkExperienceSchema = z
+  .object({
+    company_name: z.string().trim().min(1).max(180),
+    role: z.string().trim().min(1).max(180),
+    duration_months: z.coerce.number().positive().max(1200),
+    evidence_links: evidenceLinksSchema,
+  })
+  .passthrough();
+
 export const updateProfileSchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
