@@ -1,6 +1,10 @@
 # OS/editor
 .DS_Store
 Thumbs.db
+.idea/
+*.swp
+*.swo
+*.tmp
 
 # Environment files
 .env
@@ -12,9 +16,14 @@ Thumbs.db
 node_modules/
 dist/
 build/
+.next/
+out/
+.cache/
 coverage/
 frontend/test-results/
 frontend/playwright-report/
+frontend/.turbo/
+backend/.turbo/
 
 # Python artifacts
 __pycache__/
@@ -24,7 +33,12 @@ __pycache__/
 .venv/
 venv/
 env/
+.pytest_cache/
+.mypy_cache/
 
 # Project-specific local runtime artifacts
 ml-service/venv/
 ml-service/__pycache__/
+*.sqlite
+*.sqlite3
+*.db
