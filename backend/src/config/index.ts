@@ -8,9 +8,15 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   BASE_URL: z.string().default('http://localhost:3000'),
   FRONTEND_URL: z.string().default('http://localhost:5173'),
+  CORS_ALLOWED_ORIGINS: z.string().optional(),
   DATABASE_URL: z.string(),
   JWT_SECRET: z.string(),
-  JWT_EXPIRES_IN: z.string().default('24h'),
+  JWT_EXPIRES_IN: z.string().default('15m'),
+  ACCESS_TOKEN_TTL: z.string().default('15m'),
+  REFRESH_TOKEN_TTL: z.string().default('7d'),
+  REFRESH_TOKEN_SECRET: z.string().optional(),
+  REFRESH_COOKIE_NAME: z.string().default('yoScore_refresh_token'),
+  AUTH_COOKIE_SAME_SITE: z.enum(['strict', 'lax', 'none']).default('lax'),
   BCRYPT_SALT_ROUNDS: z.coerce.number().default(12),
   ML_SERVICE_URL: z.string().default('http://localhost:5000'),
   ML_SERVICE_TIMEOUT: z.coerce.number().default(10000),
@@ -41,11 +47,47 @@ type EnvConfig = z.infer<typeof envSchema>;
 const parseResult = envSchema.safeParse(process.env);
 
 if (!parseResult.success) {
-  console.error('Invalid environment variables:', parseResult.error.format());
+  process.stderr.write(
+    `Invalid environment variables: ${JSON.stringify(parseResult.error.format())}\n`,
+  );
   process.exit(1);
 }
 
-export const config: EnvConfig = parseResult.data;
+const parsedConfig: EnvConfig = parseResult.data;
+
+const isPlaceholderSecret = (value: string): boolean => {
+  const lowered = value.trim().toLowerCase();
+  if (!lowered) return true;
+  return (
+    lowered.includes('replace-with') ||
+    lowered.includes('changeme') ||
+    lowered.includes('example') ||
+    lowered === 'test-secret'
+  );
+};
+
+if (parsedConfig.NODE_ENV === 'production') {
+  if (isPlaceholderSecret(parsedConfig.JWT_SECRET)) {
+    process.stderr.write(
+      'Invalid production secret: JWT_SECRET must be a strong, non-placeholder value.\n',
+    );
+    process.exit(1);
+  }
+  if (!parsedConfig.REFRESH_TOKEN_SECRET) {
+    process.stderr.write(
+      'Invalid production secret: REFRESH_TOKEN_SECRET is required in production.\n',
+    );
+    process.exit(1);
+  }
+  if (isPlaceholderSecret(parsedConfig.REFRESH_TOKEN_SECRET)) {
+    process.stderr.write(
+      'Invalid production secret: REFRESH_TOKEN_SECRET must be a strong, non-placeholder value.\n',
+    );
+    process.exit(1);
+  }
+}
+
+export const config: EnvConfig = parsedConfig;
 export const enableJudge = config.ENABLE_JUDGE.toLowerCase() === 'true';
 export const runJudgeInApi = config.RUN_JUDGE_IN_API.toLowerCase() === 'true';
 export const strictRealScoring = config.STRICT_REAL_SCORING.toLowerCase() === 'true';

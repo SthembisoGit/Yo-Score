@@ -37,15 +37,9 @@ apiClient.interceptors.response.use(
         const token = localStorage.getItem(JWT_STORAGE_KEY);
         if (!token) throw error;
 
-        const rotateResponse = await axios.post(
-          `${API_BASE_URL}/auth/rotate`,
-          {},
-          {
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
-          }
-        );
+        const rotateResponse = await axios.post(`${API_BASE_URL}/auth/rotate`, {}, {
+          withCredentials: true,
+        });
 
         const rotatedToken = rotateResponse.data?.data?.token;
         if (!rotatedToken) {

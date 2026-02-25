@@ -5,10 +5,13 @@ import uvicorn
 import json
 import asyncio
 import os
+import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 app = FastAPI(title="YoScore ML Proctoring Service")
+logger = logging.getLogger("yoscore.ml")
+logging.basicConfig(level=logging.INFO)
 
 # CORS
 app.add_middleware(
@@ -22,10 +25,10 @@ app.add_middleware(
 def _safe_init(name: str, factory):
     try:
         detector = factory()
-        print(f"[ml-service] {name} initialized")
+        logger.info("[ml-service] %s initialized", name)
         return detector
     except Exception as exc:
-        print(f"[ml-service] {name} failed to initialize: {exc}")
+        logger.warning("[ml-service] %s failed to initialize: %s", name, exc)
         return None
 
 ENABLE_FACE_DETECTOR = os.getenv("ENABLE_FACE_DETECTOR", "true").lower() == "true"
@@ -56,6 +59,16 @@ def _build_object_detector():
 face_detector = _safe_init("face detector", _build_face_detector) if ENABLE_FACE_DETECTOR else None
 audio_analyzer = _safe_init("audio analyzer", _build_audio_analyzer) if ENABLE_AUDIO_ANALYZER else None
 object_detector = _safe_init("object detector", _build_object_detector) if ENABLE_OBJECT_DETECTOR else None
+
+
+@app.get("/")
+async def root():
+    return {
+        "status": "healthy",
+        "service": "ML Proctoring",
+        "mode": "two_phase_lite",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
 
 class AnalysisRequest(BaseModel):
     session_id: str

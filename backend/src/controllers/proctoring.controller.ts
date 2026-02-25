@@ -51,6 +51,18 @@ export class ProctoringController {
     return buffer.length >= 4 && buffer.toString('ascii', 0, 4) === 'OggS';
   }
 
+  private isMp3(buffer: Buffer): boolean {
+    if (buffer.length < 3) return false;
+    if (buffer.toString('ascii', 0, 3) === 'ID3') return true;
+    if (buffer.length < 2) return false;
+    return buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0;
+  }
+
+  private isMp4(buffer: Buffer): boolean {
+    if (buffer.length < 12) return false;
+    return buffer.toString('ascii', 4, 8) === 'ftyp';
+  }
+
   private ensureImagePayload(buffer: Buffer, maxBytes: number) {
     if (!buffer || buffer.length === 0) {
       throw new Error('Image data is required');
@@ -70,9 +82,39 @@ export class ProctoringController {
     if (buffer.length > maxBytes) {
       throw new Error(`Audio payload exceeds ${maxBytes} bytes`);
     }
-    if (!this.isWebm(buffer) && !this.isWav(buffer) && !this.isOgg(buffer)) {
+    if (!this.isWebm(buffer) && !this.isWav(buffer) && !this.isOgg(buffer) && !this.isMp3(buffer) && !this.isMp4(buffer)) {
       throw new Error('Unsupported audio format');
     }
+  }
+
+  private classifyClientInputError(error: unknown): { status: number; message: string } | null {
+    if (!(error instanceof Error)) return null;
+    const message = error.message || '';
+    if (message.includes('Session not found')) {
+      return {
+        status: 404,
+        message: 'Session not found',
+      };
+    }
+    if (message.includes('payload exceeds') || message.includes('exceeds')) {
+      return {
+        status: 413,
+        message,
+      };
+    }
+    if (message.includes('Unsupported image format') || message.includes('Unsupported audio format')) {
+      return {
+        status: 415,
+        message,
+      };
+    }
+    if (message.includes('data is required') || message.includes('is required')) {
+      return {
+        status: 400,
+        message,
+      };
+    }
+    return null;
   }
 
   private requireUserId(req: AuthenticatedRequest, res: Response): string | null {
@@ -141,6 +183,9 @@ export class ProctoringController {
 
   async endSession(req: AuthenticatedRequest, res: Response) {
     try {
+      const userId = this.requireUserId(req, res);
+      if (!userId) return;
+
       const { sessionId, submissionId } = req.body;
 
       if (!sessionId) {
@@ -150,7 +195,7 @@ export class ProctoringController {
         });
       }
 
-      await this.proctoringService.endSession(sessionId, submissionId);
+      await this.proctoringService.endSession(sessionId, userId, submissionId);
 
       return res.status(200).json({
         success: true,
@@ -459,7 +504,15 @@ export class ProctoringController {
         message: 'Snapshot stored',
         data: saved,
       });
-    } catch {
+    } catch (error: unknown) {
+      const classified = this.classifyClientInputError(error);
+      if (classified) {
+        return res.status(classified.status).json({
+          success: false,
+          message: classified.message,
+          error: 'PROCTORING_REQUEST_FAILED',
+        });
+      }
       return res.status(400).json({
         success: false,
         message: 'Failed to store snapshot',
@@ -470,6 +523,9 @@ export class ProctoringController {
 
   async getSessionDetails(req: AuthenticatedRequest, res: Response) {
     try {
+      const requesterId = this.requireUserId(req, res);
+      if (!requesterId) return;
+
       const { sessionId } = req.params;
 
       if (!sessionId) {
@@ -479,7 +535,11 @@ export class ProctoringController {
         });
       }
 
-      const sessionDetails = await this.proctoringService.getSessionDetails(sessionId);
+      const sessionDetails = await this.proctoringService.getSessionDetails(
+        sessionId,
+        requesterId,
+        req.user?.role === 'admin',
+      );
 
       return res.status(200).json({
         success: true,
@@ -504,6 +564,9 @@ export class ProctoringController {
 
   async getSessionAnalytics(req: AuthenticatedRequest, res: Response) {
     try {
+      const requesterId = this.requireUserId(req, res);
+      if (!requesterId) return;
+
       const { sessionId } = req.params;
 
       if (!sessionId) {
@@ -513,14 +576,26 @@ export class ProctoringController {
         });
       }
 
-      const analytics = await this.proctoringService.getSessionAnalytics(sessionId);
+      const analytics = await this.proctoringService.getSessionAnalytics(
+        sessionId,
+        requesterId,
+        req.user?.role === 'admin',
+      );
 
       return res.status(200).json({
         success: true,
         message: 'Session analytics retrieved',
         data: analytics,
       });
-    } catch {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message === 'Session not found') {
+        return res.status(404).json({
+          success: false,
+          message: 'Session not found',
+          error: 'PROCTORING_REQUEST_FAILED',
+        });
+      }
+
       return res.status(500).json({
         success: false,
         message: 'Failed to get session analytics',
@@ -531,6 +606,9 @@ export class ProctoringController {
 
   async getSessionStatus(req: AuthenticatedRequest, res: Response) {
     try {
+      const requesterId = this.requireUserId(req, res);
+      if (!requesterId) return;
+
       const { sessionId } = req.params;
 
       if (!sessionId) {
@@ -540,14 +618,26 @@ export class ProctoringController {
         });
       }
 
-      const status = await this.proctoringService.getSessionStatus(sessionId);
+      const status = await this.proctoringService.getSessionStatus(
+        sessionId,
+        requesterId,
+        req.user?.role === 'admin',
+      );
 
       return res.status(200).json({
         success: true,
         message: 'Session status retrieved',
         data: status,
       });
-    } catch {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message === 'Session not found') {
+        return res.status(404).json({
+          success: false,
+          message: 'Session not found',
+          error: 'PROCTORING_REQUEST_FAILED',
+        });
+      }
+
       return res.status(500).json({
         success: false,
         message: 'Failed to get session status',
@@ -818,7 +908,15 @@ export class ProctoringController {
         message: 'Face analysis completed',
         data: result,
       });
-    } catch {
+    } catch (error: unknown) {
+      const classified = this.classifyClientInputError(error);
+      if (classified) {
+        return res.status(classified.status).json({
+          success: false,
+          message: classified.message,
+          error: 'PROCTORING_REQUEST_FAILED',
+        });
+      }
       return res.status(500).json({
         success: false,
         message: 'Failed to analyze face',
@@ -856,7 +954,15 @@ export class ProctoringController {
         message: 'Audio analysis completed',
         data: result,
       });
-    } catch {
+    } catch (error: unknown) {
+      const classified = this.classifyClientInputError(error);
+      if (classified) {
+        return res.status(classified.status).json({
+          success: false,
+          message: classified.message,
+          error: 'PROCTORING_REQUEST_FAILED',
+        });
+      }
       return res.status(500).json({
         success: false,
         message: 'Failed to analyze audio',
