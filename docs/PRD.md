@@ -1,13 +1,13 @@
 # YoScore Product Requirements Document (PRD)
 
 ## 1. Product Summary
-YoScore is a trusted developer assessment platform for the AI era. It is designed to evaluate whether a developer can solve problems with understanding, not just copy generated code.
+YoScore is a trusted developer assessment platform for modern tool-assisted development hiring. It is designed to evaluate whether a developer can solve problems with understanding, not just copy generated code.
 
 Release 1 is a Trust-Core MVP focused on coding assessments only.
 
 ## 2. Problem Statement
 Two major problems drive this product:
-1. AI can accelerate learning, but it can also hide weak fundamentals. Many assessments cannot detect this.
+1. Assistant tooling can accelerate learning, but it can also hide weak fundamentals. Many assessments cannot detect this.
 2. Hiring outcomes are often noisy because evaluation quality is inconsistent and trust signals are weak.
 
 YoScore addresses both by combining judged code execution, proctoring behavior, constrained AI guidance, and transparent score breakdowns.

@@ -208,7 +208,7 @@
 ### Product and docs alignment completed
 - Restored and rewrote root `README.md` to current Trust-Core positioning and run instructions.
 - Rewrote `docs/PRD.md` with locked Release 1 decisions:
-  - AI-with-understanding coach policy (max 3 hints, no full solutions)
+  - assistance-with-understanding coach policy (max 3 hints, no full solutions)
   - category + seniority routing
   - timer/offline/grace behavior
   - evidence-based work experience verification
@@ -296,7 +296,7 @@ Current Status: Phase 1 stack is now running with real async judge lifecycle, ad
 - Added QA/test deliverables:
   - test plan, test cases, test execution evidence template.
 - Added deployment execution manual for final submission bundle.
-- Added AI prompt pack and DOCX/PDF export guide using free tools.
+- Added assistant prompt guide with mandatory human review and DOCX/PDF export instructions using free tools.
 
 ## Latest Update (Phase 1 Production Alignment)
 
