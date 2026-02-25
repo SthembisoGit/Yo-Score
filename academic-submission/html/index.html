@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>YoScore Academic Submission</title>
+  <title>YoScore Outcome 7 Academic Submission</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <header class="document-header">
     <h1>YoScore: AI-Aware Developer Trust and Skill Scoring Platform</h1>
-    <p class="subtitle">Industry Project Academic Submission (Phases 1-5)</p>
+    <p class="subtitle">Outcome 7: Industry Project (IP) - Business Analysis and Project Management</p>
     <table class="meta-table">
-      <tr><th>Student Name</th><td>________________________</td></tr>
-      <tr><th>Student Number</th><td>________________________</td></tr>
-      <tr><th>Qualification</th><td>Diploma in Computer Science</td></tr>
-      <tr><th>Module</th><td>Industry Project (IP) - Business Analysis and Project Management</td></tr>
-      <tr><th>Submission Date</th><td>________________________</td></tr>
+      <tr><th>Student Name</th><td>Sthembiso Sotsha Ndlovu</td></tr>
+      <tr><th>Student Number</th><td>224834659</td></tr>
+      <tr><th>Qualification</th><td>Diploma in Computer Science (DPRS20)</td></tr>
+      <tr><th>Module</th><td>WOC316D - Work-Integrated Learning</td></tr>
+      <tr><th>WIL Period</th><td>01 Sep 2025 - 28 Feb 2026</td></tr>
     </table>
   </header>
 
@@ -27,7 +27,7 @@
       <li><a href="#phase-3">Phase 3: User Interface</a></li>
       <li><a href="#phase-4">Phase 4: Build the Database and Demonstrate Integration</a></li>
       <li><a href="#phase-5">Phase 5: Final Project Deliverance</a></li>
-      <li><a href="#appendix">Appendix</a></li>
+      <li><a href="#appendix">Appendix: Evidence and Source Code Proof</a></li>
     </ol>
   </nav>
 
@@ -41,41 +41,43 @@
       <h3>2. Domain Analysis</h3>
       <h4>2.1 General Field of Business</h4>
       <p>
-        YoScore operates in software skills assessment and technical trust verification.
-        It supports fair developer evaluation for hiring, training, and progression decisions.
+        YoScore operates in software development assessment and technical trust validation.
+        The system supports decisions for recruitment, internship placement, and competency development.
       </p>
 
-      <h4>2.2 Domain Terminology / Glossary</h4>
+      <h4>2.2 Terminology and Glossary</h4>
       <ul>
-        <li><strong>Challenge</strong>: timed technical task aligned to category and level.</li>
-        <li><strong>Category</strong>: track such as frontend, backend, cloud, security.</li>
-        <li><strong>Seniority Band</strong>: Graduate (0-6), Junior (7-24), Mid (25-60), Senior (61+ months).</li>
-        <li><strong>Submission</strong>: code attempt sent for judging.</li>
-        <li><strong>Judge Run</strong>: isolated execution against test cases.</li>
+        <li><strong>Challenge</strong>: timed technical task assigned to a user.</li>
+        <li><strong>Category</strong>: assessment track such as frontend, backend, cloud, or security.</li>
+        <li><strong>Seniority Band</strong>: level derived from work-experience duration.</li>
+        <li><strong>Submission</strong>: code sent for automatic evaluation.</li>
+        <li><strong>Judge Run</strong>: execution record against test cases.</li>
+        <li><strong>Baseline</strong>: language runtime and memory reference for scoring.</li>
         <li><strong>Proctoring Session</strong>: monitored challenge attempt.</li>
-        <li><strong>Violation</strong>: suspicious behavior event.</li>
-        <li><strong>AI Coach</strong>: constrained assistant (concept hints, no full solutions).</li>
-        <li><strong>Trust Score</strong>: combined outcome from skills, behavior, and trusted experience.</li>
+        <li><strong>Violation</strong>: suspicious behavior recorded during a session.</li>
+        <li><strong>AI Coach</strong>: limited concept-based helper.</li>
+        <li><strong>Trust Score</strong>: combined assessment confidence output.</li>
       </ul>
 
-      <h4>2.3 Business Environment Understanding</h4>
+      <h4>2.3 General Knowledge and Business Environment</h4>
       <p>
-        AI coding assistants are now standard in developer workflows. The challenge is not to ban AI,
-        but to verify understanding and practical capability under controlled conditions.
+        AI coding tools are widely used in software teams. Assessment systems must therefore verify genuine understanding,
+        not only final answers. Employers and academic evaluators require auditable evidence of technical competence and conduct.
       </p>
 
-      <h4>2.4 Current Tasks and Procedures</h4>
+      <h4>2.4 Tasks and Procedures Currently Performed</h4>
       <ul>
-        <li>Candidates complete coding tests on different platforms with inconsistent controls.</li>
-        <li>Recruiters manually interpret results and trust signals.</li>
-        <li>Work experience is often self-declared with limited evidence checks.</li>
+        <li>candidates take coding tests on different platforms,</li>
+        <li>results are often interpreted manually,</li>
+        <li>integrity controls vary significantly,</li>
+        <li>work experience is frequently self-reported without structured evidence.</li>
       </ul>
 
       <h4>2.5 Customers and Users</h4>
       <ul>
-        <li><strong>Developers</strong>: prove practical skill and trustworthiness.</li>
-        <li><strong>Admins</strong>: operate challenge, scoring, and integrity systems.</li>
-        <li><strong>Recruiters/Educators</strong>: consume trust outcomes (portal expansion is future scope).</li>
+        <li>Developers and students completing assessments.</li>
+        <li>Administrators managing content, quality, and risk controls.</li>
+        <li>Recruiters and evaluators consuming report outputs.</li>
       </ul>
 
       <h4>2.6 Competing Software</h4>
@@ -88,129 +90,125 @@
 
       <h4>2.7 Similarities to Other Domains</h4>
       <p>
-        Similar to online examinations and e-learning competency systems where integrity, auditability,
-        and consistent scoring are required.
+        The domain overlaps with online examination, e-learning, and compliance systems where integrity,
+        reliability, and traceable evidence are mandatory.
       </p>
 
       <h3>3. Define the Problem</h3>
-      <h4>3.1 Difficulty</h4>
       <p>
-        Existing assessment flows do not consistently prove whether candidates can solve problems with understanding,
-        especially when unrestricted AI or weak proctoring is involved.
+        Current technical assessments can produce scores without proving whether the candidate actually understands
+        the submitted solution process. This creates risk in interview and hiring decisions.
       </p>
-      <h4>3.2 Opportunity</h4>
       <p>
-        Build a 3-tier client-server platform with judged scoring, proctoring, constrained AI coaching,
-        and evidence-aware trust modeling.
+        The project opportunity is to provide a three-tier, auditable, and automated assessment system
+        that combines coding performance, session behavior, and trust evidence.
       </p>
 
-      <h3>4. Define the Scope (IRBM)</h3>
+      <h3>4. Define the Scope</h3>
       <h4>4.1 Scope Boundary</h4>
-      <p><strong>Release 1 in scope:</strong></p>
+      <p>Implemented scope includes:</p>
       <ul>
-        <li>coding-only assessments (JavaScript and Python)</li>
-        <li>category plus seniority assignment</li>
-        <li>timed proctored sessions with offline continuity</li>
-        <li>AI Coach with 3-hint policy</li>
-        <li>work-experience evidence and risk status</li>
-      </ul>
-      <p><strong>Out of scope for Release 1:</strong></p>
-      <ul>
-        <li>mixed non-coding assessments (MCQ, explanation, scenarios)</li>
-        <li>CV intelligence</li>
-        <li>soft-skill tracking</li>
+        <li>category and seniority aware challenge assignment,</li>
+        <li>timed proctored challenge sessions,</li>
+        <li>automated submission judging with per-test persistence,</li>
+        <li>AI helper with bounded policy controls,</li>
+        <li>work-experience evidence and risk workflow,</li>
+        <li>developer and admin dashboards with reporting outputs.</li>
       </ul>
 
       <h4>4.2 Integrated Result Based Management (IRBM)</h4>
-      <p><strong>Inputs</strong>: users, challenge bank, baselines, evidence links, proctoring policy, cloud infrastructure.</p>
-      <p><strong>Activities</strong>: assign, monitor, judge, score, and audit.</p>
-      <p><strong>Outputs</strong>: run outcomes, trust scores, violation logs, flagged queues.</p>
-      <p><strong>Outcomes</strong>: stronger trust in assessment results and reduced manual review load.</p>
-      <p><strong>Impact</strong>: fairer opportunities and better hiring signal quality.</p>
+      <p><strong>Inputs</strong>: users, challenges, tests, baselines, proctoring settings, evidence links, infrastructure.</p>
+      <p><strong>Activities</strong>: authenticate, assign, monitor, evaluate, score, report, audit.</p>
+      <p><strong>Outputs</strong>: scored runs, trust values, violation logs, and risk reports.</p>
+      <p><strong>Outcomes</strong>: consistent evidence-based assessment decisions.</p>
+      <p><strong>Impact</strong>: improved fairness and confidence in technical evaluation.</p>
 
       <h4>4.3 Assess / Think / Envision / Plan</h4>
-      <p><strong>Assess</strong>: trust in coding assessments is inconsistent.</p>
-      <p><strong>Think</strong>: causes include unbounded AI usage and fragmented integrity controls.</p>
-      <p><strong>Envision</strong>: a trusted AI-aware assessment system that rewards understanding.</p>
-      <p><strong>Plan</strong>: deliver Trust-Core MVP in 2 days and defer mixed assessments to Release 1.1+.</p>
+      <p><strong>Assess</strong>: assessment credibility is inconsistent across available processes.</p>
+      <p><strong>Think</strong>: root causes include weak integrity controls and non-standard evidence outputs.</p>
+      <p><strong>Envision</strong>: a trusted, auditable, and scalable assessment platform.</p>
+      <p><strong>Plan</strong>: design, implement, test, and present the solution during the six-month WIL period.</p>
 
-      <h3>5. Vision and Objectives (SMART)</h3>
+      <h3>5. Vision and Objectives</h3>
       <h4>5.1 Vision</h4>
-      <p>Measure not only what candidates submit, but how they solve, under transparent and auditable rules.</p>
+      <p>
+        To provide reliable AI-aware developer assessment that measures both correctness and assessment integrity.
+      </p>
 
       <h4>5.2 SMART Objectives</h4>
       <ol>
-        <li>Deliver complete 3-tier Trust-Core MVP by deadline.</li>
-        <li>Ensure all submissions use async judge lifecycle persistence.</li>
-        <li>Enforce maximum 3 AI hints per challenge session.</li>
-        <li>Enforce deadline plus 15-minute grace policy for offline reconnect submit.</li>
-        <li>Route challenges by category with exact-then-lower seniority fallback.</li>
-        <li>Store evidence/risk metadata on all new work-experience entries.</li>
+        <li>Ensure all submissions are judged and persisted with run/test evidence.</li>
+        <li>Enforce timed challenge sessions with server-validated deadline checks.</li>
+        <li>Enforce AI helper usage limits for each challenge session.</li>
+        <li>Route challenge assignment using category and seniority rules.</li>
+        <li>Record experience evidence and verification status for trust reporting.</li>
+        <li>Generate role-specific dashboards and report queries for admins and evaluators.</li>
       </ol>
 
       <h3>6. Users of the System</h3>
       <ul>
-        <li><strong>Developer</strong>: challenge participation, AI hints, submission, dashboard review.</li>
-        <li><strong>Admin</strong>: content and policy operations, queue and risk monitoring, role management.</li>
-        <li><strong>Recruiter (limited in MVP)</strong>: downstream consumer of trust outputs.</li>
+        <li><strong>Developer</strong>: solve challenges, submit solutions, and review results.</li>
+        <li><strong>Admin</strong>: manage content, publishing, proctoring rules, and audits.</li>
+        <li><strong>Recruiter/Evaluator</strong>: consume trust and performance reports.</li>
       </ul>
 
-      <h3>7. Mandatory Functions (CRUD)</h3>
+      <h3>7. Mandatory Functions</h3>
       <ul>
-        <li>Add/register users.</li>
-        <li>Add/update/delete challenges and test cases.</li>
-        <li>Add/update baselines and reference docs.</li>
-        <li>Add/list work experience with evidence links.</li>
-        <li>Update persistent proctoring settings.</li>
+        <li>Add/Register user and challenge data.</li>
+        <li>Delete/Remove challenge and related data where allowed by policy.</li>
+        <li>Update challenges, tests, baselines, profiles, work-experience, and settings.</li>
       </ul>
 
       <h3>8. Functional Requirements</h3>
       <ol>
-        <li>Category-based challenge request and seniority-aware assignment.</li>
-        <li>Timer initialized by server deadline metadata.</li>
-        <li>Offline autosave and reconnect auto-submit behavior.</li>
-        <li>Two-phase proctoring: live telemetry plus async post-exam review.</li>
-        <li>Submission queue lifecycle with run and test persistence.</li>
-        <li>AI Coach policy enforcement (3 hints, no full solution output).</li>
-        <li>Evidence-aware work-experience verification and risk scoring.</li>
-        <li>Dashboard and admin views aligned to backend truth.</li>
+        <li>support registration/login/logout with role protection,</li>
+        <li>accept category-based challenge requests and return valid assignment,</li>
+        <li>start proctoring sessions and maintain session status,</li>
+        <li>accept and evaluate submissions asynchronously,</li>
+        <li>persist run-level and test-level outcomes,</li>
+        <li>apply scoring and trust aggregation rules,</li>
+        <li>accept and validate work-experience evidence data,</li>
+        <li>produce dashboard and report outputs for decision support.</li>
       </ol>
-      <p>
-        Inputs include credentials, category, language, code, and evidence links.
-        Outputs include scored results, trust summaries, and audit records.
-      </p>
+      <p><strong>Inputs</strong>: credentials, category, code, language, session events, evidence links.</p>
+      <p><strong>Outputs</strong>: judged results, score components, trust metrics, report views.</p>
+      <p><strong>Computations</strong>: correctness, efficiency, style contribution, risk/trust aggregation.</p>
+      <p><strong>Timing/Synchronization</strong>: queue-driven evaluation, polling updates, and deadline enforcement.</p>
 
-      <h3>9. Non-Functional Requirements</h3>
+      <h3>9. Non-functional Requirements</h3>
       <ul>
-        <li><strong>Authentication</strong>: JWT login/logout and RBAC.</li>
-        <li><strong>Availability</strong>: health endpoints and queue resilience.</li>
-        <li><strong>Reliability</strong>: persistent run/proctoring/audit logs.</li>
-        <li><strong>Security</strong>: password hashing, role checks, controlled CORS.</li>
-        <li><strong>Maintainability</strong>: modular services with documented contracts.</li>
+        <li><strong>Authentication</strong>: secure login/logout and protected route access.</li>
+        <li><strong>Availability</strong>: health endpoints and resilient service orchestration.</li>
+        <li><strong>Security</strong>: role checks, password hashing, controlled CORS.</li>
+        <li><strong>Reliability</strong>: persistent records for submissions, sessions, and audits.</li>
+        <li><strong>Maintainability</strong>: modular backend services and documented contracts.</li>
       </ul>
 
       <h3>10. Use Case</h3>
       <figure>
         <img src="./assets/use-case.png" alt="Use case diagram" />
-        <figcaption>Figure 1: YoScore Use Case Diagram</figcaption>
+        <figcaption>Figure 1: Use Case Diagram</figcaption>
       </figure>
       <p>
-        Key use cases include category-based challenge start, proctored timed solving, constrained AI hint requests,
-        async judged submission, and admin monitoring of flagged work-experience records.
+        The primary user interaction sequence includes challenge request, session start,
+        monitored attempt, submission, automated evaluation, and result publication.
       </p>
 
-      <h3>11. Tools and Technologies to Be Used</h3>
+      <h3>11. Tools and Technologies to be Used</h3>
       <ul>
-        <li><strong>Product stack</strong>: React, TypeScript, Node.js, Express, BullMQ, PostgreSQL, Redis, FastAPI.</li>
-        <li><strong>Deployment</strong>: Render + Supabase + Upstash.</li>
-        <li><strong>Academic tooling</strong>: PlantUML, Kroki, diagrams.net, LibreOffice, OBS Studio.</li>
+        <li><strong>Frontend</strong>: React, TypeScript, Vite.</li>
+        <li><strong>Backend</strong>: Node.js, Express, TypeScript.</li>
+        <li><strong>Queue and Cache</strong>: BullMQ, Redis.</li>
+        <li><strong>Database</strong>: PostgreSQL.</li>
+        <li><strong>Proctoring Service</strong>: FastAPI (Python).</li>
+        <li><strong>Deployment</strong>: Render, Supabase, Upstash.</li>
       </ul>
     </section>
 
     <section id="phase-2" class="phase page-break">
       <h2>Phase 2: Modelling with Classes</h2>
 
-      <h3>1. Class Diagram</h3>
+      <h3>1. Class Diagrams</h3>
       <figure>
         <img src="./assets/class-diagram.png" alt="Class diagram" />
         <figcaption>Figure 2: Class Diagram</figcaption>
@@ -219,22 +217,22 @@
       <h3>2. Sequence Diagram</h3>
       <figure>
         <img src="./assets/sequence-submission-lifecycle.png" alt="Sequence diagram" />
-        <figcaption>Figure 3: Submission Lifecycle Sequence Diagram</figcaption>
+        <figcaption>Figure 3: Sequence Diagram</figcaption>
       </figure>
 
-      <h3>3. State Diagram</h3>
+      <h3>3. State Diagrams</h3>
       <figure>
         <img src="./assets/state-submission-session.png" alt="State diagram" />
-        <figcaption>Figure 4: Submission and Session State Diagram</figcaption>
+        <figcaption>Figure 4: State Diagram</figcaption>
       </figure>
 
-      <h3>4. Activity Diagram</h3>
+      <h3>4. Activity Diagrams</h3>
       <figure>
         <img src="./assets/activity-end-to-end.png" alt="Activity diagram" />
-        <figcaption>Figure 5: End-to-End Activity Diagram</figcaption>
+        <figcaption>Figure 5: Activity Diagram</figcaption>
       </figure>
 
-      <h3>5. Component Diagram</h3>
+      <h3>5. Component Diagrams</h3>
       <figure>
         <img src="./assets/component-architecture.png" alt="Component diagram" />
         <figcaption>Figure 6: Component Diagram</figcaption>
@@ -251,35 +249,25 @@
       <h2>Phase 3: User Interface</h2>
 
       <h3>1. Design User Interfaces</h3>
-      <p>Implemented screens include login, dashboard, challenge session, result view, work-experience view, profile page, and admin dashboard.</p>
-      <ul>
-        <li>Category picker and seniority badge in challenge flow</li>
-        <li>Server-based countdown timer</li>
-        <li>Offline banner plus autosave/reconnect behavior</li>
-        <li>AI Coach panel with remaining hint counter</li>
-        <li>Work-experience evidence links and risk status badges</li>
-        <li>Profile editing for avatar URL, bio, and professional links</li>
-      </ul>
+      <p>
+        Implemented interfaces include login/signup, dashboard, challenge session, submission result,
+        work experience, profile, and admin dashboard.
+      </p>
 
       <h3>2. Demo the Prototype</h3>
-      <ol>
-        <li>Login as developer.</li>
-        <li>Select category and get assigned challenge.</li>
-        <li>Start session and verify timer.</li>
-        <li>Request AI Coach hint.</li>
-        <li>Submit and observe judge lifecycle.</li>
-        <li>Review updated dashboard.</li>
-        <li>Login as admin and inspect flagged experience queue.</li>
-        <li>Open session detail and verify post-exam proctoring summary.</li>
-      </ol>
+      <p>
+        Demonstration evidence covers authentication, challenge assignment, timed proctored session,
+        submission lifecycle, result display, and admin monitoring workflows.
+      </p>
 
-      <h3>3. Evaluate User Interface (Heuristic Evaluation)</h3>
+      <h3>3. Evaluate User Interface</h3>
+      <p>Heuristic evaluation was performed using Nielsen principles.</p>
       <table>
         <thead>
           <tr>
             <th>ID</th>
             <th>Heuristic</th>
-            <th>Defect</th>
+            <th>Observed Defect</th>
             <th>Severity</th>
             <th>Recommendation</th>
           </tr>
@@ -288,41 +276,34 @@
           <tr>
             <td>H-01</td>
             <td>Visibility of status</td>
-            <td>Timer/network/judge states are split across areas</td>
+            <td>Queue/network/timer states split in some views</td>
             <td>Medium</td>
-            <td>Use one consolidated status strip</td>
+            <td>Unify operational status indicators</td>
           </tr>
           <tr>
             <td>H-02</td>
-            <td>Consistency</td>
+            <td>Consistency and standards</td>
             <td>Status labels vary between pages</td>
             <td>Low</td>
-            <td>Standardize labels globally</td>
+            <td>Standardize labels</td>
           </tr>
           <tr>
             <td>H-03</td>
             <td>Error prevention</td>
-            <td>AI Coach constraints are not always obvious</td>
-            <td>Medium</td>
-            <td>Show policy text in panel header</td>
-          </tr>
-          <tr>
-            <td>H-04</td>
-            <td>Recognition over recall</td>
-            <td>Risk status meaning can be unclear</td>
+            <td>Category omission interrupts assignment request</td>
             <td>Low</td>
-            <td>Add tooltip definitions for pending/flagged/verified</td>
+            <td>Require category before request</td>
           </tr>
         </tbody>
       </table>
 
       <h3>4. Validate Fields (Verification and Validation)</h3>
       <ul>
-        <li>Authentication: valid email and required password.</li>
-        <li>Submission: required challenge id, code, and language (`javascript` or `python`).</li>
-        <li>AI Coach: hard 3-hint cap per challenge session.</li>
-        <li>Work experience: required company, role, positive duration, optional URL evidence list.</li>
-        <li>Admin challenge setup: required seniority and bounded duration.</li>
+        <li>Authentication: email/password validation and role-bound access.</li>
+        <li>Challenge submission: required challenge ID, language, and code payload.</li>
+        <li>AI helper: validated session context and hint usage limits.</li>
+        <li>Work experience: required core fields and URL validation for evidence links.</li>
+        <li>Admin challenge setup: required category/seniority/duration with readiness checks.</li>
       </ul>
     </section>
 
@@ -331,37 +312,37 @@
 
       <h3>1. Build the Database</h3>
       <p>
-        The PostgreSQL schema is defined in <code>backend/db/schema.sql</code> and includes challenge,
-        submission, run-level, proctoring (live and post-exam evidence), trust, work-experience, and AI hint audit entities.
+        Database design is implemented in PostgreSQL and defined in
+        <code>backend/db/schema.sql</code> with challenge, submission, run, proctoring,
+        trust, and audit entities.
       </p>
 
       <h3>2. Manage Objects</h3>
-      <ul>
-        <li>Primary and foreign keys enforce relational integrity.</li>
-        <li>Check constraints enforce language, status, and verification enums.</li>
-        <li>Indexes support lifecycle polling, assignment, and risk auditing.</li>
-        <li>Two-phase proctoring evidence is stored in <code>proctoring_event_logs</code> and <code>proctoring_snapshots</code>.</li>
-      </ul>
+      <p>
+        Objects are managed through structured schema definitions, keys, foreign-key relationships,
+        check constraints, and indexes for performance and integrity.
+      </p>
 
       <h3>3. Normalization Process</h3>
-      <p>The model is normalized to 3NF by separating user, submission, run, and per-test data.</p>
-      <pre><code>Before (not used): assessment_blob(user, challenge, tests_json, score)
-After: submissions + submission_runs + submission_run_tests + trust_scores</code></pre>
+      <p>
+        The implemented model is normalized to 3NF by separating user-level, session-level,
+        run-level, and per-test data entities.
+      </p>
 
-      <h3>4. Manipulate Data</h3>
-      <p>Academic SQL scripts:</p>
+      <h3>4. Manipulate your data</h3>
+      <p>Population and transaction scripts are provided in:</p>
       <ul>
         <li><code>academic-submission/sql/seed-academic-demo.sql</code></li>
         <li><code>academic-submission/sql/transactions.sql</code></li>
       </ul>
 
-      <h3>5. Manage Transactions and Queries</h3>
-      <p>Report queries are provided in:</p>
+      <h3>5. Manage transaction</h3>
+      <p>Transaction and reporting queries are provided in:</p>
       <ul>
         <li><code>academic-submission/sql/report-queries.sql</code></li>
         <li><code>academic-submission/reports/report-queries.sql</code></li>
       </ul>
-      <p>These cover trust summaries, performance outputs, proctoring analytics, and judge health data.</p>
+      <p>These outputs correlate with the functional requirements and use cases defined in Phase 1.</p>
     </section>
 
     <section id="phase-5" class="phase page-break">
@@ -369,11 +350,11 @@ After: submissions + submission_runs + submission_run_tests + trust_scores</code
 
       <h3>1. Application</h3>
       <p>
-        YoScore is a complete integrated 3-tier application with frontend, backend process logic,
-        and database services connected through REST and queue workflows.
+        YoScore is delivered as a fully working system with integrated user interface,
+        process logic, and database management in a three-tier client-server architecture.
       </p>
 
-      <h3>2. Document on Test Cases and Test Plan</h3>
+      <h3>2. Document on Test cases and Test plan</h3>
       <ul>
         <li><code>academic-submission/testing/Test-Plan.md</code></li>
         <li><code>academic-submission/testing/Test-Cases.md</code></li>
@@ -382,39 +363,62 @@ After: submissions + submission_runs + submission_run_tests + trust_scores</code
 
       <h3>3. Reports</h3>
       <ol>
-        <li>User trust summary report</li>
-        <li>Submission performance report</li>
-        <li>Proctoring violation report</li>
-        <li>Judge run health report</li>
-        <li>Flagged work-experience audit report</li>
+        <li>User trust summary report.</li>
+        <li>Submission performance report.</li>
+        <li>Proctoring violation report.</li>
+        <li>Judge run health report.</li>
+        <li>Work-experience verification/risk report.</li>
       </ol>
 
-      <h3>4. Final Deliverable Must Include</h3>
+      <h3>4. Final Deliverable must include</h3>
       <ol>
-        <li>Application deployment execution manual</li>
-        <li>Application source archive</li>
-        <li>Database backup and DDL script</li>
-        <li>Test plan, test cases, and execution evidence</li>
-        <li>Diagram source files and exported images</li>
-        <li>Prototype demo recording</li>
-        <li>DOCX and PDF report outputs</li>
+        <li>Application deployment execution manual.</li>
+        <li>Application archive with source code.</li>
+        <li>Database backup and DDL script.</li>
+        <li>Complete source code evidence.</li>
       </ol>
     </section>
 
     <section id="appendix" class="phase page-break">
-      <h2>Appendix</h2>
+      <h2>Appendix: Evidence and Source Code Proof</h2>
+
+      <h3>A. Diagram Index</h3>
       <ul>
-        <li>Phase docs: <code>academic-submission/Phase-1-Proposal.md</code> to <code>academic-submission/Phase-5-Final-Deliverables.md</code></li>
-        <li>Diagram sources: <code>academic-submission/diagrams/*.puml</code></li>
-        <li>Diagram exports: <code>academic-submission/diagrams/exports/*.png</code></li>
-        <li>SQL scripts: <code>academic-submission/sql/*.sql</code></li>
-        <li>Report SQL: <code>academic-submission/reports/report-queries.sql</code></li>
+        <li>Figure 1: Use Case Diagram</li>
+        <li>Figure 2: Class Diagram</li>
+        <li>Figure 3: Sequence Diagram</li>
+        <li>Figure 4: State Diagram</li>
+        <li>Figure 5: Activity Diagram</li>
+        <li>Figure 6: Component Diagram</li>
+        <li>Figure 7: Deployment Diagram</li>
       </ul>
+
+      <h3>B. SQL and Test Artifact Index</h3>
+      <ul>
+        <li><code>academic-submission/sql/seed-academic-demo.sql</code></li>
+        <li><code>academic-submission/sql/transactions.sql</code></li>
+        <li><code>academic-submission/sql/report-queries.sql</code></li>
+        <li><code>academic-submission/testing/Test-Plan.md</code></li>
+        <li><code>academic-submission/testing/Test-Cases.md</code></li>
+        <li><code>academic-submission/testing/Test-Execution-Evidence.md</code></li>
+      </ul>
+
+      <h3>C. Source Code Proof (Single-PDF Requirement)</h3>
+      <p><strong>Repository URL</strong>: <code>https://github.com/SthembisoGit/Yo-Score</code></p>
+      <p><strong>Branch</strong>: <code>main</code></p>
+      <p><strong>Reference Commit</strong>: <code>e893745a8797dd5a1a1503609e89cad09863cfea</code></p>
+      <p><strong>Verification</strong>:</p>
+      <ol>
+        <li>Open the repository URL.</li>
+        <li>Select branch <code>main</code>.</li>
+        <li>Open commit <code>e893745a8797dd5a1a1503609e89cad09863cfea</code>.</li>
+        <li>Confirm presence of frontend, backend, proctoring service, database schema, tests, and academic documents.</li>
+      </ol>
     </section>
   </main>
 
   <footer class="document-footer">
-    YoScore Academic Submission - Revision aligned to Trust-Core MVP and Release 1 roadmap.
+    YoScore Outcome 7 Final Academic Submission (Single-PDF Version).
   </footer>
 </body>
 </html>

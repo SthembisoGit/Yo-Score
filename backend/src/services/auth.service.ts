@@ -2,8 +2,8 @@ import bcrypt from 'bcryptjs';
 import { createHash, randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
-import { query } from '../db';
 import { logger } from '../utils/logger';
+import { authRepository } from '../repositories/auth.repository';
 
 export interface UserPayload {
     id: string;
@@ -37,27 +37,7 @@ export class AuthService {
 
     private async ensureRefreshTokenSchema() {
         if (this.refreshSchemaEnsured) return;
-        await query(
-            `CREATE TABLE IF NOT EXISTS auth_refresh_tokens (
-                id UUID PRIMARY KEY,
-                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                token_hash TEXT NOT NULL UNIQUE,
-                expires_at TIMESTAMPTZ NOT NULL,
-                revoked_at TIMESTAMPTZ NULL,
-                replaced_by_token_id UUID NULL,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                user_agent TEXT NULL,
-                ip_address TEXT NULL
-            )`,
-        );
-        await query(
-            `CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_user_id
-             ON auth_refresh_tokens(user_id)`,
-        );
-        await query(
-            `CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_expires_at
-             ON auth_refresh_tokens(expires_at)`,
-        );
+        await authRepository.ensureRefreshTokenSchema();
         this.refreshSchemaEnsured = true;
     }
 
@@ -108,20 +88,15 @@ export class AuthService {
     }) {
         await this.ensureRefreshTokenSchema();
         const expiresAt = this.getExpiryFromJwt(args.token);
-        await query(
-            `INSERT INTO auth_refresh_tokens
-                (id, user_id, token_hash, expires_at, user_agent, ip_address, replaced_by_token_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [
-                args.tokenId,
-                args.userId,
-                sha256(args.token),
-                expiresAt.toISOString(),
-                args.userAgent || null,
-                args.ipAddress || null,
-                args.replacedByTokenId || null,
-            ],
-        );
+        await authRepository.insertRefreshToken({
+            tokenId: args.tokenId,
+            userId: args.userId,
+            tokenHash: sha256(args.token),
+            expiresAtIso: expiresAt.toISOString(),
+            userAgent: args.userAgent,
+            ipAddress: args.ipAddress,
+            replacedByTokenId: args.replacedByTokenId ?? null,
+        });
     }
 
     private async issueTokenPair(
@@ -151,12 +126,8 @@ export class AuthService {
         const safeRole = ALLOWED_SIGNUP_ROLES.has(normalizedRole) ? normalizedRole : 'developer';
 
         // Check if user already exists
-        const existingUser = await query(
-            'SELECT id FROM users WHERE email = $1',
-            [normalizedEmail]
-        );
-
-        if (existingUser.rows.length > 0) {
+        const existingUser = await authRepository.findUserIdByEmail(normalizedEmail);
+        if (existingUser) {
             throw new Error('User already exists');
         }
 
@@ -165,14 +136,12 @@ export class AuthService {
         const passwordHash = await bcrypt.hash(password, saltRounds);
 
         // Create user
-        const result = await query(
-            `INSERT INTO users (name, email, password, role) 
-       VALUES ($1, $2, $3, $4) 
-       RETURNING id, name, email, role, created_at`,
-            [name.trim(), normalizedEmail, passwordHash, safeRole]
-        );
-
-        const user = result.rows[0];
+        const user = await authRepository.createUser({
+            name: name.trim(),
+            email: normalizedEmail,
+            passwordHash,
+            role: safeRole,
+        });
 
         const tokens = await this.issueTokenPair({
             id: user.id,
@@ -201,16 +170,10 @@ export class AuthService {
         const normalizedEmail = email.trim().toLowerCase();
 
         // Find user
-        const result = await query(
-            'SELECT id, name, email, password, role FROM users WHERE email = $1',
-            [normalizedEmail]
-        );
-
-        if (result.rows.length === 0) {
+        const user = await authRepository.findUserForLoginByEmail(normalizedEmail);
+        if (!user) {
             throw new Error('Invalid credentials');
         }
-
-        const user = result.rows[0];
 
         // Verify password
         const validPassword = await bcrypt.compare(password, user.password);
@@ -244,20 +207,9 @@ export class AuthService {
         const user = this.verifyToken(accessToken);
         await this.ensureRefreshTokenSchema();
         if (refreshToken) {
-            await query(
-                `UPDATE auth_refresh_tokens
-                 SET revoked_at = NOW()
-                 WHERE token_hash = $1`,
-                [sha256(refreshToken)],
-            );
+            await authRepository.revokeRefreshTokenByHash(sha256(refreshToken));
         } else {
-            await query(
-                `UPDATE auth_refresh_tokens
-                 SET revoked_at = NOW()
-                 WHERE user_id = $1
-                   AND revoked_at IS NULL`,
-                [user.id],
-            );
+            await authRepository.revokeActiveRefreshTokensByUserId(user.id);
         }
         return { message: 'Logged out successfully' };
     }
@@ -269,19 +221,10 @@ export class AuthService {
         await this.ensureRefreshTokenSchema();
         const decoded = this.decodeRefreshToken(refreshToken);
 
-        const existing = await query(
-            `SELECT id, user_id, expires_at, revoked_at
-             FROM auth_refresh_tokens
-             WHERE token_hash = $1
-             LIMIT 1`,
-            [sha256(refreshToken)],
-        );
-
-        if (existing.rows.length === 0) {
+        const current = await authRepository.findRefreshTokenByHash(sha256(refreshToken));
+        if (!current) {
             throw new Error('Invalid refresh token');
         }
-
-        const current = existing.rows[0];
         if (current.revoked_at) {
             throw new Error('Refresh token already revoked');
         }
@@ -293,14 +236,10 @@ export class AuthService {
             throw new Error('Invalid refresh token subject');
         }
 
-        const userResult = await query(
-            'SELECT id, name, email, role FROM users WHERE id = $1',
-            [decoded.id],
-        );
-        if (userResult.rows.length === 0) {
+        const user = await authRepository.findUserById(decoded.id);
+        if (!user) {
             throw new Error('User not found');
         }
-        const user = userResult.rows[0];
 
         const token = this.createAccessToken({
             id: user.id,
@@ -310,13 +249,7 @@ export class AuthService {
         });
 
         const refresh = this.createRefreshToken(user.id);
-        await query(
-            `UPDATE auth_refresh_tokens
-             SET revoked_at = NOW(),
-                 replaced_by_token_id = $2
-             WHERE id = $1`,
-            [current.id, refresh.tokenId],
-        );
+        await authRepository.markRefreshTokenRotated(current.id, refresh.tokenId);
         await this.persistRefreshToken({
             userId: user.id,
             token: refresh.token,

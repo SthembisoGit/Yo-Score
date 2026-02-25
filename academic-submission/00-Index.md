@@ -1,42 +1,41 @@
-# YoScore Academic Submission Index
+# YoScore Outcome 7 Submission Index
 
-This package is organized according to the Industry Project template.
+This package is aligned to Outcome 7: Industry Project (IP) - Business Analysis and Project Management.
 
-## Main Documents
+## Primary Outcome 7 Documents
 - `Phase-1-Proposal.md`
 - `Phase-2-Modelling.md`
 - `Phase-3-UI.md`
 - `Phase-4-Database.md`
 - `Phase-5-Final-Deliverables.md`
-- `html/index.html` (single print-ready academic document)
 
-## Diagram Sources and Exports
-- PlantUML sources: `diagrams/*.puml`
-- Exported images: `diagrams/exports/*.png`
+## Lecturer-Facing Single Document
+- `html/index.html`
+- `html/styles.css`
 
-## Database Scripts
+The single final submission artifact is a PDF generated from `html/index.html`.
+
+## Diagram Artifacts
+- Source diagrams: `diagrams/*.puml`
+- Export diagrams: `diagrams/exports/*.png`
+
+## Database and Query Artifacts
 - `sql/seed-academic-demo.sql`
 - `sql/transactions.sql`
 - `sql/report-queries.sql`
+- `reports/report-queries.sql`
 
-## Testing Documents
+## Testing Artifacts
 - `testing/Test-Plan.md`
 - `testing/Test-Cases.md`
 - `testing/Test-Execution-Evidence.md`
 
-## Reports and Manual
+## Supporting Artifacts
 - `reports/Report-Specification.md`
-- `reports/report-queries.sql`
 - `manuals/Deployment-Execution-Manual.md`
-- `AI-Prompts.md`
 - `Export-DOCX-PDF-Guide.md`
 
-## Source References From Project Docs
-- `docs/Vision.md`
-- `docs/PRD.md`
-- `docs/Architecture.md`
-- `docs/DataModel.md`
-- `docs/API.md`
-- `docs/Scoring.md`
-- `docs/Deployment-Phase1.md`
-- `docs/RunStack.md`
+## Source Code Evidence (for single-PDF submission)
+- Repository: `https://github.com/SthembisoGit/Yo-Score`
+- Branch: `main`
+- Reference commit: `e893745a8797dd5a1a1503609e89cad09863cfea`

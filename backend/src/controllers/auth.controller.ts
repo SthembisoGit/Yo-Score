@@ -3,6 +3,7 @@ import { AuthService } from '../services/auth.service';
 import { safeErrorMessage } from '../utils/safeErrorMessage';
 import { config } from '../config';
 import { extractRefreshTokenFromRequest, getRefreshCookieOptions } from '../utils/authCookie';
+import { logger } from '../utils/logger';
 
 const authService = new AuthService();
 
@@ -45,6 +46,7 @@ export class AuthController {
       });
 
     } catch (error) {
+      logger.warn('Signup request failed', { error });
       const message = safeErrorMessage(error, 'Signup failed', ['User already exists']);
       
       return res.status(400).json({
@@ -86,6 +88,7 @@ export class AuthController {
       });
 
     } catch (error) {
+      logger.warn('Login request failed', { error });
       const message = safeErrorMessage(error, 'Login failed', ['Invalid credentials']);
       
       return res.status(401).json({
@@ -112,6 +115,7 @@ export class AuthController {
       });
 
     } catch (error) {
+      logger.error('Logout request failed', { error });
       const message = safeErrorMessage(error, 'Logout failed');
       
       return res.status(500).json({

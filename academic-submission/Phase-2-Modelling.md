@@ -1,74 +1,61 @@
 # Phase 2: Modelling with Classes
 
-This phase models YoScore Trust-Core behavior with UML artifacts in `academic-submission/diagrams/`.
+All Phase 2 outputs are provided as PlantUML source and PNG exports under `academic-submission/diagrams/`.
 
-## 1. Class Diagram
-- Source: `diagrams/class-diagram.puml`
-- Export: `diagrams/exports/class-diagram.png`
-- Includes domain entities:
-  - `User`, `Challenge`, `Submission`, `SubmissionRun`, `SubmissionRunTest`
-  - `ProctoringSession`, `ProctoringLog`, `ProctoringSettings`
-  - `ProctoringEventLog`, `ProctoringSnapshot`
-  - `WorkExperience`, `TrustScore`
-  - `ChallengeTestCase`, `ChallengeBaseline`, `ReferenceDoc`
-  - `AiHintEvent`, `AdminAuditLog`
-- Trust-Core fields modeled:
-  - challenge `target_seniority`, `duration_minutes`
-  - session `deadline_at`, `duration_seconds`
-  - user profile `avatar_url`, `headline`, `bio`, `location`, portfolio links
-  - experience `evidence_links`, `verification_status`, `risk_score`
+## 1. Class Diagrams
+- Source: `academic-submission/diagrams/class-diagram.puml`
+- Export: `academic-submission/diagrams/exports/class-diagram.png`
+- Main classes/entities modeled:
+  - `User`, `Challenge`, `ChallengeTestCase`, `ChallengeBaseline`, `ReferenceDoc`
+  - `Submission`, `SubmissionRun`, `SubmissionRunTest`
+  - `ProctoringSession`, `ProctoringLog`, `ProctoringEventLog`, `ProctoringSnapshot`, `ProctoringSettings`
+  - `WorkExperience`, `TrustScore`, `AiHintEvent`, `AdminAuditLog`
 
 ## 2. Sequence Diagram
-- Source: `diagrams/sequence-submission-lifecycle.puml`
-- Export: `diagrams/exports/sequence-submission-lifecycle.png`
-- Visualizes:
-  1. category + seniority challenge assignment
-  2. proctoring session start with deadline metadata
-  3. live phase event batch + snapshot ingestion
-  3. constrained AI Coach hint request
-  4. submission queue lifecycle (`queued -> running -> completed|failed`)
-  5. post-exam async review summary write
-  6. final dashboard refresh
+- Source: `academic-submission/diagrams/sequence-submission-lifecycle.puml`
+- Export: `academic-submission/diagrams/exports/sequence-submission-lifecycle.png`
+- Visualized flow:
+1. challenge request and assignment,
+2. proctoring session initialization,
+3. coding and helper usage,
+4. submission queue processing,
+5. result persistence and dashboard update.
 
-## 3. State Diagram
-- Source: `diagrams/state-submission-session.puml`
-- Export: `diagrams/exports/state-submission-session.png`
-- Submission states:
-  - `pending -> queued -> running -> completed|failed`
-- Session states:
-  - `active <-> paused -> completed`
-- Includes timer-expired and offline-reconnect behavior.
+## 3. State Diagrams
+- Source: `academic-submission/diagrams/state-submission-session.puml`
+- Export: `academic-submission/diagrams/exports/state-submission-session.png`
+- States modeled:
+  - submission lifecycle (`pending -> queued -> running -> completed|failed`),
+  - session lifecycle (`active <-> paused -> completed`).
 
-## 4. Activity Diagram
-- Source: `diagrams/activity-end-to-end.puml`
-- Export: `diagrams/exports/activity-end-to-end.png`
-- Shows concurrent activities:
-  - coding + autosave
-  - proctoring monitoring
-  - queue processing and scoring
-  - reconnect auto-submit when applicable
+## 4. Activity Diagrams
+- Source: `academic-submission/diagrams/activity-end-to-end.puml`
+- Export: `academic-submission/diagrams/exports/activity-end-to-end.png`
+- Activities represented:
+  - challenge solving flow,
+  - proctoring monitoring activities,
+  - asynchronous judging and score publication,
+  - concurrent event capture and persistence.
 
-## 5. Component Diagram
-- Source: `diagrams/component-architecture.puml`
-- Export: `diagrams/exports/component-architecture.png`
-- Components:
-  - Frontend (session timer, offline state, AI coach panel)
-  - Backend API (assignment, submission, coach, admin endpoints)
-  - Judge worker and post-exam reviewer queues
-  - ML service
-  - PostgreSQL and Redis
-  - Monitoring stack
+## 5. Component Diagrams
+- Source: `academic-submission/diagrams/component-architecture.puml`
+- Export: `academic-submission/diagrams/exports/component-architecture.png`
+- Components represented:
+  - frontend web client,
+  - backend API services,
+  - judge/queue processing,
+  - proctoring service,
+  - PostgreSQL and Redis data services.
 
 ## 6. Deployment Diagram
-- Source: `diagrams/deployment-render.puml`
-- Export: `diagrams/exports/deployment-render.png`
-- Deployment nodes:
-  - browser clients
-  - Render frontend, API, worker, ML service
-  - Supabase PostgreSQL
-  - Upstash Redis
+- Source: `academic-submission/diagrams/deployment-render.puml`
+- Export: `academic-submission/diagrams/exports/deployment-render.png`
+- Deployment environment represented:
+  - browser clients,
+  - hosted frontend/backend/proctoring services,
+  - cloud database and queue infrastructure.
 
 ## Modeling Notes
-- PlantUML is used for version-controlled, reproducible diagrams.
-- PNG exports are used for report submission.
-- diagrams.net can be used only for final visual polishing.
+- Diagrams are traceable to functional requirements and use cases in Phase 1.
+- PlantUML source files are version controlled for reproducibility.
+- PNG exports are included for insertion into the final single PDF.

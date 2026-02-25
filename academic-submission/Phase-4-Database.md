@@ -1,79 +1,71 @@
 # Phase 4: Build the Database and Demonstrate Integration
 
-## 1. Build the Database (Data Structures)
-YoScore uses PostgreSQL with schema defined in:
+## 1. Build the Database
+YoScore uses a PostgreSQL database defined in:
 - `backend/db/schema.sql`
 
-Key objects used in Trust-Core Release 1:
-- Users and roles: `users`, `admin_audit_logs`
-- Challenges: `challenges`, `challenge_test_cases`, `challenge_baselines`, `reference_docs`
-- Submissions and judging: `submissions`, `submission_runs`, `submission_run_tests`
-- Proctoring: `proctoring_sessions`, `proctoring_logs`, `ml_analysis_results`, `proctoring_settings`
-- Two-phase proctoring evidence: `proctoring_event_logs`, `proctoring_snapshots`
-- Trust and experience: `trust_scores`, `work_experience`
-- AI audit: `ai_hint_events`
+Core data structures include:
+- `users`, `trust_scores`, `work_experience`,
+- `challenges`, `challenge_test_cases`, `challenge_baselines`, `reference_docs`,
+- `submissions`, `submission_runs`, `submission_run_tests`,
+- `proctoring_sessions`, `proctoring_logs`, `proctoring_event_logs`, `proctoring_snapshots`,
+- `proctoring_settings`, `ai_hint_events`, `admin_audit_logs`.
 
 ## 2. Manage Objects (Schema and Integrity Constraints)
-Important constraints:
-- `challenges.target_seniority` in (`graduate`, `junior`, `mid`, `senior`)
-- `challenges.duration_minutes` bounded for safe timer limits
-- `submissions.language` in (`javascript`, `python`)
-- `submissions.judge_status` in (`queued`, `running`, `completed`, `failed`)
-- `work_experience.verification_status` in (`pending`, `verified`, `flagged`, `rejected`)
-- `work_experience.risk_score` constrained to `0-100`
+Object management evidence includes:
+- primary keys on all core tables,
+- foreign key relationships for user/challenge/session/run consistency,
+- check constraints for statuses and bounded fields,
+- indexed columns for assignment lookup, session polling, and reporting queries.
 
-Indexes support:
-- challenge assignment by category and seniority
-- submission lifecycle polling
-- run and per-test retrieval
-- proctoring session deadline checks
-- proctoring event/snapshot retrieval and review
-- work-experience risk and status filtering
+Notable integrity controls:
+- submission status lifecycle validation,
+- work experience verification/risk constraints,
+- challenge configuration constraints (category, level, duration),
+- audit trails for admin actions and AI hint usage.
 
 ## 3. Normalization Process
-### 3.1 Normal Form Summary
-- 1NF: atomic fields, no repeating groups.
-- 2NF: non-key fields depend on full key.
-- 3NF: non-key fields do not depend on other non-key fields.
+### 3.1 Normalization Summary
+- 1NF: atomic field storage.
+- 2NF: non-key attributes depend on full keys.
+- 3NF: non-key attributes are separated to avoid transitive dependency.
 
 ### 3.2 Before vs After Example
-Before (denormalized, not used):
-- `assessment_blob(user_email, challenge_title, all_tests_json, total_score, trust_level)`
+**Before (denormalized concept):**
+- one table with user, challenge, test outcomes, and trust summary in the same row.
 
-Problems:
-- repeated values and high update anomaly risk.
-- mixed granularities (user, submission, per-test, trust) in one row.
+**After (implemented normalized model):**
+- `submissions` (attempt records),
+- `submission_runs` (run summaries),
+- `submission_run_tests` (per-test results),
+- `trust_scores` (aggregate trust values),
+- `work_experience` (experience-specific evidence and verification).
 
-After (implemented):
-- `submissions` for attempt-level records
-- `submission_runs` for run-level summary
-- `submission_run_tests` for per-test outcomes
-- `trust_scores` for user-level aggregate
-- `work_experience` for verifiable contribution data
+This model removes duplication and update anomalies while improving auditability.
 
-## 4. Manipulate Data (Populate Data by Script)
-Academic scripts:
+## 4. Manipulate Data (Populate the Database Using a Script)
+Academic population scripts:
 - `academic-submission/sql/seed-academic-demo.sql`
 - `academic-submission/sql/transactions.sql`
 
-Seed script populates:
-- sample users
-- sample challenge and tests
-- sample baselines and trust-related data
+These scripts demonstrate:
+- seed insertion of users/challenges/test data,
+- transactional creation of submission and run records,
+- trust score update operations.
 
-## 5. Manage Transactions and Queries
-Transaction script demonstrates:
-1. Submission creation with queued judge marker.
-2. Trust score recompute transaction.
-3. Role update with admin audit write.
-
-Reporting SQL:
+## 5. Manage Transaction (Transactions and Database Queries)
+Transaction and query artifacts:
+- `academic-submission/sql/transactions.sql`
 - `academic-submission/sql/report-queries.sql`
 - `academic-submission/reports/report-queries.sql`
 
-These queries map directly to functional requirements and admin reporting needs.
+The queries correlate with functional requirements and use cases by providing:
+- challenge/result retrieval,
+- trust summary extraction,
+- proctoring event/violation analysis,
+- judge run health and admin monitoring outputs.
 
 ## Integration Notes
-- Challenge session deadline is stored in `proctoring_sessions` and enforced at submission time.
-- AI hint usage is audited in `ai_hint_events` for policy compliance.
-- Work-experience entries include evidence links and risk metadata before trust contribution.
+- Session deadline and duration are persisted and enforced server-side.
+- Submission processing and run result persistence are synchronized through queue workflows.
+- Proctoring and scoring data remain linked through common session/user/submission identifiers.
