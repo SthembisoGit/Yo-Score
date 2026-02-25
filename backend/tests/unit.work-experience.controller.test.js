@@ -92,6 +92,7 @@ test('addWorkExperience validates required fields at boundary', async () => {
   assert.equal(res.body.error, 'VALIDATION_FAILED');
   assert.equal(res.body.meta.correlationId, 'test-correlation-id');
   assert.equal(res.body.error_details.code, 'VALIDATION_FAILED');
+  assert.equal(res.body.error_response.correlationId, 'test-correlation-id');
 });
 
 test('work experience endpoints reject malformed auth identity server-side', async () => {
@@ -120,6 +121,7 @@ test('work experience endpoints reject malformed auth identity server-side', asy
   assert.equal(res.body.success, false);
   assert.equal(res.body.error, 'UNAUTHORIZED');
   assert.equal(res.body.meta.correlationId, 'test-correlation-id');
+  assert.equal(res.body.error_details.code, 'UNAUTHORIZED');
 });
 
 test('getWorkExperiences returns list envelope and preserves array fallback', async () => {

@@ -1,5 +1,6 @@
 import { query } from '../db';
 import { scoringService } from './scoring.service';
+import { DomainError } from '../errors/domainError';
 
 export interface WorkExperienceInput {
   company_name: string;
@@ -9,6 +10,35 @@ export interface WorkExperienceInput {
 }
 
 export class WorkExperienceService {
+  private asDomainError(error: unknown, fallbackCode: string, fallbackMessage: string): DomainError {
+    if (error instanceof DomainError) {
+      return error;
+    }
+
+    const pgCode = (error as { code?: string })?.code;
+    const internalMessage = (error as { message?: string })?.message || fallbackMessage;
+
+    if (pgCode === '23505') {
+      return new DomainError(
+        'WORK_EXPERIENCE_CONFLICT',
+        'A similar work experience already exists',
+        409,
+        internalMessage,
+      );
+    }
+
+    if (pgCode === '22023' || pgCode === '22P02') {
+      return new DomainError(
+        'VALIDATION_FAILED',
+        'Invalid work experience input',
+        400,
+        internalMessage,
+      );
+    }
+
+    return new DomainError(fallbackCode, fallbackMessage, 500, internalMessage);
+  }
+
   private isMissingSchemaError(error: unknown): boolean {
     const code = (error as { code?: string })?.code;
     const message = (error as { message?: string })?.message ?? '';
@@ -158,15 +188,27 @@ export class WorkExperienceService {
       );
     } catch (error) {
       if (!this.isMissingSchemaError(error)) {
-        throw error;
+        throw this.asDomainError(
+          error,
+          'WORK_EXPERIENCE_CREATE_FAILED',
+          'Failed to add work experience',
+        );
       }
-      result = await query(
-        `INSERT INTO work_experience
-           (user_id, company_name, role, duration_months, verified)
-         VALUES ($1, $2, $3, $4, false)
-         RETURNING id, user_id, company_name, role, duration_months, verified`,
-        [userId, data.company_name, data.role, data.duration_months],
-      );
+      try {
+        result = await query(
+          `INSERT INTO work_experience
+             (user_id, company_name, role, duration_months, verified)
+           VALUES ($1, $2, $3, $4, false)
+           RETURNING id, user_id, company_name, role, duration_months, verified`,
+          [userId, data.company_name, data.role, data.duration_months],
+        );
+      } catch (legacyError) {
+        throw this.asDomainError(
+          legacyError,
+          'WORK_EXPERIENCE_CREATE_FAILED',
+          'Failed to add work experience',
+        );
+      }
     }
 
     const experience = this.mapExperienceRow(result.rows[0] as Record<string, unknown>);
@@ -187,7 +229,11 @@ export class WorkExperienceService {
       );
     } catch (error) {
       if (!this.isMissingSchemaError(error)) {
-        throw error;
+        throw this.asDomainError(
+          error,
+          'WORK_EXPERIENCE_LIST_FAILED',
+          'Failed to load work experiences',
+        );
       }
       try {
         result = await query(
@@ -199,15 +245,27 @@ export class WorkExperienceService {
         );
       } catch (legacyError) {
         if (!this.isMissingSchemaError(legacyError)) {
-          throw legacyError;
+          throw this.asDomainError(
+            legacyError,
+            'WORK_EXPERIENCE_LIST_FAILED',
+            'Failed to load work experiences',
+          );
         }
-        result = await query(
-          `SELECT id, company_name, role, duration_months, verified
-           FROM work_experience
-           WHERE user_id = $1
-           ORDER BY id DESC`,
-          [userId],
-        );
+        try {
+          result = await query(
+            `SELECT id, company_name, role, duration_months, verified
+             FROM work_experience
+             WHERE user_id = $1
+             ORDER BY id DESC`,
+            [userId],
+          );
+        } catch (fallbackError) {
+          throw this.asDomainError(
+            fallbackError,
+            'WORK_EXPERIENCE_LIST_FAILED',
+            'Failed to load work experiences',
+          );
+        }
       }
     }
 

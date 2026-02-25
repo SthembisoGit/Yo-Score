@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import type { z } from 'zod';
+import { buildStructuredErrorResponse } from '../utils/errorResponse';
 
 type ValidationTarget = 'body' | 'query' | 'params';
 
@@ -15,13 +16,9 @@ const validate =
   (req: Request, res: Response, next: NextFunction) => {
     const parsed = schema.safeParse(req[target]);
     if (!parsed.success) {
-      const correlationId = req.correlationId || 'unknown';
-      return res.status(400).json({
-        success: false,
-        message: fromError(parsed.error),
-        error: 'VALIDATION_FAILED',
-        meta: { correlationId },
-      });
+      return res
+        .status(400)
+        .json(buildStructuredErrorResponse(req, 'VALIDATION_FAILED', fromError(parsed.error)));
     }
     (req as unknown as Record<ValidationTarget, unknown>)[target] = parsed.data;
     return next();

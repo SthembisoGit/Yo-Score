@@ -15,6 +15,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const { spawnSync } = require('node:child_process');
+const express = require('express');
 const jwt = require('jsonwebtoken');
 const request = require('supertest');
 
@@ -29,6 +30,7 @@ const {
   loginSecurityGuard,
   resetLoginSecurityState,
 } = require('../dist/src/middleware/loginSecurity.middleware');
+const { createRateLimiter } = require('../dist/src/middleware/rateLimit.middleware');
 const { getRefreshCookieOptions } = require('../dist/src/utils/authCookie');
 
 const accessTokenFor = (user) =>
@@ -152,12 +154,16 @@ const runLoginGuardAttempt = async ({ email, ip, statusCode }) => {
     method: 'POST',
     baseUrl: '/api/auth',
     path: '/login',
+    correlationId: 'login-guard-test-correlation',
   };
 
   return await new Promise((resolve) => {
     const res = new EventEmitter();
     res.statusCode = 200;
-    res.setHeader = () => {};
+    const headers = {};
+    res.setHeader = (name, value) => {
+      headers[String(name).toLowerCase()] = String(value);
+    };
     res.status = (code) => {
       res.statusCode = code;
       return res;
@@ -169,6 +175,7 @@ const runLoginGuardAttempt = async ({ email, ip, statusCode }) => {
         blocked: true,
         statusCode: res.statusCode,
         payload,
+        headers,
       });
       return res;
     };
@@ -179,6 +186,7 @@ const runLoginGuardAttempt = async ({ email, ip, statusCode }) => {
       resolve({
         blocked: false,
         statusCode: res.statusCode,
+        headers,
       });
     };
 
@@ -199,6 +207,9 @@ test('Step 7: login guard locks out repeated failures and success resets counter
   assert.equal(locked.blocked, true);
   assert.equal(locked.statusCode, 429);
   assert.equal(locked.payload.message, 'Invalid credentials');
+  assert.equal(typeof locked.headers['retry-after'], 'string');
+  assert.equal(locked.payload.error_details.code, 'INVALID_CREDENTIALS');
+  assert.equal(locked.payload.error_response.correlationId, 'login-guard-test-correlation');
 
   resetLoginSecurityState();
   for (let i = 0; i < 3; i += 1) {
@@ -215,6 +226,32 @@ test('Step 7: login guard locks out repeated failures and success resets counter
   const lockedAfterReset = await runLoginGuardAttempt({ email, ip, statusCode: 401 });
   assert.equal(lockedAfterReset.blocked, true);
   assert.equal(lockedAfterReset.statusCode, 429);
+  assert.equal(typeof lockedAfterReset.headers['retry-after'], 'string');
+});
+
+test('Step 7: generic rate limiter returns structured 429 with retry guidance', async () => {
+  const limitedApp = express();
+  const limiter = createRateLimiter({
+    windowMs: 60_000,
+    max: 1,
+    message: 'Too many test requests',
+    code: 'TEST_RATE_LIMIT',
+    keyPrefix: 'test-limit',
+  });
+
+  limitedApp.get('/limited', limiter, (_req, res) => {
+    res.status(200).json({ success: true, data: { ok: true } });
+  });
+
+  const first = await request(limitedApp).get('/limited').set('x-correlation-id', 'limit-correlation-id');
+  assert.equal(first.status, 200);
+
+  const second = await request(limitedApp).get('/limited').set('x-correlation-id', 'limit-correlation-id');
+  assert.equal(second.status, 429);
+  assert.equal(second.body.error, 'TEST_RATE_LIMIT');
+  assert.equal(second.body.error_details.code, 'TEST_RATE_LIMIT');
+  assert.equal(typeof second.body.error_response.correlationId, 'string');
+  assert.equal(typeof second.headers['retry-after'], 'string');
 });
 
 test('Step 9: global error handler returns generic error and correlation id', async () => {

@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import type { Request, RequestHandler, Response } from 'express';
 import { logger } from '../utils/logger';
+import { buildStructuredErrorResponse } from '../utils/errorResponse';
 
 type AttemptRecord = {
   failures: number;
@@ -71,12 +72,19 @@ const applySuccess = (record: AttemptRecord) => {
   record.windowStartMs = now();
 };
 
-const genericRejected = (res: Response, status: number) =>
-  res.status(status).json({
-    success: false,
-    message: 'Invalid credentials',
-    error: 'INVALID_CREDENTIALS',
-  });
+const genericRejected = (
+  req: Request,
+  res: Response,
+  status: number,
+  retryAfterSeconds?: number,
+) =>
+  res
+    .status(status)
+    .json(
+      buildStructuredErrorResponse(req, 'INVALID_CREDENTIALS', 'Invalid credentials', {
+        retryAfterSeconds,
+      }),
+    );
 
 export const resetLoginSecurityState = () => {
   ipAttempts.clear();
@@ -91,19 +99,24 @@ export const loginSecurityGuard: RequestHandler = (req, res, next) => {
   const accountRecord = getOrCreateRecord(accountAttempts, accountKey);
 
   if (isLocked(ipRecord) || isLocked(accountRecord)) {
+    const retryAfterSeconds = Math.max(
+      1,
+      Math.ceil((Math.max(ipRecord.lockUntilMs, accountRecord.lockUntilMs) - now()) / 1000),
+    );
+    res.setHeader('Retry-After', String(retryAfterSeconds));
     logger.warn('Authentication lockout triggered', {
       ip,
       email_hash: fingerprintEmail(email),
       reason: 'too_many_failed_attempts',
     });
-    return genericRejected(res, 429);
+    return genericRejected(req, res, 429, retryAfterSeconds);
   }
 
   const maxFailures = Math.max(ipRecord.failures, accountRecord.failures);
   const delayMs = maxFailures >= 3 ? Math.min(3000, (maxFailures - 2) * 500) : 0;
 
   res.on('finish', () => {
-    const failed = res.statusCode >= 400 && res.statusCode < 500;
+    const failed = res.statusCode === 401;
     if (res.statusCode >= 200 && res.statusCode < 300) {
       applySuccess(ipRecord);
       applySuccess(accountRecord);
@@ -131,4 +144,3 @@ export const loginSecurityGuard: RequestHandler = (req, res, next) => {
 
   setTimeout(next, delayMs);
 };
-

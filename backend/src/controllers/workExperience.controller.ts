@@ -4,6 +4,9 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { safeErrorMessage } from '../utils/safeErrorMessage';
 import { addWorkExperienceSchema } from '../validation/schemas';
 import { z } from 'zod';
+import { logger } from '../utils/logger';
+import { DomainError, isDomainError } from '../errors/domainError';
+import { buildStructuredErrorResponse, getCorrelationId } from '../utils/errorResponse';
 
 const workExperienceService = new WorkExperienceService();
 const userIdSchema = z.string().uuid();
@@ -12,14 +15,11 @@ type ErrorCode =
   | 'UNAUTHORIZED'
   | 'VALIDATION_FAILED'
   | 'ADD_EXPERIENCE_FAILED'
-  | 'GET_EXPERIENCES_FAILED';
+  | 'GET_EXPERIENCES_FAILED'
+  | 'WORK_EXPERIENCE_CONFLICT';
 
 export class WorkExperienceController {
   constructor(private readonly service: Pick<WorkExperienceService, 'addWorkExperience' | 'getUserWorkExperiences'> = workExperienceService) {}
-
-  private getCorrelationId(req: AuthenticatedRequest): string {
-    return req.correlationId || 'unknown';
-  }
 
   private sendSuccess(
     req: AuthenticatedRequest,
@@ -32,7 +32,7 @@ export class WorkExperienceController {
       success: true,
       message,
       data,
-      meta: { correlationId: this.getCorrelationId(req) },
+      meta: { correlationId: getCorrelationId(req) },
     });
   }
 
@@ -42,19 +42,31 @@ export class WorkExperienceController {
     statusCode: number,
     code: ErrorCode,
     message: string,
+    options?: { retryAfterSeconds?: number },
   ) {
-    const correlationId = this.getCorrelationId(req);
-    return res.status(statusCode).json({
-      success: false,
-      message,
-      error: code,
-      meta: { correlationId },
-      error_details: {
-        code,
-        message,
-        correlationId,
-      },
-    });
+    return res
+      .status(statusCode)
+      .json(buildStructuredErrorResponse(req, code, message, options));
+  }
+
+  private mapDomainError(error: DomainError): { statusCode: number; code: ErrorCode; message: string } {
+    if (error.code === 'VALIDATION_FAILED') {
+      return { statusCode: 400, code: 'VALIDATION_FAILED', message: error.message };
+    }
+    if (error.code === 'WORK_EXPERIENCE_CONFLICT') {
+      return { statusCode: 409, code: 'WORK_EXPERIENCE_CONFLICT', message: error.message };
+    }
+    if (error.code === 'WORK_EXPERIENCE_CREATE_FAILED') {
+      return { statusCode: 500, code: 'ADD_EXPERIENCE_FAILED', message: 'Failed to add work experience' };
+    }
+    if (error.code === 'WORK_EXPERIENCE_LIST_FAILED') {
+      return { statusCode: 500, code: 'GET_EXPERIENCES_FAILED', message: 'Failed to get work experiences' };
+    }
+    return {
+      statusCode: Math.max(400, Math.min(599, error.httpStatus || 500)),
+      code: 'ADD_EXPERIENCE_FAILED',
+      message: 'Failed to process work experience',
+    };
   }
 
   private normalizeEvidenceLinks(evidenceLinks: string[] | string | undefined): string[] {
@@ -107,11 +119,29 @@ export class WorkExperienceController {
       );
 
     } catch (error) {
+      if (isDomainError(error)) {
+        const mapped = this.mapDomainError(error);
+        logger.warn('Work experience domain error', {
+          correlationId: getCorrelationId(req),
+          userId: req.user?.id || 'anonymous',
+          code: error.code,
+          internalMessage: error.internalMessage,
+        });
+        return this.sendError(req, res, mapped.statusCode, mapped.code, mapped.message);
+      }
+
       const message = safeErrorMessage(error, 'Failed to add work experience');
-      const statusCode =
-        /required|positive number|invalid|validation/i.test(message) ? 400 : 500;
+      const statusCode = /required|positive number|invalid|validation/i.test(message) ? 400 : 500;
+      logger.error('Unexpected add work experience error', {
+        correlationId: getCorrelationId(req),
+        userId: req.user?.id || 'anonymous',
+        error,
+      });
       
-      return this.sendError(req, res, statusCode, 'ADD_EXPERIENCE_FAILED', message);
+      if (statusCode === 400) {
+        return this.sendError(req, res, 400, 'VALIDATION_FAILED', message);
+      }
+      return this.sendError(req, res, 500, 'ADD_EXPERIENCE_FAILED', message);
     }
   }
 
@@ -133,7 +163,23 @@ export class WorkExperienceController {
       );
 
     } catch (error) {
+      if (isDomainError(error)) {
+        const mapped = this.mapDomainError(error);
+        logger.warn('Work experience domain error', {
+          correlationId: getCorrelationId(req),
+          userId: req.user?.id || 'anonymous',
+          code: error.code,
+          internalMessage: error.internalMessage,
+        });
+        return this.sendError(req, res, mapped.statusCode, mapped.code, mapped.message);
+      }
+
       const message = safeErrorMessage(error, 'Failed to get work experiences');
+      logger.error('Unexpected get work experiences error', {
+        correlationId: getCorrelationId(req),
+        userId: req.user?.id || 'anonymous',
+        error,
+      });
       
       return this.sendError(req, res, 500, 'GET_EXPERIENCES_FAILED', message);
     }
