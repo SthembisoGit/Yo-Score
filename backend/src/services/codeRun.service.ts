@@ -4,6 +4,7 @@ import {
   normalizeLanguage,
   type SupportedLanguage,
 } from '../constants/languages';
+import { logger } from '../utils/logger';
 
 export interface RunCodeInput {
   language: string;
@@ -48,9 +49,14 @@ export class CodeRunService {
           : 'runtime');
 
     // Minimal telemetry log for execution debugging without storing source code.
-    console.log(
-      `[code-run] user=${userId} language=${language} provider=${result.provider} exit=${result.exit_code} runtime_ms=${result.runtime_ms}`,
-    );
+    logger.info('Code execution completed', {
+      userId,
+      language,
+      provider: result.provider,
+      exitCode: result.exit_code,
+      runtimeMs: result.runtime_ms,
+      errorClass,
+    });
 
     return {
       language,

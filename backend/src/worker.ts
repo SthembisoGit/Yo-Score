@@ -5,6 +5,7 @@ import { submissionRunService } from './services/submissionRun.service';
 import { scoringService } from './services/scoring.service';
 import { query } from './db';
 import { normalizeLanguage } from './constants/languages';
+import { logger } from './utils/logger';
 
 async function markSubmissionFailed(submissionId: string, error: string, runId?: string) {
   await query(
@@ -144,27 +145,33 @@ const judgeWorker = createJudgeWorker(processor);
 
 if (judgeWorker) {
   judgeWorker.on('active', (job) => {
-    console.log(
-      `[judge] active job_id=${job.id} submission_id=${job.data?.submissionId ?? 'unknown'}`,
-    );
+    logger.info('Judge worker job active', {
+      jobId: job.id,
+      submissionId: job.data?.submissionId ?? 'unknown',
+    });
   });
 
   judgeWorker.on('completed', (job) => {
-    console.log(
-      `[judge] completed job_id=${job.id} submission_id=${job.data?.submissionId ?? 'unknown'}`,
-    );
+    logger.info('Judge worker job completed', {
+      jobId: job.id,
+      submissionId: job.data?.submissionId ?? 'unknown',
+    });
   });
 
   judgeWorker.on('failed', (job, error) => {
     const submissionId = job?.data?.submissionId ?? 'unknown';
     const message = error instanceof Error ? error.message : 'Unknown worker failure';
-    console.error(`[judge] failed job_id=${job?.id ?? 'unknown'} submission_id=${submissionId}: ${message}`);
+    logger.error('Judge worker job failed', {
+      jobId: job?.id ?? 'unknown',
+      submissionId,
+      message,
+    });
   });
 
   judgeWorker.on('error', (error) => {
     const message = error instanceof Error ? error.message : 'Unknown worker error';
-    console.error(`[judge] worker error: ${message}`);
+    logger.error('Judge worker runtime error', { message });
   });
 }
 
-console.log('Judge worker started (async real scoring).');
+logger.info('Judge worker started');

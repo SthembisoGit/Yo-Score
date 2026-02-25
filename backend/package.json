@@ -7,7 +7,7 @@
     "dev": "ts-node-dev src/app.ts",
     "build": "tsc",
     "start": "node dist/src/app.js",
-    "test:api": "npm run build && node --test tests/api.smoke.test.js",
+    "test:api": "npm run build && node --test tests",
     "test:judge-smoke": "npm run build && node scripts/judge-smoke.js",
     "migrate": "node scripts/migrate.js",
     "seed:easy-challenges": "node scripts/seed-easy-challenges.js",

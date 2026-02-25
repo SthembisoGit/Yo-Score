@@ -223,7 +223,11 @@ export class AdminService {
   }
 
   async getProctoringSessionDetails(sessionId: string) {
-    return proctoringService.getSessionDetails(sessionId);
+    return proctoringService.getSessionDetails(
+      sessionId,
+      '00000000-0000-0000-0000-000000000000',
+      true,
+    );
   }
 
   async getProctoringSettings() {

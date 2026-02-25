@@ -1,8 +1,19 @@
 import { Request, Response } from 'express';
 import { AuthService } from '../services/auth.service';
 import { safeErrorMessage } from '../utils/safeErrorMessage';
+import { config } from '../config';
+import { extractRefreshTokenFromRequest, getRefreshCookieOptions } from '../utils/authCookie';
 
 const authService = new AuthService();
+
+const getRequestIp = (req: Request): string => {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (typeof forwardedFor === 'string' && forwardedFor.length > 0) {
+    const first = forwardedFor.split(',')[0]?.trim();
+    if (first) return first;
+  }
+  return req.ip || 'unknown';
+};
 
 export class AuthController {
   async signup(req: Request, res: Response) {
@@ -20,11 +31,17 @@ export class AuthController {
       }
 
       const result = await authService.signup(normalizedName, normalizedEmail, String(password), role);
+      if (result.refresh_token) {
+        res.cookie(config.REFRESH_COOKIE_NAME, result.refresh_token, getRefreshCookieOptions());
+      }
 
       return res.status(201).json({
         success: true,
         message: 'User created successfully',
-        data: result
+        data: {
+          message: 'User created successfully',
+          user_id: result.user.user_id,
+        },
       });
 
     } catch (error) {
@@ -44,18 +61,28 @@ export class AuthController {
       const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
 
       if (!normalizedEmail || !password) {
-        return res.status(400).json({
+        return res.status(401).json({
           success: false,
-          message: 'Email and password are required'
+          message: 'Invalid credentials',
+          error: 'INVALID_CREDENTIALS',
         });
       }
 
-      const result = await authService.login(normalizedEmail, String(password));
+      const result = await authService.login(normalizedEmail, String(password), {
+        userAgent: req.headers['user-agent'],
+        ipAddress: getRequestIp(req),
+      });
+      if (result.refresh_token) {
+        res.cookie(config.REFRESH_COOKIE_NAME, result.refresh_token, getRefreshCookieOptions());
+      }
 
       return res.status(200).json({
         success: true,
         message: 'Login successful',
-        data: result
+        data: {
+          token: result.token,
+          user: result.user,
+        }
       });
 
     } catch (error) {
@@ -63,7 +90,7 @@ export class AuthController {
       
       return res.status(401).json({
         success: false,
-        message,
+        message: message === 'Invalid credentials' ? message : 'Invalid credentials',
         error: 'INVALID_CREDENTIALS'
       });
     }
@@ -72,10 +99,12 @@ export class AuthController {
   async logout(req: Request, res: Response) {
     try {
       const token = req.headers.authorization?.split(' ')[1];
+      const refreshToken = extractRefreshTokenFromRequest(req) || undefined;
       
       if (token) {
-        await authService.logout(token);
+        await authService.logout(token, refreshToken);
       }
+      res.clearCookie(config.REFRESH_COOKIE_NAME, getRefreshCookieOptions());
 
       return res.status(200).json({
         success: true,

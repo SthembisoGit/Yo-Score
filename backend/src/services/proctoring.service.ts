@@ -3,6 +3,7 @@ import axios from 'axios';
 import { config } from '../config';
 import { getViolationPenalty, normalizeViolationType } from '../constants/violationPenalties';
 import { createHash } from 'crypto';
+import { logger } from '../utils/logger';
 import {
   evaluateRiskSignals,
   type RiskEvaluation,
@@ -511,18 +512,22 @@ export class ProctoringService {
     };
   }
 
-  async endSession(sessionId: string, submissionId?: string): Promise<void> {
+  async endSession(sessionId: string, userId: string, submissionId?: string): Promise<void> {
     await this.ensureSessionSchemaExtensions();
-    await query(
+    const result = await query(
       `UPDATE proctoring_sessions 
        SET end_time = NOW(), 
             status = 'completed',
             paused_at = NULL,
             pause_reason = NULL,
             submission_id = $2
-       WHERE id = $1`,
-      [sessionId, submissionId ?? null],
+       WHERE id = $1
+         AND user_id = $3`,
+      [sessionId, submissionId ?? null, userId],
     );
+    if (result.rowCount === 0) {
+      throw new Error('Session not found');
+    }
 
     // Phase 2: async post-exam evidence review (non-blocking)
     setImmediate(() => {
@@ -1038,7 +1043,7 @@ export class ProctoringService {
 
       await this.persistSessionRiskState(sessionId, reviewRisk);
     } catch (error) {
-      console.error('Post-exam proctoring review failed:', error);
+      logger.error('Post-exam proctoring review failed', { error });
       await query(
         `INSERT INTO proctoring_reviews
            (session_id, status, final_risk_score, reasons_json, reviewed_at)
@@ -1210,7 +1215,7 @@ export class ProctoringService {
         violations,
       };
     } catch (error) {
-      console.error('Face analysis failed:', error);
+      logger.error('Face analysis failed', { error });
       throw new Error('Face analysis temporarily unavailable');
     }
   }
@@ -1280,7 +1285,7 @@ export class ProctoringService {
         violations,
       };
     } catch (error) {
-      console.error('Audio analysis failed:', error);
+      logger.error('Audio analysis failed', { error });
 
       // Return neutral result on error (no false positives)
       return {
@@ -1388,7 +1393,11 @@ export class ProctoringService {
     return Math.max(0, Math.floor(score));
   }
 
-  async getSessionDetails(sessionId: string): Promise<any> {
+  async getSessionDetails(
+    sessionId: string,
+    requesterUserId: string,
+    isAdmin = false,
+  ): Promise<any> {
     const sessionResult = await query(
       `SELECT ps.*, 
               u.name as user_name,
@@ -1397,8 +1406,9 @@ export class ProctoringService {
        FROM proctoring_sessions ps
        LEFT JOIN users u ON ps.user_id = u.id
        LEFT JOIN challenges c ON ps.challenge_id = c.id
-       WHERE ps.id = $1`,
-      [sessionId],
+       WHERE ps.id = $1
+         AND ($2::boolean = true OR ps.user_id = $3)`,
+      [sessionId, isAdmin, requesterUserId],
     );
 
     if (sessionResult.rows.length === 0) {
@@ -1645,11 +1655,26 @@ export class ProctoringService {
     };
   }
 
-  async getSessionAnalytics(sessionId: string): Promise<{
+  async getSessionAnalytics(
+    sessionId: string,
+    requesterUserId: string,
+    isAdmin = false,
+  ): Promise<{
     violationTimeline: Array<{ timestamp: string; count: number }>;
     severityDistribution: { high: number; medium: number; low: number };
     peakViolationTime: string | null;
   }> {
+    const authorizedSession = await query(
+      `SELECT id
+       FROM proctoring_sessions
+       WHERE id = $1
+         AND ($2::boolean = true OR user_id = $3)`,
+      [sessionId, isAdmin, requesterUserId],
+    );
+    if (authorizedSession.rows.length === 0) {
+      throw new Error('Session not found');
+    }
+
     const result = await query(
       `
       SELECT date_trunc('minute', timestamp) as minute_bucket,
@@ -1695,7 +1720,11 @@ export class ProctoringService {
     };
   }
 
-  async getSessionStatus(sessionId: string): Promise<{
+  async getSessionStatus(
+    sessionId: string,
+    requesterUserId: string,
+    isAdmin = false,
+  ): Promise<{
     isActive: boolean;
     isPaused: boolean;
     status: 'active' | 'paused' | 'completed';
@@ -1711,8 +1740,9 @@ export class ProctoringService {
     const sessionResult = await query(
       `SELECT id, user_id, status, pause_reason, heartbeat_at, risk_state
        FROM proctoring_sessions
-       WHERE id = $1`,
-      [sessionId],
+       WHERE id = $1
+         AND ($2::boolean = true OR user_id = $3)`,
+      [sessionId, isAdmin, requesterUserId],
     );
 
     if (sessionResult.rows.length === 0) {
@@ -2070,7 +2100,7 @@ export class ProctoringService {
       await query('SELECT 1');
       health.database = true;
     } catch (error) {
-      console.error('Database health check failed:', error);
+      logger.error('Database health check failed', { error });
       health.degraded_reasons.push('database_unavailable');
     }
 
@@ -2126,7 +2156,7 @@ export class ProctoringService {
         health.degraded_reasons.push('audio_detector_unavailable');
       }
     } catch (error) {
-      console.error('ML service health check failed:', error);
+      logger.error('ML service health check failed', { error });
       health.degraded_reasons.push('ml_service_unavailable');
     }
 

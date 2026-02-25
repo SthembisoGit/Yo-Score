@@ -3,6 +3,8 @@ import express from 'express';
 import { ProctoringController } from '../controllers/proctoring.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { proctoringIngestRateLimiter } from '../middleware/rateLimit.middleware';
+import { validateParams } from '../middleware/validate.middleware';
+import { sessionIdParamSchema, userIdParamSchema } from '../validation/schemas';
 
 const router = Router();
 const proctoringController = new ProctoringController();
@@ -21,33 +23,40 @@ router.post('/session/heartbeat', proctoringIngestRateLimiter, proctoringControl
 router.post('/events/batch', proctoringIngestRateLimiter, proctoringController.ingestEventsBatch.bind(proctoringController));
 router.post(
   '/session/:sessionId/snapshot',
+  validateParams(sessionIdParamSchema),
   proctoringIngestRateLimiter,
   express.raw({ type: ['image/jpeg', 'image/png', 'application/octet-stream'], limit: '2mb' }),
   proctoringController.uploadSnapshot.bind(proctoringController),
 );
 router.get(
   '/session/:sessionId',
+  validateParams(sessionIdParamSchema),
   proctoringController.getSessionDetails.bind(proctoringController),
 );
 router.get(
   '/session/:sessionId/analytics',
+  validateParams(sessionIdParamSchema),
   proctoringController.getSessionAnalytics.bind(proctoringController),
 );
 router.get(
   '/session/:sessionId/status',
+  validateParams(sessionIdParamSchema),
   proctoringController.getSessionStatus.bind(proctoringController),
 );
 router.get(
   '/session/:sessionId/risk',
+  validateParams(sessionIdParamSchema),
   proctoringController.getSessionRisk.bind(proctoringController),
 );
 router.post(
   '/session/:sessionId/liveness-check',
+  validateParams(sessionIdParamSchema),
   proctoringIngestRateLimiter,
   proctoringController.livenessCheck.bind(proctoringController),
 );
 router.post(
   '/session/:sessionId/review/enqueue',
+  validateParams(sessionIdParamSchema),
   authorize('admin'),
   proctoringController.enqueueReview.bind(proctoringController),
 );
@@ -63,10 +72,12 @@ router.post(
 // User-level views
 router.get(
   '/user/:userId/sessions',
+  validateParams(userIdParamSchema),
   proctoringController.getUserSessions.bind(proctoringController),
 );
 router.get(
   '/user/:userId/violations/summary',
+  validateParams(userIdParamSchema),
   proctoringController.getUserViolationSummary.bind(proctoringController),
 );
 
@@ -84,7 +95,18 @@ router.post(
 router.post(
   '/analyze-audio',
   proctoringIngestRateLimiter,
-  express.raw({ type: ['audio/webm', 'audio/wav', 'application/octet-stream'], limit: '10mb' }),
+  express.raw({
+    type: [
+      'audio/webm',
+      'audio/wav',
+      'audio/ogg',
+      'audio/mpeg',
+      'audio/mp4',
+      'audio/x-m4a',
+      'application/octet-stream',
+    ],
+    limit: '10mb',
+  }),
   proctoringController.analyzeAudio.bind(proctoringController),
 );
 

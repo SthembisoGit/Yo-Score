@@ -7,7 +7,8 @@ import { CorsOptions } from 'cors';
  */
 export const getCorsConfig = (): CorsOptions => {
   const rawFrontendUrls = process.env.FRONTEND_URL || 'http://localhost:5173,http://localhost:8080';
-  const allowedOrigins = rawFrontendUrls
+  const rawExtraOrigins = process.env.CORS_ALLOWED_ORIGINS || '';
+  const allowedOrigins = `${rawFrontendUrls},${rawExtraOrigins}`
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean)
@@ -28,9 +29,11 @@ export const getCorsConfig = (): CorsOptions => {
     'http://127.0.0.1:3000',
   ];
 
-  for (const origin of defaultDevOrigins) {
-    if (!allowedOrigins.includes(origin)) {
-      allowedOrigins.push(origin);
+  if (process.env.NODE_ENV !== 'production') {
+    for (const origin of defaultDevOrigins) {
+      if (!allowedOrigins.includes(origin)) {
+        allowedOrigins.push(origin);
+      }
     }
   }
 
@@ -39,6 +42,14 @@ export const getCorsConfig = (): CorsOptions => {
     (process.env.NODE_ENV === 'development' ? 'true' : 'false')
   ).toLowerCase() === 'true';
   const renderOriginRegex = /^https:\/\/[a-z0-9-]+\.onrender\.com$/i;
+
+  const wildcardOrigins = allowedOrigins.filter((origin) => origin.startsWith('*.'));
+  const exactOrigins = allowedOrigins.filter((origin) => !origin.startsWith('*.'));
+  const wildcardMatch = (origin: string): boolean =>
+    wildcardOrigins.some((pattern) => {
+      const suffix = pattern.slice(1).toLowerCase();
+      return origin.toLowerCase().endsWith(suffix);
+    });
 
   return {
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
@@ -49,7 +60,7 @@ export const getCorsConfig = (): CorsOptions => {
       }
 
       // Allow requests from configured frontend origins
-      if (allowedOrigins.includes(origin)) {
+      if (exactOrigins.includes(origin) || wildcardMatch(origin)) {
         callback(null, true);
         return;
       }
@@ -58,14 +69,6 @@ export const getCorsConfig = (): CorsOptions => {
       if (allowRenderOrigins && renderOriginRegex.test(origin)) {
         callback(null, true);
         return;
-      }
-
-      // In development, allow localhost with different ports for testing
-      if (process.env.NODE_ENV === 'development') {
-        if (origin.includes('localhost') && allowedOrigins.some((value) => value.includes('localhost'))) {
-          callback(null, true);
-          return;
-        }
       }
 
       // Reject all other origins

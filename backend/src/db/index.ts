@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import { config } from '../config';
+import { logger } from '../utils/logger';
 
 const isLocalDatabase =
   config.DATABASE_URL.includes('localhost') || config.DATABASE_URL.includes('127.0.0.1');
@@ -14,7 +15,7 @@ const pool = new Pool({
 });
 
 pool.on('error', (err) => {
-  console.error('Database connection error:', err);
+  logger.error('Database connection error', { error: err });
 });
 
 // Export query function
