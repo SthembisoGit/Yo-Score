@@ -208,7 +208,7 @@ export default function Challenges() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" aria-busy={isSearching}>
         <div className="mb-6">
           <h1 className="text-3xl font-bold mb-2">Coding Challenges</h1>
           <p className="text-muted-foreground">
@@ -262,6 +262,7 @@ export default function Challenges() {
               {search && (
                 <button
                   onClick={() => setSearch('')}
+                  aria-label="Clear search text"
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <X className="h-4 w-4" />
@@ -404,6 +405,7 @@ export default function Challenges() {
                   Search: "{search}"
                   <button
                     onClick={() => setSearch('')}
+                    aria-label="Remove search filter"
                     className="ml-1 hover:bg-muted rounded-sm p-0.5"
                   >
                     <X className="h-3 w-3" />
@@ -416,6 +418,7 @@ export default function Challenges() {
                   Category: {selectedCategory}
                   <button
                     onClick={() => setSelectedCategory('All')}
+                    aria-label="Remove category filter"
                     className="ml-1 hover:bg-muted rounded-sm p-0.5"
                   >
                     <X className="h-3 w-3" />
@@ -428,6 +431,7 @@ export default function Challenges() {
                   Difficulty: {selectedDifficulty}
                   <button
                     onClick={() => setSelectedDifficulty('All')}
+                    aria-label="Remove difficulty filter"
                     className="ml-1 hover:bg-muted rounded-sm p-0.5"
                   >
                     <X className="h-3 w-3" />
@@ -472,6 +476,7 @@ export default function Challenges() {
                 size="sm"
                 onClick={() => setViewMode('grid')}
                 className="h-8 px-2"
+                aria-pressed={viewMode === 'grid'}
               >
                 <LayoutGrid className="h-4 w-4 mr-1" />
                 Grid
@@ -482,6 +487,7 @@ export default function Challenges() {
                 size="sm"
                 onClick={() => setViewMode('list')}
                 className="h-8 px-2"
+                aria-pressed={viewMode === 'list'}
               >
                 <List className="h-4 w-4 mr-1" />
                 List
@@ -514,7 +520,7 @@ export default function Challenges() {
             </div>
 
             {totalPages > 1 && (
-              <Pagination>
+              <Pagination aria-label="Challenge results pagination">
                 <PaginationContent>
                   <PaginationItem>
                     <PaginationPrevious

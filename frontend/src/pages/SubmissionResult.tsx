@@ -138,7 +138,7 @@ export default function SubmissionResult() {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="flex items-center justify-center h-64">
+        <div className="flex items-center justify-center h-64" role="status" aria-live="polite">
           <div className="text-center">
             <Clock className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
             <p>Loading submission results...</p>
@@ -222,7 +222,11 @@ export default function SubmissionResult() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             {(isJudgePending || pollTimedOut) && (
-              <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div
+                role="status"
+                aria-live="polite"
+                className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+              >
                 <div>
                   <p className="font-medium">
                     {submission.judge_status === 'queued'
