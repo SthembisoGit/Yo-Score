@@ -3,6 +3,7 @@
 ## Base
 - Local: `http://localhost:3000`
 - API prefix: `/api/*`
+- Observability endpoints: `/health`, `/ready`, `/metrics`
 
 ## Response Contract
 - Success:
@@ -59,6 +60,28 @@
 ### `GET /api/auth/validate`
 - Auth required.
 - Returns `data.valid` and user profile when valid.
+
+## Runtime Observability
+### `GET /health`
+- Public.
+- Lightweight liveliness endpoint.
+
+### `GET /ready`
+- Public.
+- Readiness endpoint with dependency checks.
+- Returns `200` when core dependencies are reachable, otherwise `503`.
+- Payload includes:
+  - `data.database`
+  - `data.ml_service`
+
+### `GET /metrics`
+- Public (non-sensitive operational counters only).
+- Returns in-memory service metrics:
+  - request/error counters
+  - auth failure counters
+  - rate limit counters
+  - latency summary (`p50`, `p95`, `avg`)
+  - top route stats
 
 ## Users
 ### `GET /api/users/me`
