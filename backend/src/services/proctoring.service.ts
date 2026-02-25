@@ -75,6 +75,15 @@ export interface ProctoringSessionStartResult {
   durationSeconds: number;
 }
 
+export interface ProctoringConsentInput {
+  policyVersion: string;
+  acceptedAt: string;
+  noticeLocale?: string | null;
+  ipHash?: string | null;
+  userAgent?: string | null;
+  consentScope?: string[];
+}
+
 export interface ProctoringEventInput {
   event_type: string;
   severity: 'low' | 'medium' | 'high';
@@ -245,6 +254,9 @@ export class ProctoringService {
     0.5,
     Math.min(0.99, Number(config.PROCTORING_HIGH_CONFIDENCE_THRESHOLD ?? 0.85)),
   );
+  private readonly requireConsent = String(config.PROCTORING_REQUIRE_CONSENT).toLowerCase() === 'true';
+  private readonly privacyPolicyVersion = String(config.PROCTORING_PRIVACY_POLICY_VERSION || '2026-02-25');
+  private readonly privacyPolicyUrl = config.PROCTORING_PRIVACY_POLICY_URL || '';
 
   constructor() {
     this.mlServiceAdapter = new MlServiceAdapter(config.ML_SERVICE_URL || 'http://localhost:5000');
@@ -267,7 +279,14 @@ export class ProctoringService {
          ADD COLUMN IF NOT EXISTS liveness_required BOOLEAN DEFAULT false,
          ADD COLUMN IF NOT EXISTS liveness_challenge JSONB DEFAULT '{}'::jsonb,
          ADD COLUMN IF NOT EXISTS liveness_completed_at TIMESTAMP,
-         ADD COLUMN IF NOT EXISTS last_sequence_id BIGINT DEFAULT 0`,
+         ADD COLUMN IF NOT EXISTS last_sequence_id BIGINT DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS privacy_consent_at TIMESTAMP,
+         ADD COLUMN IF NOT EXISTS privacy_policy_version VARCHAR(40),
+         ADD COLUMN IF NOT EXISTS privacy_notice_locale VARCHAR(16),
+         ADD COLUMN IF NOT EXISTS privacy_ip_hash VARCHAR(64),
+         ADD COLUMN IF NOT EXISTS privacy_user_agent TEXT,
+         ADD COLUMN IF NOT EXISTS privacy_consent_scope JSONB DEFAULT '[]'::jsonb,
+         ADD COLUMN IF NOT EXISTS evidence_retention_days INTEGER DEFAULT 7`,
     );
 
     await query(
@@ -386,6 +405,69 @@ export class ProctoringService {
     return new Date(anchor.getTime() + this.evidenceRetentionDays * 24 * 60 * 60 * 1000);
   }
 
+  private sanitizeMlResults(analysisType: string, results: unknown): unknown {
+    if (analysisType !== 'audio' || !results || typeof results !== 'object') {
+      return results;
+    }
+
+    const sanitized: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(results as Record<string, unknown>)) {
+      const normalizedKey = key.toLowerCase();
+      if (
+        normalizedKey.includes('transcript') ||
+        normalizedKey.includes('utterance') ||
+        normalizedKey.includes('raw_audio')
+      ) {
+        continue;
+      }
+      sanitized[key] = value;
+    }
+
+    return sanitized;
+  }
+
+  private async recordSensitiveAccess(
+    adminUserId: string,
+    targetUserId: string,
+    sessionId: string,
+  ): Promise<void> {
+    await query(
+      `INSERT INTO admin_audit_logs
+         (admin_user_id, target_user_id, action, details, created_at)
+       VALUES ($1, $2, $3, $4::jsonb, NOW())`,
+      [
+        adminUserId,
+        targetUserId,
+        'proctoring_sensitive_read',
+        JSON.stringify({
+          session_id: sessionId,
+          accessed_at: new Date().toISOString(),
+        }),
+      ],
+    ).catch(() => undefined);
+  }
+
+  getPrivacyNotice(): {
+    require_consent: boolean;
+    policy_version: string;
+    policy_url: string | null;
+    retention_days: number;
+    capture_scope: string[];
+  } {
+    return {
+      require_consent: this.requireConsent,
+      policy_version: this.privacyPolicyVersion,
+      policy_url: this.privacyPolicyUrl || null,
+      retention_days: this.evidenceRetentionDays,
+      capture_scope: [
+        'camera_presence_signals',
+        'microphone_device_state',
+        'proctoring_events',
+        'limited_snapshots_on_triggers',
+      ],
+    };
+  }
+
   private createLivenessChallenge(): {
     challenge_id: string;
     expected_action: 'turn_left' | 'turn_right' | 'look_up' | 'look_down' | 'blink_once';
@@ -465,8 +547,21 @@ export class ProctoringService {
   }
 
   // Session Management
-  async startSession(userId: string, challengeId: string): Promise<ProctoringSessionStartResult> {
+  async startSession(
+    userId: string,
+    challengeId: string,
+    consent?: ProctoringConsentInput,
+  ): Promise<ProctoringSessionStartResult> {
     await this.ensureSessionSchemaExtensions();
+
+    if (this.requireConsent) {
+      if (!consent || !consent.acceptedAt || !consent.policyVersion) {
+        throw new Error('Proctoring privacy consent is required');
+      }
+      if (consent.policyVersion !== this.privacyPolicyVersion) {
+        throw new Error('Proctoring privacy policy version mismatch');
+      }
+    }
 
     const challengeResult = await query(
       `SELECT duration_minutes
@@ -488,15 +583,37 @@ export class ProctoringService {
 
     let result;
     try {
+      const consentAcceptedAt = consent?.acceptedAt
+        ? new Date(consent.acceptedAt).toISOString()
+        : null;
+      const consentScope = Array.isArray(consent?.consentScope)
+        ? consent?.consentScope
+        : [];
       result = await query(
         `INSERT INTO proctoring_sessions
-           (user_id, challenge_id, start_time, status, heartbeat_at, deadline_at, duration_seconds, paused_at, pause_reason, pause_count, total_paused_seconds, risk_state, risk_score, liveness_required, last_sequence_id)
-         VALUES ($1, $2, NOW(), 'active', NOW(), $3, $4, NULL, NULL, 0, 0, 'observe', 0, false, 0)
+           (user_id, challenge_id, start_time, status, heartbeat_at, deadline_at, duration_seconds, paused_at, pause_reason, pause_count, total_paused_seconds, risk_state, risk_score, liveness_required, last_sequence_id, privacy_consent_at, privacy_policy_version, privacy_notice_locale, privacy_ip_hash, privacy_user_agent, privacy_consent_scope, evidence_retention_days)
+         VALUES ($1, $2, NOW(), 'active', NOW(), $3, $4, NULL, NULL, 0, 0, 'observe', 0, false, 0, $5, $6, $7, $8, $9, $10::jsonb, $11)
          RETURNING id`,
-        [userId, challengeId, deadlineAt.toISOString(), durationSeconds],
+        [
+          userId,
+          challengeId,
+          deadlineAt.toISOString(),
+          durationSeconds,
+          consentAcceptedAt,
+          consent?.policyVersion ?? null,
+          consent?.noticeLocale ?? null,
+          consent?.ipHash ?? null,
+          consent?.userAgent ?? null,
+          JSON.stringify(consentScope),
+          this.evidenceRetentionDays,
+        ],
       );
     } catch {
       // Fallback for older schemas that haven't applied extension columns yet.
+      logger.warn('Falling back to legacy proctoring session insert without privacy columns', {
+        challengeId,
+        userId,
+      });
       result = await query(
         `INSERT INTO proctoring_sessions (user_id, challenge_id, start_time, status)
          VALUES ($1, $2, NOW(), 'active')
@@ -1229,11 +1346,13 @@ export class ProctoringService {
         throw new Error('Audio analysis failed');
       }
 
+      const sanitizedResults = this.sanitizeMlResults('audio', mlResult.results);
+
       await this.logMLAnalysis(
         sessionId,
         'audio',
         timestamp,
-        mlResult.results,
+        sanitizedResults,
         mlResult.violations || [],
       );
 
@@ -1244,7 +1363,10 @@ export class ProctoringService {
       const analysisResult = mlResult.results as unknown as AudioAnalysisResult;
 
       return {
-        result: analysisResult,
+        result: {
+          ...analysisResult,
+          transcript: '',
+        },
         violations,
       };
     } catch (error) {
@@ -1381,6 +1503,9 @@ export class ProctoringService {
     }
 
     const session = sessionResult.rows[0];
+    if (isAdmin && session.user_id && session.user_id !== requesterUserId) {
+      await this.recordSensitiveAccess(requesterUserId, session.user_id, sessionId);
+    }
     const [violations, mlAnalyses, score, eventAggResult, snapshotAggResult, reviewResult] = await Promise.all([
       this.getSessionViolations(sessionId),
       this.getMLAnalysisResults(sessionId),

@@ -1,5 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
-import { proctoringService, type ProctoringViolation } from '@/services/proctoring.service';
+import {
+  proctoringService,
+  type ProctoringViolation,
+  type ProctoringConsentPayload,
+} from '@/services/proctoring.service';
 import { toast } from 'react-hot-toast';
 
 interface ProctoringSettings {
@@ -51,9 +55,13 @@ export const useProctoring = () => {
     }
   }, []);
 
-  const startSession = useCallback(async (challengeId: string, _userId: string): Promise<ProctoringSessionStartMeta> => {
+  const startSession = useCallback(async (
+    challengeId: string,
+    _userId: string,
+    consent: ProctoringConsentPayload,
+  ): Promise<ProctoringSessionStartMeta> => {
     try {
-      const response = await proctoringService.startSession(challengeId);
+      const response = await proctoringService.startSession(challengeId, consent);
       setCurrentSessionId(response.sessionId);
       setIsActive(true);
       setViolations([]);

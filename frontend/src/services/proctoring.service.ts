@@ -13,6 +13,26 @@ export interface ProctoringSessionStartResponse {
   sessionId: string;
   deadline_at: string;
   duration_seconds: number;
+  privacy_notice?: {
+    policy_version: string;
+    retention_days: number;
+  };
+}
+
+export interface ProctoringPrivacyNotice {
+  require_consent: boolean;
+  policy_version: string;
+  policy_url: string | null;
+  retention_days: number;
+  capture_scope: string[];
+}
+
+export interface ProctoringConsentPayload {
+  accepted: boolean;
+  accepted_at: string;
+  policy_version: string;
+  locale?: string;
+  scope?: string[];
 }
 
 export interface ProctoringViolation {
@@ -104,13 +124,21 @@ class ProctoringService {
   /**
    * Start a new proctoring session
    */
-  async startSession(challengeId: string): Promise<ProctoringSessionStartResponse> {
+  async startSession(
+    challengeId: string,
+    consent: ProctoringConsentPayload,
+  ): Promise<ProctoringSessionStartResponse> {
     try {
-      const response = await apiClient.post('/proctoring/session/start', { challengeId });
+      const response = await apiClient.post('/proctoring/session/start', { challengeId, consent });
       return unwrapData<ProctoringSessionStartResponse>(response);
     } catch {
       throw new Error('Could not start proctoring session');
     }
+  }
+
+  async getPrivacyNotice(): Promise<ProctoringPrivacyNotice> {
+    const response = await apiClient.get('/proctoring/privacy');
+    return unwrapData<ProctoringPrivacyNotice>(response);
   }
 
   /**

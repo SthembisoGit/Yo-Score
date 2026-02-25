@@ -14,6 +14,7 @@ import ProctoringMonitor from '@/components/proctoring/ProctoringMonitor';
 import { useProctoring } from '@/hooks/useProctoring';
 import { challengeService } from '@/services/challengeService';
 import { CODE_TO_DISPLAY, normalizeLanguageCode } from '@/constants/languages';
+import type { ProctoringConsentPayload } from '@/services/proctoring.service';
 
 interface ViolationEvent {
   type: string;
@@ -135,7 +136,7 @@ export default function ChallengeDetail() {
     setShowProctoringModal(true);
   };
 
-  const handleProctoringConfirm = async () => {
+  const handleProctoringConfirm = async (consent: ProctoringConsentPayload) => {
     if (!id || !user?.id) {
       toast.error('Missing challenge or user information. Please ensure you are logged in.');
       return;
@@ -145,7 +146,7 @@ export default function ChallengeDetail() {
     setShowProctoringModal(false);
 
     try {
-      const sessionMeta = await startSession(id, user.id);
+      const sessionMeta = await startSession(id, user.id, consent);
       setSessionId(sessionMeta.sessionId);
       setDeadlineAt(sessionMeta.deadlineAt);
       setDurationSeconds(sessionMeta.durationSeconds);

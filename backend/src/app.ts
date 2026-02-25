@@ -17,6 +17,7 @@ import { getMetricsSnapshot, observeRequest } from './observability/metrics';
 import { evaluateReadiness } from './observability/readiness';
 import { requestContext } from './middleware/requestContext.middleware';
 import { enforceHttps } from './middleware/https.middleware';
+import { ProctoringService } from './services/proctoring.service';
 import { logger } from './utils/logger';
 
 initSentry();
@@ -53,7 +54,7 @@ export function createApp() {
   app.use((_req, res, next) => {
     res.setHeader(
       'Permissions-Policy',
-      'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+      'camera=(self), microphone=(self), geolocation=(), payment=(), usb=()',
     );
     next();
   });
@@ -233,6 +234,28 @@ if (config.NODE_ENV !== 'test') {
         captureException(error, { service: 'api', component: 'in-process-judge-worker' });
         logger.error('Failed to start in-process judge worker', { error });
       });
+  }
+
+  const proctoringService = new ProctoringService();
+  const purgeExpiredEvidence = async () => {
+    try {
+      const result = await proctoringService.purgeExpiredEvidence();
+      if (result.deleted_snapshots > 0) {
+        logger.info('Purged expired proctoring evidence', result);
+      }
+    } catch (error) {
+      logger.error('Failed to purge expired proctoring evidence', { error });
+    }
+  };
+
+  const purgeIntervalHours = Math.max(1, Number(config.PROCTORING_PURGE_INTERVAL_HOURS || 24));
+  const purgeIntervalMs = purgeIntervalHours * 60 * 60 * 1000;
+  void purgeExpiredEvidence();
+  const purgeInterval = setInterval(() => {
+    void purgeExpiredEvidence();
+  }, purgeIntervalMs);
+  if (typeof purgeInterval.unref === 'function') {
+    purgeInterval.unref();
   }
 }
 

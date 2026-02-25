@@ -45,6 +45,11 @@ test('Repository hygiene: tracked paths do not include forbidden local/build art
 test('Repository hygiene: no obvious private key material in tracked files', () => {
   const files = trackedFiles();
   const violations = [];
+  const privateKeyMarkers = [
+    '-----BEGIN ' + 'PRIVATE KEY-----',
+    '-----BEGIN ' + 'RSA PRIVATE KEY-----',
+    '-----BEGIN ' + 'OPENSSH PRIVATE KEY-----',
+  ];
   for (const relativePath of files) {
     const absolutePath = path.join(repoRoot, relativePath);
     const stat = fs.statSync(absolutePath);
@@ -52,11 +57,7 @@ test('Repository hygiene: no obvious private key material in tracked files', () 
     if (stat.size > 1_500_000) continue;
 
     const content = fs.readFileSync(absolutePath, 'utf8');
-    if (
-      content.includes('-----BEGIN PRIVATE KEY-----') ||
-      content.includes('-----BEGIN RSA PRIVATE KEY-----') ||
-      content.includes('-----BEGIN OPENSSH PRIVATE KEY-----')
-    ) {
+    if (privateKeyMarkers.some((marker) => content.includes(marker))) {
       violations.push(relativePath);
     }
   }
