@@ -1,5 +1,5 @@
 import { query } from '../db';
-import { enableJudge, strictRealScoring } from '../config';
+import { config, enableJudge, strictRealScoring } from '../config';
 import { judgeQueue, defaultJobOptions } from '../queue/judgeQueue';
 import { judgeService } from './judge.service';
 import { scoringService } from './scoring.service';
@@ -11,7 +11,13 @@ export interface SubmissionInput {
   code: string;
   language: SupportedLanguage;
   session_id?: string;
+  timeout_submit?: boolean;
 }
+
+const SNAPSHOT_WAIT_SECONDS = Math.max(1, Number(config.PROCTORING_SUBMISSION_WAIT_SECONDS ?? 30));
+const SNAPSHOT_WAIT_POLL_MS = Math.max(100, Number(config.PROCTORING_SUBMISSION_WAIT_POLL_MS ?? 500));
+const SNAPSHOT_WAIT_RETRYABLE_MESSAGE =
+  'Proctoring snapshot processing is still in progress. Please retry submission in a few seconds.';
 
 const PRACTICE_GUIDANCE_BY_VIOLATION: Record<string, string> = {
   tab_switch: 'Practice in a distraction-free setup and keep the challenge tab focused.',
@@ -28,12 +34,45 @@ const PRACTICE_GUIDANCE_BY_VIOLATION: Record<string, string> = {
 };
 
 export class SubmissionService {
+  private async waitForSnapshotProcessing(
+    sessionId: string,
+    userId: string,
+    maxWaitSeconds: number,
+  ): Promise<void> {
+    const deadlineMs = Date.now() + maxWaitSeconds * 1000;
+
+    while (Date.now() <= deadlineMs) {
+      const pendingResult = await query(
+        `SELECT COALESCE(snapshot_processing_pending, 0)::int AS pending
+         FROM proctoring_sessions
+         WHERE id = $1 AND user_id = $2`,
+        [sessionId, userId],
+      );
+
+      if (pendingResult.rows.length === 0) {
+        throw new Error('Invalid proctoring session');
+      }
+
+      const pending = Number(pendingResult.rows[0]?.pending ?? 0);
+      if (!Number.isFinite(pending) || pending <= 0) {
+        return;
+      }
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, SNAPSHOT_WAIT_POLL_MS);
+      });
+    }
+
+    throw new Error(SNAPSHOT_WAIT_RETRYABLE_MESSAGE);
+  }
+
   async createSubmission(userId: string, data: SubmissionInput) {
     const language = normalizeLanguage(data.language);
+    const timeoutSubmit = data.timeout_submit === true;
 
     if (data.session_id) {
       const sessionResult = await query(
-        `SELECT status, pause_reason, deadline_at
+        `SELECT status, pause_reason, deadline_at, COALESCE(snapshot_processing_pending, 0)::int AS snapshot_processing_pending
          FROM proctoring_sessions
          WHERE id = $1 AND user_id = $2`,
         [data.session_id, userId],
@@ -44,26 +83,33 @@ export class SubmissionService {
       }
 
       const sessionStatus = sessionResult.rows[0].status;
+      const deadlineRaw = sessionResult.rows[0].deadline_at;
+      const deadlineAt = deadlineRaw ? new Date(deadlineRaw).getTime() : null;
+      const now = Date.now();
+      const deadlineReached = deadlineAt !== null && Number.isFinite(deadlineAt) && now >= deadlineAt;
+
       if (sessionStatus === 'paused') {
-        const reason =
-          sessionResult.rows[0].pause_reason || 'Required proctoring checks are not satisfied';
-        throw new Error(`Session is paused. ${reason}. Re-enable required devices to continue.`);
+        if (!(timeoutSubmit && deadlineReached)) {
+          const reason =
+            sessionResult.rows[0].pause_reason || 'Required proctoring checks are not satisfied';
+          throw new Error(`Session is paused. ${reason}. Re-enable required devices to continue.`);
+        }
       }
 
       if (sessionStatus === 'completed') {
         throw new Error('Proctoring session already completed');
       }
 
-      const deadlineRaw = sessionResult.rows[0].deadline_at;
       if (deadlineRaw) {
-        const deadlineAt = new Date(deadlineRaw).getTime();
         const graceMs = 15 * 60 * 1000;
-        if (Date.now() > deadlineAt + graceMs) {
+        if (deadlineAt !== null && now > deadlineAt + graceMs) {
           throw new Error(
             'Submission deadline exceeded. The 15-minute reconnect grace window has ended.',
           );
         }
       }
+
+      await this.waitForSnapshotProcessing(data.session_id, userId, SNAPSHOT_WAIT_SECONDS);
     }
 
     const challengeResult = await query(

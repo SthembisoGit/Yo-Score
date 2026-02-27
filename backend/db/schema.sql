@@ -59,7 +59,10 @@ CREATE TABLE IF NOT EXISTS proctoring_sessions (
     privacy_ip_hash VARCHAR(64),
     privacy_user_agent TEXT,
     privacy_consent_scope JSONB DEFAULT '[]'::jsonb,
-    evidence_retention_days INTEGER DEFAULT 7
+    evidence_retention_days INTEGER DEFAULT 7,
+    snapshot_processing_pending INTEGER DEFAULT 0,
+    snapshot_processing_last_error TEXT,
+    snapshot_processing_updated_at TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS submissions (
@@ -330,6 +333,15 @@ ALTER TABLE proctoring_sessions
 ALTER TABLE proctoring_sessions
     ADD COLUMN IF NOT EXISTS evidence_retention_days INTEGER DEFAULT 7;
 
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS snapshot_processing_pending INTEGER DEFAULT 0;
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS snapshot_processing_last_error TEXT;
+
+ALTER TABLE proctoring_sessions
+    ADD COLUMN IF NOT EXISTS snapshot_processing_updated_at TIMESTAMP;
+
 ALTER TABLE proctoring_logs
     ADD COLUMN IF NOT EXISTS session_id UUID REFERENCES proctoring_sessions(id) ON DELETE CASCADE;
 
@@ -461,8 +473,8 @@ CREATE TABLE IF NOT EXISTS proctoring_snapshots (
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     trigger_type VARCHAR(100) NOT NULL,
     trigger_reason VARCHAR(120),
-    image_data BYTEA NOT NULL,
-    bytes INTEGER NOT NULL,
+    image_data BYTEA,
+    bytes INTEGER NOT NULL DEFAULT 0,
     quality_score FLOAT DEFAULT 0,
     sha256_hash VARCHAR(64),
     expires_at TIMESTAMP,
@@ -519,6 +531,12 @@ ALTER TABLE proctoring_snapshots
 
 ALTER TABLE proctoring_snapshots
     ADD COLUMN IF NOT EXISTS encrypted_key_id VARCHAR(120);
+
+ALTER TABLE proctoring_snapshots
+    ALTER COLUMN image_data DROP NOT NULL;
+
+ALTER TABLE proctoring_snapshots
+    ALTER COLUMN bytes SET DEFAULT 0;
 
 ALTER TABLE proctoring_sessions
     DROP CONSTRAINT IF EXISTS proctoring_sessions_risk_state_chk;
