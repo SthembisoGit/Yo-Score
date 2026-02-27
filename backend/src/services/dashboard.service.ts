@@ -1,9 +1,76 @@
 import { query } from '../db';
 import { getSeniorityBandFromMonths } from '../utils/seniority';
 
+interface MonthlyProgressInput {
+  currentMonthAvg: number | null;
+  previousMonthAvg: number | null;
+  currentMonthCount: number;
+  previousMonthCount: number;
+}
+
+const MONTHLY_PROGRESS_MIN = -100;
+const MONTHLY_PROGRESS_MAX = 100;
+
+function clampMonthlyProgress(value: number): number {
+  return Math.max(MONTHLY_PROGRESS_MIN, Math.min(MONTHLY_PROGRESS_MAX, value));
+}
+
+function toUtcTimestamp(date: Date): string {
+  return date.toISOString().replace('T', ' ').replace('Z', '');
+}
+
+function getUtcMonthWindow(referenceDate: Date = new Date()): {
+  previousMonthStartUtc: string;
+  currentMonthStartUtc: string;
+  nextMonthStartUtc: string;
+} {
+  const year = referenceDate.getUTCFullYear();
+  const month = referenceDate.getUTCMonth();
+
+  const previousMonthStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  const currentMonthStart = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+  const nextMonthStart = new Date(Date.UTC(year, month + 1, 1, 0, 0, 0, 0));
+
+  return {
+    previousMonthStartUtc: toUtcTimestamp(previousMonthStart),
+    currentMonthStartUtc: toUtcTimestamp(currentMonthStart),
+    nextMonthStartUtc: toUtcTimestamp(nextMonthStart),
+  };
+}
+
+export function computeMonthlyProgress(input: MonthlyProgressInput): number {
+  const currentMonthAvg =
+    input.currentMonthAvg !== null && Number.isFinite(input.currentMonthAvg)
+      ? input.currentMonthAvg
+      : null;
+  const previousMonthAvg =
+    input.previousMonthAvg !== null && Number.isFinite(input.previousMonthAvg)
+      ? input.previousMonthAvg
+      : null;
+  const hasCurrentMonthData = input.currentMonthCount > 0 && currentMonthAvg !== null;
+  const hasPreviousMonthData = input.previousMonthCount > 0 && previousMonthAvg !== null;
+
+  if (!hasCurrentMonthData && !hasPreviousMonthData) {
+    return 0;
+  }
+
+  if (hasCurrentMonthData && !hasPreviousMonthData) {
+    return clampMonthlyProgress(Math.round(currentMonthAvg));
+  }
+
+  if (!hasCurrentMonthData && hasPreviousMonthData) {
+    return clampMonthlyProgress(-Math.round(previousMonthAvg));
+  }
+
+  const current = currentMonthAvg ?? 0;
+  const previous = previousMonthAvg ?? 0;
+  return clampMonthlyProgress(Math.round(current - previous));
+}
+
 export interface DashboardData {
   total_score: number;
   trust_level: string;
+  monthly_progress: number;
   seniority_band: 'graduate' | 'junior' | 'mid' | 'senior';
   work_experience_score: number;
   work_experience_summary: {
@@ -58,6 +125,8 @@ export class DashboardService {
   }
 
   async getUserDashboard(userId: string): Promise<DashboardData> {
+    const { previousMonthStartUtc, currentMonthStartUtc, nextMonthStartUtc } = getUtcMonthWindow();
+
     const trustResult = await query(
       `SELECT total_score, trust_level 
        FROM trust_scores 
@@ -114,17 +183,82 @@ export class DashboardService {
       `SELECT 
          COUNT(*) as total_submissions,
          COUNT(CASE WHEN status = 'graded' THEN 1 END) as graded_submissions,
-         COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_submissions
+         COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_submissions,
+         COUNT(
+           CASE
+             WHEN status = 'graded'
+                  AND score IS NOT NULL
+                  AND submitted_at >= $2::timestamp
+                  AND submitted_at < $3::timestamp
+             THEN 1
+           END
+         ) as current_month_graded_count,
+         COUNT(
+           CASE
+             WHEN status = 'graded'
+                  AND score IS NOT NULL
+                  AND submitted_at >= $4::timestamp
+                  AND submitted_at < $2::timestamp
+             THEN 1
+           END
+         ) as previous_month_graded_count,
+         AVG(
+           CASE
+             WHEN status = 'graded'
+                  AND score IS NOT NULL
+                  AND submitted_at >= $2::timestamp
+                  AND submitted_at < $3::timestamp
+             THEN score
+             ELSE NULL
+           END
+         ) as current_month_avg_score,
+         AVG(
+           CASE
+             WHEN status = 'graded'
+                  AND score IS NOT NULL
+                  AND submitted_at >= $4::timestamp
+                  AND submitted_at < $2::timestamp
+             THEN score
+             ELSE NULL
+           END
+         ) as previous_month_avg_score
        FROM submissions 
        WHERE user_id = $1`,
-      [userId],
+      [userId, currentMonthStartUtc, nextMonthStartUtc, previousMonthStartUtc],
     );
 
     const stats = statsResult.rows[0] || {
       total_submissions: 0,
       graded_submissions: 0,
       pending_submissions: 0,
+      current_month_graded_count: 0,
+      previous_month_graded_count: 0,
+      current_month_avg_score: null,
+      previous_month_avg_score: null,
     };
+
+    const currentMonthCount = Number.parseInt(String(stats.current_month_graded_count ?? 0), 10) || 0;
+    const previousMonthCount =
+      Number.parseInt(String(stats.previous_month_graded_count ?? 0), 10) || 0;
+    const rawCurrentMonthAvg =
+      stats.current_month_avg_score === null ? null : Number(stats.current_month_avg_score);
+    const rawPreviousMonthAvg =
+      stats.previous_month_avg_score === null ? null : Number(stats.previous_month_avg_score);
+    const currentMonthAvg =
+      rawCurrentMonthAvg !== null && Number.isFinite(rawCurrentMonthAvg)
+        ? rawCurrentMonthAvg
+        : null;
+    const previousMonthAvg =
+      rawPreviousMonthAvg !== null && Number.isFinite(rawPreviousMonthAvg)
+        ? rawPreviousMonthAvg
+        : null;
+
+    const monthlyProgress = computeMonthlyProgress({
+      currentMonthAvg,
+      previousMonthAvg,
+      currentMonthCount,
+      previousMonthCount,
+    });
 
     const workSummaryResult = await this.getWorkSummary(userId);
     const trustedMonths = Number(workSummaryResult.rows[0]?.trusted_months ?? 0);
@@ -134,6 +268,7 @@ export class DashboardService {
     return {
       total_score: trustScore.total_score,
       trust_level: trustScore.trust_level,
+      monthly_progress: monthlyProgress,
       seniority_band: seniorityBand,
       work_experience_score: workExperienceScore,
       work_experience_summary: {

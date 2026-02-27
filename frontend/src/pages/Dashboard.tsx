@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Clock, Target, Award, Layers } from 'lucide-react';
 
@@ -63,12 +63,8 @@ export default function Dashboard() {
   );
   const [isAssigning, setIsAssigning] = useState(false);
 
-  useEffect(() => {
+  const loadDashboardData = useCallback(async () => {
     if (!user) return;
-    loadDashboardData();
-  }, [user]);
-
-  const loadDashboardData = async () => {
     setIsLoading(true);
     try {
       const [dashboard, submissions] = await Promise.all([
@@ -82,7 +78,33 @@ export default function Dashboard() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    void loadDashboardData();
+  }, [loadDashboardData]);
+
+  useEffect(() => {
+    if (!user) return undefined;
+
+    const handleFocus = () => {
+      void loadDashboardData();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void loadDashboardData();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loadDashboardData, user]);
 
   const handleStartMatchedChallenge = async () => {
     setIsAssigning(true);
@@ -174,6 +196,7 @@ export default function Dashboard() {
   const trustScorePercentage = Math.min(Math.round(totalScore), 100);
 
   const monthlyProgress = dashboardData?.monthly_progress ?? 0;
+  const monthlyProgressLabel = `${monthlyProgress > 0 ? '+' : ''}${monthlyProgress} pts`;
   const seniorityBand = dashboardData?.seniority_band ?? 'graduate';
   const workExperienceScore = dashboardData?.work_experience_score ?? 0;
   const trustedMonths = dashboardData?.work_experience_summary?.trusted_months ?? user.workExperienceMonths;
@@ -256,7 +279,7 @@ export default function Dashboard() {
 
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Monthly Progress</span>
-                <span className="font-medium">+{monthlyProgress} pts</span>
+                <span className="font-medium">{monthlyProgressLabel}</span>
               </div>
 
               <div className="flex items-center justify-between text-sm">
