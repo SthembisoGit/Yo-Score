@@ -86,6 +86,18 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
+const isSnapshotProcessingRetryable = (message: string): boolean => {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('snapshot processing') ||
+    normalized.includes('still in progress') ||
+    normalized.includes('submission_retryable')
+  );
+};
+
+const MAX_AUTO_SUBMIT_RETRIES = 20;
+const AUTO_SUBMIT_RETRY_MS = 1500;
+
 const sanitizeDurationSeconds = (rawSeconds: number | undefined, fallbackMinutes: number): number => {
   const fallbackSeconds = Math.max(300, Math.round(fallbackMinutes * 60));
   if (!Number.isFinite(rawSeconds) || (rawSeconds ?? 0) <= 0) {
@@ -132,6 +144,10 @@ export const ChallengeSession = ({
   const [hintError, setHintError] = useState<string | null>(null);
 
   const expiryHandledRef = useRef(false);
+  const tenMinuteWarningShownRef = useRef(false);
+  const fiveMinuteWarningShownRef = useRef(false);
+  const autoSubmitRetryCountRef = useRef(0);
+  const autoSubmitRetryTimerRef = useRef<number | null>(null);
 
   const draftKey = useMemo(() => {
     if (!sessionId) return null;
@@ -272,8 +288,15 @@ export const ChallengeSession = ({
   }, [draftKey]);
 
   const handleSubmit = useCallback(
-    async (auto = false) => {
+    async (auto = false, forceTimeoutSubmit = false) => {
       if (isSubmitting || isSessionEnded) return;
+      const isTimeoutAutoSubmit =
+        forceTimeoutSubmit || (auto && (timeExpired || remainingSeconds <= 0));
+
+      if (autoSubmitRetryTimerRef.current !== null) {
+        window.clearTimeout(autoSubmitRetryTimerRef.current);
+        autoSubmitRetryTimerRef.current = null;
+      }
 
       if (!isOnline) {
         setSubmissionError('You are offline. Submission will continue when connection is restored.');
@@ -281,7 +304,7 @@ export const ChallengeSession = ({
         return;
       }
 
-      if (isSessionPaused) {
+      if (isSessionPaused && !isTimeoutAutoSubmit) {
         setSubmissionError(
           'Session is paused. Re-enable camera, microphone, and audio to continue.',
         );
@@ -307,6 +330,9 @@ export const ChallengeSession = ({
           code,
           mapToSubmissionLanguage(selectedLanguage),
           sessionId || undefined,
+          {
+            timeoutSubmit: isTimeoutAutoSubmit,
+          },
         );
 
         if (sessionId && proctoringReady) {
@@ -320,6 +346,11 @@ export const ChallengeSession = ({
         clearDraft();
         setIsSessionEnded(true);
         setPendingReconnectSubmit(false);
+        autoSubmitRetryCountRef.current = 0;
+        if (autoSubmitRetryTimerRef.current !== null) {
+          window.clearTimeout(autoSubmitRetryTimerRef.current);
+          autoSubmitRetryTimerRef.current = null;
+        }
         toast.success('Challenge submitted successfully.');
 
         setTimeout(() => {
@@ -327,6 +358,24 @@ export const ChallengeSession = ({
         }, 1200);
       } catch (err: unknown) {
         const errorMessage = getErrorMessage(err, 'Failed to submit challenge.');
+        if (auto && isSnapshotProcessingRetryable(errorMessage)) {
+          if (autoSubmitRetryCountRef.current < MAX_AUTO_SUBMIT_RETRIES) {
+            autoSubmitRetryCountRef.current += 1;
+            setSubmissionError(
+              `Finishing proctoring checks before submission (${autoSubmitRetryCountRef.current}/${MAX_AUTO_SUBMIT_RETRIES})...`,
+            );
+            setPendingReconnectSubmit(false);
+            autoSubmitRetryTimerRef.current = window.setTimeout(() => {
+              setPendingReconnectSubmit(true);
+            }, AUTO_SUBMIT_RETRY_MS);
+            return;
+          }
+          setSubmissionError(
+            'Automatic submission is taking longer due to proctoring checks. Please click Submit once to retry.',
+          );
+          toast.error('Submission delayed by proctoring checks. Please retry.');
+          return;
+        }
         setSubmissionError(errorMessage);
         toast.error(errorMessage);
       } finally {
@@ -345,6 +394,8 @@ export const ChallengeSession = ({
       proctoringReady,
       selectedLanguage,
       sessionId,
+      timeExpired,
+      remainingSeconds,
     ],
   );
 
@@ -440,6 +491,26 @@ export const ChallengeSession = ({
   }, [challengeDurationSeconds, deadlineAt]);
 
   useEffect(() => {
+    expiryHandledRef.current = false;
+    tenMinuteWarningShownRef.current = false;
+    fiveMinuteWarningShownRef.current = false;
+    autoSubmitRetryCountRef.current = 0;
+    if (autoSubmitRetryTimerRef.current !== null) {
+      window.clearTimeout(autoSubmitRetryTimerRef.current);
+      autoSubmitRetryTimerRef.current = null;
+    }
+  }, [deadlineAt, sessionId]);
+
+  useEffect(() => {
+    return () => {
+      if (autoSubmitRetryTimerRef.current !== null) {
+        window.clearTimeout(autoSubmitRetryTimerRef.current);
+        autoSubmitRetryTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!deadlineAt || isSessionEnded) return;
 
     const updateRemaining = () => {
@@ -448,6 +519,20 @@ export const ChallengeSession = ({
       const fromDeadline = Math.max(0, Math.floor((endMs - now) / 1000));
       const nextRemaining = Math.min(fromDeadline, challengeDurationSeconds);
       setRemainingSeconds(nextRemaining);
+
+      if (!tenMinuteWarningShownRef.current && nextRemaining <= 600 && nextRemaining > 300) {
+        tenMinuteWarningShownRef.current = true;
+        toast('10 minutes remaining. Wrap up and prepare to submit.', {
+          duration: 5000,
+        });
+      }
+
+      if (!fiveMinuteWarningShownRef.current && nextRemaining <= 300 && nextRemaining > 0) {
+        fiveMinuteWarningShownRef.current = true;
+        toast('5 minutes remaining. Finalize and submit soon.', {
+          duration: 6000,
+        });
+      }
 
       if (nextRemaining <= 0 && !expiryHandledRef.current) {
         expiryHandledRef.current = true;
@@ -458,7 +543,7 @@ export const ChallengeSession = ({
             'Time is up while offline. Editor is locked and auto-submit will run when connection returns.',
           );
         } else {
-          void handleSubmit(true);
+          void handleSubmit(true, true);
         }
       }
     };
@@ -486,9 +571,28 @@ export const ChallengeSession = ({
     toast.error('Copy and paste are disabled during challenge solving.');
   }, [lastClipboardWarningAt]);
 
+  const handleRunCode = useCallback(
+    async ({
+      language,
+      code: sourceCode,
+      stdin,
+    }: {
+      language: SupportedLanguageCode;
+      code: string;
+      stdin: string;
+    }): Promise<RunCodeResponse> =>
+      challengeService.runCode({
+        language,
+        code: sourceCode,
+        stdin,
+        challenge_id: challengeId,
+      }),
+    [challengeId],
+  );
+
   return (
     <div className="flex flex-col gap-4 min-h-[680px]">
-      <section className="sticky top-20 z-20 rounded-xl border border-border bg-card/95 backdrop-blur-sm p-3 shadow-sm">
+      <section className="rounded-xl border border-border bg-card p-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-2 justify-between">
           <div className="flex items-center gap-2 text-sm">
             {isOnline ? (
@@ -541,14 +645,7 @@ export const ChallengeSession = ({
               language={mapToSubmissionLanguage(selectedLanguage)}
               value={code}
               onChange={setCode}
-              onRun={async ({ language, code: sourceCode, stdin }): Promise<RunCodeResponse> =>
-                challengeService.runCode({
-                  language,
-                  code: sourceCode,
-                  stdin,
-                  challenge_id: challengeId,
-                })
-              }
+              onRun={handleRunCode}
               className="h-full"
               readOnly={readOnlyEditor}
               disableClipboardActions

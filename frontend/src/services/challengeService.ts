@@ -99,10 +99,12 @@ class ChallengeService {
     challengeId: string,
     code: string,
     language: SupportedLanguageCode,
-    sessionId?: string
+    sessionId?: string,
+    options?: { timeoutSubmit?: boolean },
   ): Promise<ChallengeSubmission> {
     const payload: Record<string, unknown> = { challenge_id: challengeId, code, language };
     if (sessionId) payload.session_id = sessionId;
+    if (options?.timeoutSubmit === true) payload.timeout_submit = true;
     const response = await apiClient.post('/submissions', payload);
     const submission = unwrapData<ChallengeSubmission>(response);
 
