@@ -56,9 +56,6 @@ export const ProctoringModal = ({
   onConfirm,
   isLoading = false,
 }: ProctoringModalProps) => {
-  const [isDragging, setIsDragging] = useState(false);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [checkingDevice, setCheckingDevice] = useState<DeviceKey | 'all' | null>(null);
   const [deviceError, setDeviceError] = useState<string | null>(null);
   const [deviceReadiness, setDeviceReadiness] =
@@ -153,10 +150,6 @@ export const ProctoringModal = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    setPosition({
-      x: (window.innerWidth - 448) / 2,
-      y: (window.innerHeight - 580) / 2,
-    });
     setDeviceReadiness(defaultDeviceReadiness);
     setDeviceError(null);
     setPrivacyChecked(false);
@@ -181,40 +174,6 @@ export const ProctoringModal = ({
       cancelled = true;
     };
   }, [isOpen, checkAudioSupport]);
-
-  const handleDragStart = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('button')) return;
-    setIsDragging(true);
-    setDragStart({
-      x: e.clientX - position.x,
-      y: e.clientY - position.y,
-    });
-  };
-
-  const handleDrag = useCallback(
-    (e: MouseEvent) => {
-      if (!isDragging) return;
-      setPosition({
-        x: Math.max(0, Math.min(e.clientX - dragStart.x, window.innerWidth - 448)),
-        y: Math.max(0, Math.min(e.clientY - dragStart.y, window.innerHeight - 580)),
-      });
-    },
-    [isDragging, dragStart],
-  );
-
-  const handleDragEnd = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  useEffect(() => {
-    if (!isDragging) return;
-    document.addEventListener('mousemove', handleDrag);
-    document.addEventListener('mouseup', handleDragEnd);
-    return () => {
-      document.removeEventListener('mousemove', handleDrag);
-      document.removeEventListener('mouseup', handleDragEnd);
-    };
-  }, [isDragging, handleDrag, handleDragEnd]);
 
   if (!isOpen) return null;
 
@@ -242,16 +201,10 @@ export const ProctoringModal = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-3 sm:p-4">
       <div
-        className="bg-card rounded-lg shadow-xl max-w-md w-full p-6 cursor-move select-none max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden"
-        style={{
-          position: 'absolute',
-          left: `${position.x}px`,
-          top: `${position.y}px`,
-          cursor: isDragging ? 'grabbing' : 'default',
-        }}
-        onMouseDown={handleDragStart}
+        className="mt-3 flex max-h-[88dvh] w-[min(92vw,820px)] flex-col overflow-hidden rounded-lg border border-border bg-card p-5 shadow-xl sm:mt-6 sm:p-6"
+        data-testid="proctoring-modal-container"
       >
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -265,7 +218,7 @@ export const ProctoringModal = ({
           </div>
         </div>
 
-        <div className="space-y-4 mb-4 flex-1 overflow-y-auto pr-1">
+        <div className="mb-4 flex-1 space-y-4 overflow-y-auto pr-1" data-testid="proctoring-modal-scroll-body">
           <div className="p-3 bg-muted rounded-lg">
             <p className="text-sm">
               Use the buttons below to turn on each required device.
