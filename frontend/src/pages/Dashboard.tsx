@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Clock, Target, Award, Layers } from 'lucide-react';
 
@@ -106,6 +106,53 @@ export default function Dashboard() {
     }
   };
 
+  const completedChallengesCount =
+    dashboardData?.challenge_progress?.filter(
+      (c) => c.status === 'completed' || c.status === 'graded'
+    ).length ?? 0;
+
+  const challengesById = useMemo(() => {
+    const map = new Map<string, ChallengeModel>();
+    for (const challenge of challenges) {
+      map.set(challenge.id, challenge);
+    }
+    return map;
+  }, [challenges]);
+
+  const recentChallenges = useMemo(
+    () =>
+      recentSubmissions
+        .slice(0, 3)
+        .map((submission): ChallengeModel | null => {
+          const match = challengesById.get(submission.challenge_id);
+          if (!match) return null;
+          const status: ChallengeStatus =
+            submission.status === 'graded'
+              ? 'completed'
+              : submission.status === 'pending'
+                ? 'in_progress'
+                : 'not_started';
+          return {
+            ...match,
+            status,
+            completed: status === 'completed',
+            score: submission.score ?? match.score,
+          };
+        })
+        .filter((challenge): challenge is NonNullable<typeof challenge> => Boolean(challenge)),
+    [challengesById, recentSubmissions],
+  );
+
+  const pendingChallenges = useMemo(
+    () => challenges.filter((c) => c.status !== 'completed').slice(0, 2),
+    [challenges],
+  );
+
+  const categoryScores = useMemo(
+    () => buildCategoryScoresFromSubmissions(recentSubmissions, challenges),
+    [challenges, recentSubmissions],
+  );
+
   if (!user) {
     return (
       <div className="min-h-screen bg-background">
@@ -122,35 +169,6 @@ export default function Dashboard() {
     );
   }
 
-  const completedChallengesCount =
-    dashboardData?.challenge_progress?.filter(
-      (c) => c.status === 'completed' || c.status === 'graded'
-    ).length ?? 0;
-
-  const recentChallenges = recentSubmissions
-    .slice(0, 3)
-    .map((submission): ChallengeModel | null => {
-      const match = challenges.find((challenge) => challenge.id === submission.challenge_id);
-      if (!match) return null;
-      const status: ChallengeStatus =
-        submission.status === 'graded'
-          ? 'completed'
-          : submission.status === 'pending'
-            ? 'in_progress'
-            : 'not_started';
-      return {
-        ...match,
-        status,
-        completed: status === 'completed',
-        score: submission.score ?? match.score,
-      };
-    })
-    .filter((challenge): challenge is NonNullable<typeof challenge> => Boolean(challenge));
-
-  const pendingChallenges = challenges
-    .filter((c) => c.status !== 'completed')
-    .slice(0, 2);
-
   const totalScore = dashboardData?.total_score ?? user.totalScore ?? 0;
   const trustLevel = dashboardData?.trust_level ?? user.trustLevel;
   const trustScorePercentage = Math.min(Math.round(totalScore), 100);
@@ -159,7 +177,6 @@ export default function Dashboard() {
   const seniorityBand = dashboardData?.seniority_band ?? 'graduate';
   const workExperienceScore = dashboardData?.work_experience_score ?? 0;
   const trustedMonths = dashboardData?.work_experience_summary?.trusted_months ?? user.workExperienceMonths;
-  const categoryScores = buildCategoryScoresFromSubmissions(recentSubmissions, challenges);
 
   return (
     <div className="min-h-screen bg-muted">

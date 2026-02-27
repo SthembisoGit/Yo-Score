@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { Loader2, Play, RotateCcw, Save, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -127,7 +127,7 @@ const MIN_EDITOR_HEIGHT = 360;
 const MAX_EDITOR_HEIGHT = 980;
 const EDITOR_HEIGHT_STORAGE_KEY = 'yoscore:editor-height';
 
-export function CodeEditor({
+function CodeEditorComponent({
   value,
   language = 'javascript',
   onChange,
@@ -465,3 +465,7 @@ export function CodeEditor({
     </div>
   );
 }
+
+CodeEditorComponent.displayName = 'CodeEditor';
+
+export const CodeEditor = memo(CodeEditorComponent);
