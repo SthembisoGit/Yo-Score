@@ -16,6 +16,17 @@ export interface ProctoringSessionStartResponse {
   privacy_notice?: {
     policy_version: string;
     retention_days: number;
+    capture_scope?: string[];
+    snapshot_handling?: {
+      capture_triggers: string[];
+      processing_mode: 'metadata' | 'ml';
+      stored_after_processing: boolean;
+      deleted_after_processing: boolean;
+    };
+    submission_hold_policy?: {
+      wait_for_snapshot_processing: boolean;
+      max_wait_seconds: number;
+    };
   };
 }
 
@@ -25,6 +36,16 @@ export interface ProctoringPrivacyNotice {
   policy_url: string | null;
   retention_days: number;
   capture_scope: string[];
+  snapshot_handling: {
+    capture_triggers: string[];
+    processing_mode: 'metadata' | 'ml';
+    stored_after_processing: boolean;
+    deleted_after_processing: boolean;
+  };
+  submission_hold_policy: {
+    wait_for_snapshot_processing: boolean;
+    max_wait_seconds: number;
+  };
 }
 
 export interface ProctoringConsentPayload {

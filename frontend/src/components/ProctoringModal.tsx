@@ -38,6 +38,16 @@ const fallbackPrivacyNotice: ProctoringPrivacyNotice = {
     'proctoring_events',
     'limited_snapshots_on_triggers',
   ],
+  snapshot_handling: {
+    capture_triggers: ['high_risk_events', 'random_sampling'],
+    processing_mode: 'metadata',
+    stored_after_processing: false,
+    deleted_after_processing: true,
+  },
+  submission_hold_policy: {
+    wait_for_snapshot_processing: true,
+    max_wait_seconds: 30,
+  },
 };
 
 export const ProctoringModal = ({
@@ -234,7 +244,7 @@ export const ProctoringModal = ({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div
-        className="bg-card rounded-lg shadow-xl max-w-md w-full p-6 cursor-move select-none"
+        className="bg-card rounded-lg shadow-xl max-w-md w-full p-6 cursor-move select-none max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden"
         style={{
           position: 'absolute',
           left: `${position.x}px`,
@@ -255,7 +265,7 @@ export const ProctoringModal = ({
           </div>
         </div>
 
-        <div className="space-y-4 mb-6">
+        <div className="space-y-4 mb-4 flex-1 overflow-y-auto pr-1">
           <div className="p-3 bg-muted rounded-lg">
             <p className="text-sm">
               Use the buttons below to turn on each required device.
@@ -342,8 +352,35 @@ export const ProctoringModal = ({
           <div className="p-3 bg-muted rounded-lg border border-border space-y-2">
             <p className="text-sm font-medium">Privacy notice</p>
             <p className="text-xs text-muted-foreground">
-              Proctoring captures device state, event logs, and limited snapshots when risk triggers occur.
-              Evidence is retained for {privacyNotice.retention_days} days.
+              Proctoring captures camera/microphone device state, risk events, and limited snapshots
+              only when risk triggers or random checks occur.
+            </p>
+            <div className="rounded-md border border-border bg-background p-2 space-y-1">
+              <p className="text-xs font-medium">How pictures are handled</p>
+              <p className="text-xs text-muted-foreground">
+                Snapshot images are processed for integrity checks and removed after processing. The
+                system keeps metadata (trigger reason, hash, timestamps) for audit trails.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Stored after processing:{' '}
+                <span className="font-medium">
+                  {privacyNotice.snapshot_handling.stored_after_processing ? 'Yes' : 'No'}
+                </span>{' '}
+                | Deleted after processing:{' '}
+                <span className="font-medium">
+                  {privacyNotice.snapshot_handling.deleted_after_processing ? 'Yes' : 'No'}
+                </span>
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Non-image evidence metadata is retained for {privacyNotice.retention_days} day(s).
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Final submission may wait up to{' '}
+              <span className="font-medium">
+                {privacyNotice.submission_hold_policy.max_wait_seconds}s
+              </span>{' '}
+              for in-flight snapshot processing.
             </p>
             <p className="text-xs text-muted-foreground">
               Policy version: <span className="font-medium">{privacyNotice.policy_version}</span>
@@ -374,7 +411,8 @@ export const ProctoringModal = ({
                 disabled={isBusy}
               />
               <span>
-                I understand and consent to proctoring capture and retention for assessment integrity.
+                I understand and consent to proctoring capture, processing, and metadata retention for
+                assessment integrity.
               </span>
             </label>
             {privacyError ? (

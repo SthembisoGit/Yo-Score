@@ -30,7 +30,7 @@ type ChallengeViewMode = 'grid' | 'list';
 
 export default function Challenges() {
   const { challenges, isLoading, error, fetchChallenges, getAssignedChallenge } = useChallenges();
-  const { availableCategories } = useAuth();
+  const { availableCategories, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   
@@ -125,6 +125,19 @@ export default function Challenges() {
   }, [search, selectedCategory, selectedDifficulty]);
 
   const startMatchedChallenge = useCallback(async () => {
+    if (isAuthLoading) return;
+    if (!isAuthenticated) {
+      toast.error('Please log in before starting a matched challenge.');
+      navigate('/login', {
+        state: {
+          from: '/challenges',
+          intent: 'start-matched-challenge',
+          assignmentCategory,
+        },
+      });
+      return;
+    }
+
     setIsAssigning(true);
     try {
       const assigned = await getAssignedChallenge(assignmentCategory);
@@ -148,7 +161,13 @@ export default function Challenges() {
     } finally {
       setIsAssigning(false);
     }
-  }, [assignmentCategory, getAssignedChallenge, navigate]);
+  }, [
+    assignmentCategory,
+    getAssignedChallenge,
+    isAuthenticated,
+    isAuthLoading,
+    navigate,
+  ]);
 
   // Handle loading state
   if (isLoading) {
