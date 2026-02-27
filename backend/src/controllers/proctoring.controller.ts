@@ -273,6 +273,7 @@ export class ProctoringController {
         ipHash: this.hashIp(req.ip),
         consentScope,
       });
+      const privacyNotice = this.proctoringService.getPrivacyNotice();
 
       return res.status(201).json({
         success: true,
@@ -283,7 +284,10 @@ export class ProctoringController {
           duration_seconds: session.durationSeconds,
           privacy_notice: {
             policy_version: this.policyVersion,
-            retention_days: this.proctoringService.getPrivacyNotice().retention_days,
+            retention_days: privacyNotice.retention_days,
+            capture_scope: privacyNotice.capture_scope,
+            snapshot_handling: privacyNotice.snapshot_handling,
+            submission_hold_policy: privacyNotice.submission_hold_policy,
           },
         },
       });

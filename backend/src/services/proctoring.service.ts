@@ -119,6 +119,7 @@ export interface ProctoringHealthSnapshot {
 const MAX_EVENTS_PER_BATCH = 200;
 const MAX_SNAPSHOT_BYTES = 400 * 1024;
 const MAX_SNAPSHOTS_PER_SESSION = 40;
+const SNAPSHOT_MAX_PROCESSING_ERROR_LEN = 240;
 
 export class ProctoringService {
   private violationWeights: Record<string, ProctoringViolation> = {
@@ -257,6 +258,12 @@ export class ProctoringService {
   private readonly requireConsent = String(config.PROCTORING_REQUIRE_CONSENT).toLowerCase() === 'true';
   private readonly privacyPolicyVersion = String(config.PROCTORING_PRIVACY_POLICY_VERSION || '2026-02-25');
   private readonly privacyPolicyUrl = config.PROCTORING_PRIVACY_POLICY_URL || '';
+  private readonly snapshotProcessingMode: 'metadata' | 'ml' =
+    config.PROCTORING_SNAPSHOT_PROCESSING_MODE === 'ml' ? 'ml' : 'metadata';
+  private readonly submissionSnapshotWaitSeconds = Math.max(
+    1,
+    Number(config.PROCTORING_SUBMISSION_WAIT_SECONDS ?? 30),
+  );
 
   constructor() {
     this.mlServiceAdapter = new MlServiceAdapter(config.ML_SERVICE_URL || 'http://localhost:5000');
@@ -286,7 +293,10 @@ export class ProctoringService {
          ADD COLUMN IF NOT EXISTS privacy_ip_hash VARCHAR(64),
          ADD COLUMN IF NOT EXISTS privacy_user_agent TEXT,
          ADD COLUMN IF NOT EXISTS privacy_consent_scope JSONB DEFAULT '[]'::jsonb,
-         ADD COLUMN IF NOT EXISTS evidence_retention_days INTEGER DEFAULT 7`,
+         ADD COLUMN IF NOT EXISTS evidence_retention_days INTEGER DEFAULT 7,
+         ADD COLUMN IF NOT EXISTS snapshot_processing_pending INTEGER DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS snapshot_processing_last_error TEXT,
+         ADD COLUMN IF NOT EXISTS snapshot_processing_updated_at TIMESTAMP`,
     );
 
     await query(
@@ -313,8 +323,8 @@ export class ProctoringService {
          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
          trigger_type VARCHAR(100) NOT NULL,
          trigger_reason VARCHAR(120),
-         image_data BYTEA NOT NULL,
-         bytes INTEGER NOT NULL,
+         image_data BYTEA,
+         bytes INTEGER NOT NULL DEFAULT 0,
          quality_score FLOAT DEFAULT 0,
          sha256_hash VARCHAR(64),
          expires_at TIMESTAMP,
@@ -397,6 +407,15 @@ export class ProctoringService {
        ON proctoring_sessions(risk_state)`,
     );
 
+    await query(
+      `ALTER TABLE proctoring_snapshots
+       ALTER COLUMN image_data DROP NOT NULL`,
+    );
+    await query(
+      `ALTER TABLE proctoring_snapshots
+       ALTER COLUMN bytes SET DEFAULT 0`,
+    );
+
     this.schemaEnsured = true;
   }
 
@@ -453,6 +472,16 @@ export class ProctoringService {
     policy_url: string | null;
     retention_days: number;
     capture_scope: string[];
+    snapshot_handling: {
+      capture_triggers: string[];
+      processing_mode: 'metadata' | 'ml';
+      stored_after_processing: boolean;
+      deleted_after_processing: boolean;
+    };
+    submission_hold_policy: {
+      wait_for_snapshot_processing: boolean;
+      max_wait_seconds: number;
+    };
   } {
     return {
       require_consent: this.requireConsent,
@@ -465,6 +494,16 @@ export class ProctoringService {
         'proctoring_events',
         'limited_snapshots_on_triggers',
       ],
+      snapshot_handling: {
+        capture_triggers: ['high_risk_events', 'random_sampling'],
+        processing_mode: this.snapshotProcessingMode,
+        stored_after_processing: false,
+        deleted_after_processing: true,
+      },
+      submission_hold_policy: {
+        wait_for_snapshot_processing: true,
+        max_wait_seconds: this.submissionSnapshotWaitSeconds,
+      },
     };
   }
 
@@ -629,6 +668,59 @@ export class ProctoringService {
     };
   }
 
+  private async markSnapshotProcessingStarted(sessionId: string): Promise<void> {
+    await query(
+      `UPDATE proctoring_sessions
+       SET snapshot_processing_pending = COALESCE(snapshot_processing_pending, 0) + 1,
+           snapshot_processing_last_error = NULL,
+           snapshot_processing_updated_at = NOW()
+       WHERE id = $1`,
+      [sessionId],
+    );
+  }
+
+  private async markSnapshotProcessingCompleted(
+    sessionId: string,
+    processingError?: string | null,
+  ): Promise<void> {
+    const normalizedError =
+      typeof processingError === 'string' && processingError.trim().length > 0
+        ? processingError.trim().slice(0, SNAPSHOT_MAX_PROCESSING_ERROR_LEN)
+        : null;
+    await query(
+      `UPDATE proctoring_sessions
+       SET snapshot_processing_pending = GREATEST(COALESCE(snapshot_processing_pending, 0) - 1, 0),
+           snapshot_processing_last_error = $2,
+           snapshot_processing_updated_at = NOW()
+       WHERE id = $1`,
+      [sessionId, normalizedError],
+    );
+  }
+
+  async getSnapshotProcessingPending(
+    sessionId: string,
+    userId: string,
+  ): Promise<{ pending: number; status: 'active' | 'paused' | 'completed'; deadline_at: string | null }> {
+    await this.ensureSessionSchemaExtensions();
+    const result = await query(
+      `SELECT status, deadline_at, COALESCE(snapshot_processing_pending, 0)::int as pending
+       FROM proctoring_sessions
+       WHERE id = $1 AND user_id = $2`,
+      [sessionId, userId],
+    );
+    if (result.rows.length === 0) {
+      throw new Error('Session not found');
+    }
+
+    return {
+      pending: Number(result.rows[0].pending ?? 0),
+      status: result.rows[0].status,
+      deadline_at: result.rows[0].deadline_at
+        ? new Date(result.rows[0].deadline_at).toISOString()
+        : null,
+    };
+  }
+
   async endSession(sessionId: string, userId: string, submissionId?: string): Promise<void> {
     await this.ensureSessionSchemaExtensions();
     const result = await query(
@@ -645,6 +737,16 @@ export class ProctoringService {
     if (result.rowCount === 0) {
       throw new Error('Session not found');
     }
+
+    await query(
+      `UPDATE proctoring_snapshots
+       SET image_data = NULL,
+           bytes = 0,
+           metadata = COALESCE(metadata, '{}'::jsonb) || '{"stored_after_processing":false,"deleted_after_processing":true}'::jsonb
+       WHERE session_id = $1
+         AND image_data IS NOT NULL`,
+      [sessionId],
+    ).catch(() => undefined);
 
     // Phase 2: async post-exam evidence review (non-blocking)
     setImmediate(() => {
@@ -999,64 +1101,107 @@ export class ProctoringService {
       throw new Error('Snapshot limit reached for this session');
     }
 
-    const normalizedTrigger = normalizeViolationType(triggerType || 'sampled_snapshot');
-    const triggerReason =
-      typeof metadata.trigger_reason === 'string'
-        ? metadata.trigger_reason.slice(0, 120)
-        : typeof metadata.reason === 'string'
-          ? metadata.reason.slice(0, 120)
-          : null;
-    const qualityScoreRaw = Number(metadata.quality_score ?? metadata.quality ?? 0);
-    const qualityScore = Number.isFinite(qualityScoreRaw)
-      ? Math.max(0, Math.min(1, qualityScoreRaw))
-      : 0;
-    const hash = createHash('sha256').update(imageBuffer).digest('hex');
-    const expiresAt = this.buildEvidenceExpiryDate();
+    await this.markSnapshotProcessingStarted(sessionId);
 
-    const result = await query(
-      `INSERT INTO proctoring_snapshots
-         (session_id, user_id, trigger_type, trigger_reason, image_data, bytes, quality_score, sha256_hash, expires_at, encrypted_key_id, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
-       RETURNING id, bytes`,
-      [
-        sessionId,
-        userId,
-        normalizedTrigger,
-        triggerReason,
-        imageBuffer,
-        imageBuffer.length,
-        qualityScore,
-        hash,
-        expiresAt.toISOString(),
-        this.encryptedKeyId,
-        JSON.stringify(metadata ?? {}),
-      ],
-    );
+    let processingError: string | null = null;
+    try {
+      const normalizedTrigger = normalizeViolationType(triggerType || 'sampled_snapshot');
+      const triggerReason =
+        typeof metadata.trigger_reason === 'string'
+          ? metadata.trigger_reason.slice(0, 120)
+          : typeof metadata.reason === 'string'
+            ? metadata.reason.slice(0, 120)
+            : null;
+      const qualityScoreRaw = Number(metadata.quality_score ?? metadata.quality ?? 0);
+      const qualityScore = Number.isFinite(qualityScoreRaw)
+        ? Math.max(0, Math.min(1, qualityScoreRaw))
+        : Math.max(0.1, Math.min(1, 1 - imageBuffer.length / MAX_SNAPSHOT_BYTES));
+      const hash = createHash('sha256').update(imageBuffer).digest('hex');
+      const expiresAt = this.buildEvidenceExpiryDate();
 
-    await query(
-      `INSERT INTO proctoring_event_logs
-         (session_id, user_id, event_type, severity, payload, confidence, duration_ms, model_version)
-       VALUES ($1, $2, 'snapshot_captured', 'low', $3::jsonb, $4, $5, $6)`,
-      [
-        sessionId,
-        userId,
-        JSON.stringify({
-          trigger_type: normalizedTrigger,
-          trigger_reason: triggerReason,
-          bytes: imageBuffer.length,
-          sha256_hash: hash,
-        }),
-        1,
-        0,
-        'backend-snapshot-v1',
-      ],
-    );
+      let mlSnapshotProcessed = false;
+      let mlSnapshotError: string | null = null;
+      if (this.snapshotProcessingMode === 'ml') {
+        try {
+          const mlResult = await this.mlServiceAdapter.analyzeFace({
+            sessionId,
+            timestamp: new Date().toISOString(),
+            imageBuffer,
+          });
+          mlSnapshotProcessed = Boolean(mlResult?.success);
+        } catch (error) {
+          mlSnapshotError =
+            error instanceof Error ? error.message.slice(0, 120) : 'snapshot_ml_processing_failed';
+          logger.warn('Snapshot ML processing failed; proceeding with metadata-only record', {
+            sessionId,
+            error: mlSnapshotError,
+          });
+        }
+      }
 
-    return {
-      snapshot_id: result.rows[0].id,
-      bytes: Number(result.rows[0].bytes),
-      expires_at: expiresAt.toISOString(),
-    };
+      const mergedMetadata = {
+        ...metadata,
+        original_bytes: imageBuffer.length,
+        stored_after_processing: false,
+        deleted_after_processing: true,
+        processing_mode: this.snapshotProcessingMode,
+        ml_snapshot_processed: mlSnapshotProcessed,
+        ml_snapshot_error: mlSnapshotError,
+      };
+
+      const result = await query(
+        `INSERT INTO proctoring_snapshots
+           (session_id, user_id, trigger_type, trigger_reason, image_data, bytes, quality_score, sha256_hash, expires_at, encrypted_key_id, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+         RETURNING id, bytes`,
+        [
+          sessionId,
+          userId,
+          normalizedTrigger,
+          triggerReason,
+          null,
+          0,
+          qualityScore,
+          hash,
+          expiresAt.toISOString(),
+          this.encryptedKeyId,
+          JSON.stringify(mergedMetadata),
+        ],
+      );
+
+      await query(
+        `INSERT INTO proctoring_event_logs
+           (session_id, user_id, event_type, severity, payload, confidence, duration_ms, model_version)
+         VALUES ($1, $2, 'snapshot_processed', 'low', $3::jsonb, $4, $5, $6)`,
+        [
+          sessionId,
+          userId,
+          JSON.stringify({
+            trigger_type: normalizedTrigger,
+            trigger_reason: triggerReason,
+            original_bytes: imageBuffer.length,
+            stored_after_processing: false,
+            deleted_after_processing: true,
+            processing_mode: this.snapshotProcessingMode,
+            sha256_hash: hash,
+          }),
+          1,
+          0,
+          'backend-snapshot-v2',
+        ],
+      );
+
+      return {
+        snapshot_id: result.rows[0].id,
+        bytes: Number(result.rows[0].bytes ?? 0),
+        expires_at: expiresAt.toISOString(),
+      };
+    } catch (error) {
+      processingError = error instanceof Error ? error.message : 'snapshot_processing_failed';
+      throw error;
+    } finally {
+      await this.markSnapshotProcessingCompleted(sessionId, processingError).catch(() => undefined);
+    }
   }
 
   private async runPostExamReview(sessionId: string): Promise<void> {

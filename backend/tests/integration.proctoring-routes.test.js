@@ -60,6 +60,12 @@ test('should_return_proctoring_privacy_notice_for_authenticated_user', async () 
   assert.equal(typeof response.body.data.policy_version, 'string');
   assert.equal(typeof response.body.data.retention_days, 'number');
   assert.ok(Array.isArray(response.body.data.capture_scope));
+  assert.equal(typeof response.body.data.snapshot_handling, 'object');
+  assert.equal(response.body.data.snapshot_handling.stored_after_processing, false);
+  assert.equal(response.body.data.snapshot_handling.deleted_after_processing, true);
+  assert.equal(typeof response.body.data.submission_hold_policy, 'object');
+  assert.equal(response.body.data.submission_hold_policy.wait_for_snapshot_processing, true);
+  assert.equal(typeof response.body.data.submission_hold_policy.max_wait_seconds, 'number');
 });
 
 test('should_require_proctoring_privacy_consent_when_starting_session', async () => {

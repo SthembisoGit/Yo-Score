@@ -15,7 +15,7 @@ export class SubmissionController {
         });
       }
 
-      const { challenge_id, code, language, session_id } = req.body;
+      const { challenge_id, code, language, session_id, timeout_submit } = req.body;
 
       if (!challenge_id || !code || !language) {
         return res.status(400).json({
@@ -28,7 +28,8 @@ export class SubmissionController {
         challenge_id,
         code,
         language,
-        session_id
+        session_id,
+        timeout_submit: timeout_submit === true || timeout_submit === 'true',
       });
 
       return res.status(201).json({
@@ -44,6 +45,14 @@ export class SubmissionController {
 
     } catch (error) {
       const message = safeErrorMessage(error, 'Failed to submit challenge');
+
+      if (message.includes('still in progress')) {
+        return res.status(409).json({
+          success: false,
+          message,
+          error: 'SUBMISSION_RETRYABLE',
+        });
+      }
       
       return res.status(400).json({
         success: false,
