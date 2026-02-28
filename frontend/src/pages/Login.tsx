@@ -172,7 +172,7 @@ export default function Login() {
         </div>
 
         <p className="text-primary-foreground/60 text-sm">
-          2024 YoScore. All rights reserved.
+          2026 YoScore. All rights reserved.
         </p>
       </div>
 
