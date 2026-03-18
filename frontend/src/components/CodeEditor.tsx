@@ -3,6 +3,7 @@ import Editor, { type OnMount } from '@monaco-editor/react';
 import { Loader2, Play, RotateCcw, Save, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { cn } from '@/lib/utils';
 import {
   CODE_TO_DISPLAY,
@@ -10,6 +11,7 @@ import {
   normalizeLanguageCode,
   type SupportedLanguageCode,
 } from '@/constants/languages';
+import type { ImperativePanelGroupHandle } from 'react-resizable-panels';
 
 interface CodeEditorProps {
   value?: string;
@@ -136,10 +138,16 @@ public class Program
 };
 
 const toDisplay = (code: SupportedLanguageCode): string => CODE_TO_DISPLAY[code];
-const DEFAULT_EDITOR_HEIGHT = 640;
-const MIN_EDITOR_HEIGHT = 360;
-const MAX_EDITOR_HEIGHT = 980;
-const EDITOR_HEIGHT_STORAGE_KEY = 'yoscore:editor-height';
+const DEFAULT_EDITOR_RATIO = 68;
+const MIN_EDITOR_RATIO = 45;
+const MAX_EDITOR_RATIO = 78;
+const MIN_EXECUTION_PANEL_HEIGHT = 180;
+const MIN_EXECUTION_PANEL_PERCENT_FALLBACK = 22;
+const MAX_EXECUTION_PANEL_PERCENT = 55;
+const EDITOR_SPLIT_RATIO_STORAGE_KEY = 'yoscore:editor-split-ratio';
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.min(max, Math.max(min, value));
 
 function CodeEditorComponent({
   value,
@@ -163,14 +171,17 @@ function CodeEditorComponent({
   const [isRunning, setIsRunning] = useState(false);
   const [output, setOutput] = useState<string>('');
   const [showExecutionMeta, setShowExecutionMeta] = useState(false);
-  const [editorHeight, setEditorHeight] = useState<number>(() => {
-    if (typeof window === 'undefined') return DEFAULT_EDITOR_HEIGHT;
-    const raw = window.localStorage.getItem(EDITOR_HEIGHT_STORAGE_KEY);
+  const [editorSplitRatio, setEditorSplitRatio] = useState<number>(() => {
+    if (typeof window === 'undefined') return DEFAULT_EDITOR_RATIO;
+    const raw = window.localStorage.getItem(EDITOR_SPLIT_RATIO_STORAGE_KEY);
     const parsed = Number(raw);
-    if (!Number.isFinite(parsed)) return DEFAULT_EDITOR_HEIGHT;
-    return Math.min(MAX_EDITOR_HEIGHT, Math.max(MIN_EDITOR_HEIGHT, parsed));
+    if (!Number.isFinite(parsed)) return DEFAULT_EDITOR_RATIO;
+    return clamp(parsed, MIN_EDITOR_RATIO, MAX_EDITOR_RATIO);
   });
+  const [containerHeight, setContainerHeight] = useState<number>(0);
   const disposersRef = useRef<Array<() => void>>([]);
+  const panelGroupRef = useRef<ImperativePanelGroupHandle | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (value !== undefined) {
@@ -203,6 +214,34 @@ function CodeEditorComponent({
   };
 
   useEffect(() => clearEditorDisposers, []);
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+
+    const updateHeight = () => {
+      const nextHeight = node.clientHeight;
+      if (nextHeight > 0) {
+        setContainerHeight(nextHeight);
+      }
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateHeight);
+      return () => {
+        window.removeEventListener('resize', updateHeight);
+      };
+    }
+
+    const observer = new ResizeObserver(() => updateHeight());
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   const blockClipboardAction = (action: 'copy' | 'cut' | 'paste' | 'drop' | 'shortcut') => {
     onClipboardBlocked?.(action);
@@ -300,12 +339,71 @@ function CodeEditorComponent({
     onSubmit?.(code);
   };
 
-  const handleEditorHeightChange = (next: number) => {
-    const clamped = Math.min(MAX_EDITOR_HEIGHT, Math.max(MIN_EDITOR_HEIGHT, next));
-    setEditorHeight(clamped);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(EDITOR_HEIGHT_STORAGE_KEY, String(clamped));
+  const minExecutionPanelPercent = useMemo(() => {
+    if (containerHeight <= 0) {
+      return MIN_EXECUTION_PANEL_PERCENT_FALLBACK;
     }
+
+    const computed = (MIN_EXECUTION_PANEL_HEIGHT / containerHeight) * 100;
+    return clamp(
+      computed,
+      MIN_EXECUTION_PANEL_PERCENT_FALLBACK,
+      MAX_EXECUTION_PANEL_PERCENT,
+    );
+  }, [containerHeight]);
+
+  const effectiveEditorMinPercent = useMemo(
+    () => Math.min(MIN_EDITOR_RATIO, 100 - minExecutionPanelPercent),
+    [minExecutionPanelPercent],
+  );
+
+  const effectiveEditorMaxPercent = useMemo(
+    () => Math.max(effectiveEditorMinPercent, Math.min(MAX_EDITOR_RATIO, 100 - minExecutionPanelPercent)),
+    [effectiveEditorMinPercent, minExecutionPanelPercent],
+  );
+
+  useEffect(() => {
+    const clampedRatio = clamp(
+      editorSplitRatio,
+      effectiveEditorMinPercent,
+      effectiveEditorMaxPercent,
+    );
+
+    if (Math.abs(clampedRatio - editorSplitRatio) >= 1) {
+      setEditorSplitRatio(clampedRatio);
+    }
+
+    syncPanelLayout(clampedRatio);
+  }, [
+    editorSplitRatio,
+    effectiveEditorMaxPercent,
+    effectiveEditorMinPercent,
+  ]);
+
+  const persistEditorSplitRatio = (next: number) => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(EDITOR_SPLIT_RATIO_STORAGE_KEY, String(next));
+    }
+  };
+
+  const syncPanelLayout = (nextRatio: number) => {
+    const layout = panelGroupRef.current?.getLayout();
+    if (!layout || layout.length !== 2) {
+      return;
+    }
+
+    panelGroupRef.current?.setLayout([nextRatio, 100 - nextRatio]);
+  };
+
+  const handleEditorSizeChange = (next: number) => {
+    const clampedRatio = clamp(
+      next,
+      effectiveEditorMinPercent,
+      effectiveEditorMaxPercent,
+    );
+    setEditorSplitRatio(clampedRatio);
+    persistEditorSplitRatio(clampedRatio);
+    syncPanelLayout(clampedRatio);
   };
 
   const handleEditorMount: OnMount = (editor, monaco) => {
@@ -360,127 +458,169 @@ function CodeEditorComponent({
   };
 
   return (
-    <div className={cn('flex flex-col bg-card border border-border rounded-lg overflow-hidden', className)}>
-      <div className="flex flex-col gap-2 border-b border-border bg-muted px-4 py-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
-            {showLanguageSelector ? (
-              <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-                <SelectTrigger className="h-8 w-36">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableLanguageCodes.map((item) => (
-                    <SelectItem key={item.code} value={item.code}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <span className="text-sm font-medium">{toDisplay(selectedLanguage)}</span>
-            )}
+    <div
+      ref={containerRef}
+      className={cn(
+        'flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card',
+        className,
+      )}
+    >
+      <ResizablePanelGroup
+        ref={panelGroupRef}
+        direction="vertical"
+        className="min-h-0 flex-1"
+        onLayout={(layout) => {
+          const nextRatio = clamp(
+            layout[0] ?? DEFAULT_EDITOR_RATIO,
+            effectiveEditorMinPercent,
+            effectiveEditorMaxPercent,
+          );
+          if (Math.abs(nextRatio - editorSplitRatio) >= 1) {
+            setEditorSplitRatio(nextRatio);
+            persistEditorSplitRatio(nextRatio);
+          }
+        }}
+      >
+        <ResizablePanel
+          defaultSize={DEFAULT_EDITOR_RATIO}
+          minSize={effectiveEditorMinPercent}
+          maxSize={effectiveEditorMaxPercent}
+          className="min-h-0"
+        >
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="flex flex-col gap-2 border-b border-border bg-muted px-4 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  {showLanguageSelector ? (
+                    <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+                      <SelectTrigger className="h-8 w-36">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableLanguageCodes.map((item) => (
+                          <SelectItem key={item.code} value={item.code}>
+                            {item.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span className="text-sm font-medium">{toDisplay(selectedLanguage)}</span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => void handleRun()} disabled={isRunning || readOnly}>
+                    {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                    Run
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={handleReset} disabled={readOnly}>
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Reset
+                  </Button>
+                  {onSubmit && (
+                    <Button size="sm" onClick={handleSubmit} disabled={readOnly}>
+                      <Save className="h-3.5 w-3.5" />
+                      Submit
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-background px-2 py-1 text-xs text-muted-foreground">
+                <span>Editor Size</span>
+                <input
+                  type="range"
+                  min={Math.round(effectiveEditorMinPercent)}
+                  max={Math.round(effectiveEditorMaxPercent)}
+                  step={1}
+                  value={Math.round(editorSplitRatio)}
+                  onChange={(event) => handleEditorSizeChange(Number(event.target.value))}
+                  disabled={readOnly}
+                  className="h-3 w-28 sm:w-40"
+                  aria-label="Editor size"
+                />
+                <span>{Math.round(editorSplitRatio)}%</span>
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 bg-editor-background">
+              <Editor
+                height="100%"
+                language={MONACO_LANGUAGE_IDS[selectedLanguage]}
+                value={code}
+                onChange={(next) => {
+                  const updated = next ?? '';
+                  setCode(updated);
+                  onChange?.(updated);
+                }}
+                onMount={handleEditorMount}
+                options={{
+                  readOnly,
+                  minimap: { enabled: false },
+                  fontSize: 13,
+                  lineHeight: 21,
+                  wordWrap: 'on',
+                  automaticLayout: true,
+                  tabSize: 2,
+                  contextmenu: !disableClipboardActions,
+                  scrollBeyondLastLine: false,
+                  fontFamily: '"Fira Code","JetBrains Mono","Cascadia Code",monospace',
+                }}
+                theme="vs-dark"
+              />
+            </div>
           </div>
+        </ResizablePanel>
 
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => void handleRun()} disabled={isRunning || readOnly}>
-              {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-              Run
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleReset} disabled={readOnly}>
-              <RotateCcw className="h-3.5 w-3.5" />
-              Reset
-            </Button>
-            {onSubmit && (
-              <Button size="sm" onClick={handleSubmit} disabled={readOnly}>
-                <Save className="h-3.5 w-3.5" />
-                Submit
-              </Button>
-            )}
+        <ResizableHandle withHandle />
+
+        <ResizablePanel
+          defaultSize={100 - DEFAULT_EDITOR_RATIO}
+          minSize={minExecutionPanelPercent}
+          className="min-h-0"
+        >
+          <div className="flex h-full min-h-0 flex-col bg-background">
+            <div className="border-b border-border bg-muted/40 p-3">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">stdin (optional)</label>
+              <textarea
+                className="min-h-[68px] w-full rounded border border-border bg-background p-2 font-mono text-xs"
+                placeholder="Type input used by your program..."
+                value={stdin}
+                onChange={(event) => setStdin(event.target.value)}
+                disabled={readOnly || isRunning}
+              />
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="flex items-center justify-between border-b border-border bg-muted/50 px-4 py-2 text-xs font-medium text-muted-foreground">
+                <span className="flex items-center gap-2">
+                  <Terminal className="h-3.5 w-3.5" />
+                  Terminal
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className={cn(
+                      'rounded px-2 py-0.5',
+                      showExecutionMeta ? 'bg-primary/15 text-primary' : 'hover:text-foreground',
+                    )}
+                    onClick={() => setShowExecutionMeta((previous) => !previous)}
+                  >
+                    Meta
+                  </button>
+                  <button type="button" className="hover:text-foreground" onClick={() => setOutput('')}>
+                    Clear
+                  </button>
+                </div>
+              </div>
+              <pre className="min-h-0 flex-1 overflow-auto bg-background p-4 font-mono text-xs whitespace-pre-wrap">
+                {output || 'Run your code to see real output.'}
+              </pre>
+            </div>
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-background px-2 py-1 text-xs text-muted-foreground">
-          <span>Editor Height</span>
-          <input
-            type="range"
-            min={MIN_EDITOR_HEIGHT}
-            max={MAX_EDITOR_HEIGHT}
-            step={10}
-            value={editorHeight}
-            onChange={(event) => handleEditorHeightChange(Number(event.target.value))}
-            disabled={readOnly}
-            className="h-3 w-28 sm:w-40"
-            aria-label="Editor height"
-          />
-          <span>{editorHeight}px</span>
-        </div>
-      </div>
-
-      <div className="bg-editor-background" style={{ height: `${editorHeight}px` }}>
-        <Editor
-          height={`${editorHeight}px`}
-          language={MONACO_LANGUAGE_IDS[selectedLanguage]}
-          value={code}
-          onChange={(next) => {
-            const updated = next ?? '';
-            setCode(updated);
-            onChange?.(updated);
-          }}
-          onMount={handleEditorMount}
-          options={{
-            readOnly,
-            minimap: { enabled: false },
-            fontSize: 13,
-            lineHeight: 21,
-            wordWrap: 'on',
-            automaticLayout: true,
-            tabSize: 2,
-            contextmenu: !disableClipboardActions,
-            scrollBeyondLastLine: false,
-            fontFamily: '"Fira Code","JetBrains Mono","Cascadia Code",monospace',
-          }}
-          theme="vs-dark"
-        />
-      </div>
-
-      <div className="border-t border-border bg-muted/40 p-3">
-        <label className="mb-1 block text-xs font-medium text-muted-foreground">stdin (optional)</label>
-        <textarea
-          className="min-h-[68px] w-full rounded border border-border bg-background p-2 font-mono text-xs"
-          placeholder="Type input used by your program..."
-          value={stdin}
-          onChange={(event) => setStdin(event.target.value)}
-          disabled={readOnly || isRunning}
-        />
-      </div>
-
-      <div className="border-t border-border bg-background">
-        <div className="flex items-center justify-between border-b border-border bg-muted/50 px-4 py-2 text-xs font-medium text-muted-foreground">
-          <span className="flex items-center gap-2">
-            <Terminal className="h-3.5 w-3.5" />
-            Terminal
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className={cn(
-                'rounded px-2 py-0.5',
-                showExecutionMeta ? 'bg-primary/15 text-primary' : 'hover:text-foreground',
-              )}
-              onClick={() => setShowExecutionMeta((previous) => !previous)}
-            >
-              Meta
-            </button>
-            <button type="button" className="hover:text-foreground" onClick={() => setOutput('')}>
-              Clear
-            </button>
-          </div>
-        </div>
-        <pre className="min-h-[140px] max-h-64 overflow-auto bg-background p-4 font-mono text-xs whitespace-pre-wrap">
-          {output || 'Run your code to see real output.'}
-        </pre>
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }
