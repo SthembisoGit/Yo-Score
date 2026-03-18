@@ -173,6 +173,18 @@ CREATE TABLE IF NOT EXISTS ai_hint_events (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS ai_chat_events (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID REFERENCES proctoring_sessions(id) ON DELETE CASCADE,
+    challenge_id UUID REFERENCES challenges(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL,
+    content TEXT NOT NULL,
+    contains_code BOOLEAN NOT NULL DEFAULT false,
+    blocked BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
 ALTER TABLE submissions
     ADD COLUMN IF NOT EXISTS session_id UUID REFERENCES proctoring_sessions(id) ON DELETE SET NULL;
 
@@ -669,3 +681,4 @@ CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_target_user_id ON admin_audit_lo
 CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at ON admin_audit_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_ai_hint_events_user_challenge ON ai_hint_events(user_id, challenge_id);
 CREATE INDEX IF NOT EXISTS idx_ai_hint_events_session ON ai_hint_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_ai_chat_events_session_role ON ai_chat_events(session_id, role, created_at);

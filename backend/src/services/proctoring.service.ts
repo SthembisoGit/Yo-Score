@@ -66,6 +66,7 @@ export interface SessionHeartbeatPayload {
   audioReady: boolean;
   isPaused?: boolean;
   windowFocused?: boolean;
+  fullscreenActive?: boolean;
   timestamp?: string;
 }
 
@@ -134,6 +135,12 @@ export class ProctoringService {
       severity: 'low',
       description: 'Window lost focus',
       penalty: 3,
+    },
+    fullscreen_exit: {
+      type: 'fullscreen_exit',
+      severity: 'high',
+      description: 'Fullscreen mode exited during the challenge',
+      penalty: 8,
     },
     camera_off: {
       type: 'camera_off',
@@ -891,9 +898,20 @@ export class ProctoringService {
       };
     }
 
-    const missingRequiredDevice =
-      payload.cameraReady === false ||
-      payload.microphoneReady === false;
+    if (payload.fullscreenActive === false) {
+      const paused = await this.pauseSession(
+        sessionId,
+        userId,
+        'Fullscreen mode exited. Restore fullscreen to continue.',
+      );
+      return {
+        status: paused.status,
+        pauseReason: paused.pauseReason,
+        heartbeatAt: new Date().toISOString(),
+      };
+    }
+
+    const missingRequiredDevice = payload.cameraReady === false || payload.microphoneReady === false;
 
     if (missingRequiredDevice) {
       const reasonParts: string[] = [];

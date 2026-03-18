@@ -143,6 +143,63 @@ export class ProctoringController {
       .slice(0, 64);
   }
 
+  private validateClientContext(input: unknown): {
+    valid: boolean;
+    message?: string;
+  } {
+    if (!input || typeof input !== 'object') {
+      return { valid: false, message: 'Desktop client context is required to start a session' };
+    }
+
+    const context = input as {
+      device_class?: string;
+      viewport?: { width?: number; height?: number };
+      fullscreen_supported?: boolean;
+      fullscreen_active?: boolean;
+      camera_supported?: boolean;
+      microphone_supported?: boolean;
+    };
+
+    const deviceClass = String(context.device_class ?? '').toLowerCase();
+    if (deviceClass !== 'desktop' && deviceClass !== 'laptop') {
+      return {
+        valid: false,
+        message: 'Challenge sessions can only start on a desktop or laptop browser',
+      };
+    }
+
+    const viewportWidth = Number(context.viewport?.width ?? 0);
+    if (!Number.isFinite(viewportWidth) || viewportWidth < 1024) {
+      return {
+        valid: false,
+        message: 'Challenge sessions require a desktop-sized viewport of at least 1024px width',
+      };
+    }
+
+    if (context.fullscreen_supported !== true) {
+      return {
+        valid: false,
+        message: 'Your browser must support fullscreen mode for proctored sessions',
+      };
+    }
+
+    if (context.fullscreen_active !== true) {
+      return {
+        valid: false,
+        message: 'You must enter fullscreen mode before the challenge session can start',
+      };
+    }
+
+    if (context.camera_supported !== true || context.microphone_supported !== true) {
+      return {
+        valid: false,
+        message: 'Camera and microphone support are required for proctored challenge sessions',
+      };
+    }
+
+    return { valid: true };
+  }
+
   async health(_req: AuthenticatedRequest, res: Response) {
     try {
       const health = await this.proctoringService.healthCheck();
@@ -188,6 +245,15 @@ export class ProctoringController {
         return res.status(400).json({
           success: false,
           message: 'Challenge ID is required',
+        });
+      }
+
+      const clientContextValidation = this.validateClientContext(req.body?.client_context);
+      if (!clientContextValidation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: clientContextValidation.message,
+          error: 'UNSUPPORTED_SESSION_CLIENT',
         });
       }
 
@@ -413,13 +479,23 @@ export class ProctoringController {
       const userId = this.requireUserId(req, res);
       if (!userId) return;
 
-      const { sessionId, cameraReady, microphoneReady, audioReady, isPaused, windowFocused, timestamp } = req.body as {
+      const {
+        sessionId,
+        cameraReady,
+        microphoneReady,
+        audioReady,
+        isPaused,
+        windowFocused,
+        fullscreenActive,
+        timestamp,
+      } = req.body as {
         sessionId?: string;
         cameraReady?: boolean;
         microphoneReady?: boolean;
         audioReady?: boolean;
         isPaused?: boolean;
         windowFocused?: boolean;
+        fullscreenActive?: boolean;
         timestamp?: string;
       };
 
@@ -441,12 +517,20 @@ export class ProctoringController {
         });
       }
 
+      if (fullscreenActive !== undefined && typeof fullscreenActive !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          message: 'fullscreenActive must be a boolean when provided',
+        });
+      }
+
       const heartbeat = await this.proctoringService.recordHeartbeat(sessionId, userId, {
         cameraReady,
         microphoneReady,
         audioReady,
         isPaused,
         windowFocused,
+        fullscreenActive,
         timestamp,
       });
 
