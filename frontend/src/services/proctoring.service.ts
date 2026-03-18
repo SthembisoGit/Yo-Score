@@ -159,7 +159,10 @@ class ProctoringService {
         client_context: clientContext,
       });
       return unwrapData<ProctoringSessionStartResponse>(response);
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message) {
+        throw new Error(error.message);
+      }
       throw new Error('Could not start proctoring session');
     }
   }
