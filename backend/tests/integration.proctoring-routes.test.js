@@ -79,13 +79,21 @@ test('should_require_proctoring_privacy_consent_when_starting_session', async ()
     .set('Authorization', `Bearer ${token}`)
     .send({
       challengeId: '11111111-1111-1111-1111-111111111111',
+      client_context: {
+        device_class: 'desktop',
+        viewport: { width: 1440, height: 900 },
+        fullscreen_supported: true,
+        fullscreen_active: true,
+        camera_supported: true,
+        microphone_supported: true,
+      },
     });
 
   assert.equal(response.status, 400);
   assert.equal(response.body.error, 'CONSENT_REQUIRED');
 });
 
-test('should_reject_stale_proctoring_privacy_policy_version', async () => {
+test('should_require_client_context_when_starting_session', async () => {
   const token = createAccessToken({
     id: '11111111-1111-1111-1111-111111111111',
     role: 'developer',
@@ -99,12 +107,72 @@ test('should_reject_stale_proctoring_privacy_policy_version', async () => {
       consent: {
         accepted: true,
         accepted_at: new Date().toISOString(),
+        policy_version: process.env.PROCTORING_PRIVACY_POLICY_VERSION,
+      },
+    });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.error, 'UNSUPPORTED_SESSION_CLIENT');
+});
+
+test('should_reject_stale_proctoring_privacy_policy_version', async () => {
+  const token = createAccessToken({
+    id: '11111111-1111-1111-1111-111111111111',
+    role: 'developer',
+  });
+
+  const response = await request(app)
+    .post('/api/proctoring/session/start')
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      challengeId: '11111111-1111-1111-1111-111111111111',
+      client_context: {
+        device_class: 'desktop',
+        viewport: { width: 1440, height: 900 },
+        fullscreen_supported: true,
+        fullscreen_active: true,
+        camera_supported: true,
+        microphone_supported: true,
+      },
+      consent: {
+        accepted: true,
+        accepted_at: new Date().toISOString(),
         policy_version: '2025-01-01',
       },
     });
 
   assert.equal(response.status, 409);
   assert.equal(response.body.error, 'CONSENT_VERSION_MISMATCH');
+});
+
+test('should_reject_mobile_session_start_context_before_creating_proctoring_session', async () => {
+  const token = createAccessToken({
+    id: '11111111-1111-1111-1111-111111111111',
+    role: 'developer',
+  });
+
+  const response = await request(app)
+    .post('/api/proctoring/session/start')
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      challengeId: '11111111-1111-1111-1111-111111111111',
+      client_context: {
+        device_class: 'mobile',
+        viewport: { width: 390, height: 844 },
+        fullscreen_supported: false,
+        fullscreen_active: false,
+        camera_supported: true,
+        microphone_supported: true,
+      },
+      consent: {
+        accepted: true,
+        accepted_at: new Date().toISOString(),
+        policy_version: process.env.PROCTORING_PRIVACY_POLICY_VERSION,
+      },
+    });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.error, 'UNSUPPORTED_SESSION_CLIENT');
 });
 
 test('should_return_400_when_session_id_param_is_not_uuid', async () => {

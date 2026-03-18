@@ -12,6 +12,7 @@ const RAW_VIOLATION_PENALTIES: Record<string, number> = {
   tab_switch: 4,
   screen_switch: 4,
   window_blur: 2,
+  fullscreen_exit: 6,
   inactivity: 2,
   multiple_faces: 10,
   no_face: 6,

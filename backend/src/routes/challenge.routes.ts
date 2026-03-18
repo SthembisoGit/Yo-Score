@@ -16,6 +16,11 @@ router.post(
   authenticate,
   challengeController.getCoachHint.bind(challengeController),
 );
+router.post(
+  '/:challenge_id/coach-chat',
+  authenticate,
+  challengeController.postCoachChat.bind(challengeController),
+);
 router.get('/:challenge_id', challengeController.getChallengeDetails.bind(challengeController));
 
 // Reference docs routes
