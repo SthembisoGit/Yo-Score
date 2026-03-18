@@ -52,15 +52,15 @@ export const ChallengeOverview = ({
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                    Browser tab monitoring enabled
+                    Desktop or laptop browser required
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                    Reference documentation provided
+                    Fullscreen stays required for the whole session
                   </li>
                   <li className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                    Screen recording for quality assurance
+                    Reference docs and AI coach stay inside the workbench
                   </li>
                 </ul>
               </div>

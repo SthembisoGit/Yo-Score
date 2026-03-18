@@ -72,6 +72,23 @@ export interface CoachHintResponse {
   };
 }
 
+export interface CoachChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface CoachChatResponse {
+  assistant_message: string;
+  remaining_messages: number;
+  policy: {
+    max_messages: number;
+    full_solution_blocked: boolean;
+    snippet_limited: boolean;
+    mode: 'guided_chat';
+  };
+  snippet: string | null;
+}
+
 export interface ChallengeWithStats extends Challenge {
   total_submissions: number;
   average_score: number;
@@ -137,6 +154,32 @@ class ChallengeService {
       hint_index: input.hintIndex,
     });
     return unwrapData<CoachHintResponse>(response);
+  }
+
+  async getCoachChat(input: {
+    challengeId: string;
+    sessionId: string;
+    language: SupportedLanguageCode;
+    code: string;
+    messages: CoachChatMessage[];
+    runContext?: {
+      stdout?: string;
+      stderr?: string;
+      exit_code?: number;
+      timed_out?: boolean;
+      runtime_ms?: number;
+      memory_kb?: number;
+      provider?: string;
+    };
+  }): Promise<CoachChatResponse> {
+    const response = await apiClient.post(`/challenges/${input.challengeId}/coach-chat`, {
+      session_id: input.sessionId,
+      language: input.language,
+      code: input.code,
+      messages: input.messages,
+      run_context: input.runContext,
+    });
+    return unwrapData<CoachChatResponse>(response);
   }
 
   async runCode(input: RunCodeRequest): Promise<RunCodeResponse> {

@@ -31,6 +31,20 @@ interface CodeEditorProps {
     provider: 'local' | 'onecompiler';
     error_class?: 'compile' | 'runtime' | 'timeout' | 'infrastructure';
   }>;
+  onRunResult?: (
+    result: {
+      stdout: string;
+      stderr: string;
+      exit_code: number;
+      timed_out: boolean;
+      runtime_ms: number;
+      memory_kb: number;
+      truncated: boolean;
+      provider: 'local' | 'onecompiler';
+      error_class?: 'compile' | 'runtime' | 'timeout' | 'infrastructure';
+    } | null,
+    renderedOutput: string,
+  ) => void;
   className?: string;
   readOnly?: boolean;
   showLanguageSelector?: boolean;
@@ -133,6 +147,7 @@ function CodeEditorComponent({
   onChange,
   onSubmit,
   onRun,
+  onRunResult,
   className,
   readOnly = false,
   showLanguageSelector = false,
@@ -260,9 +275,13 @@ function CodeEditorComponent({
         sections.push(`[meta] ${meta.join(' ')}`);
       }
 
-      setOutput(sections.join('\n\n'));
+      const renderedOutput = sections.join('\n\n');
+      setOutput(renderedOutput);
+      onRunResult?.(result, renderedOutput);
     } catch (error) {
-      setOutput(error instanceof Error ? error.message : 'Code execution failed.');
+      const renderedOutput = error instanceof Error ? error.message : 'Code execution failed.';
+      setOutput(renderedOutput);
+      onRunResult?.(null, renderedOutput);
     } finally {
       setIsRunning(false);
     }

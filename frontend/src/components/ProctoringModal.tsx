@@ -213,7 +213,7 @@ export const ProctoringModal = ({
           <div className="flex-1">
             <h3 className="font-semibold text-lg">Proctoring Required</h3>
             <p className="text-sm text-muted-foreground">
-              Enable camera, microphone, and audio before starting
+              Enable camera, microphone, and audio before starting. Fullscreen begins when the session starts.
             </p>
           </div>
         </div>

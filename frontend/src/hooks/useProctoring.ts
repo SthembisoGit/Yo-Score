@@ -5,6 +5,7 @@ import {
   type ProctoringConsentPayload,
 } from '@/services/proctoring.service';
 import { toast } from 'react-hot-toast';
+import type { SessionClientContext } from '@/lib/sessionEnvironment';
 
 interface ProctoringSettings {
   requireCamera: boolean;
@@ -59,9 +60,10 @@ export const useProctoring = () => {
     challengeId: string,
     _userId: string,
     consent: ProctoringConsentPayload,
+    clientContext: SessionClientContext,
   ): Promise<ProctoringSessionStartMeta> => {
     try {
-      const response = await proctoringService.startSession(challengeId, consent);
+      const response = await proctoringService.startSession(challengeId, consent, clientContext);
       setCurrentSessionId(response.sessionId);
       setIsActive(true);
       setViolations([]);

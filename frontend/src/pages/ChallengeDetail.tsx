@@ -6,31 +6,16 @@ import { ProctoringModal } from '@/components/ProctoringModal';
 import { Button } from '@/components/ui/button';
 import { ChallengeOverview } from '@/components/challenge-detail/ChallengeOverview';
 import { ChallengeSession } from '@/components/challenge-detail/ChallengeSession';
+import { DesktopRequiredPanel } from '@/components/challenge-detail/DesktopRequiredPanel';
 import { useChallengeData } from '@/hooks/useChallengeData';
 import { useAuth } from '@/context/AuthContext';
 import type { ProgrammingLanguage } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
-import ProctoringMonitor from '@/components/proctoring/ProctoringMonitor';
 import { useProctoring } from '@/hooks/useProctoring';
 import { challengeService } from '@/services/challengeService';
 import { CODE_TO_DISPLAY, normalizeLanguageCode } from '@/constants/languages';
 import type { ProctoringConsentPayload } from '@/services/proctoring.service';
-
-interface ViolationEvent {
-  type: string;
-  timestamp: Date;
-  data: unknown;
-}
-
-interface PauseStatePayload {
-  isPaused: boolean;
-  reason: string;
-  missingDevices: {
-    camera: boolean;
-    microphone: boolean;
-    audio: boolean;
-  };
-}
+import { assessSessionEnvironment, getSessionClientContext } from '@/lib/sessionEnvironment';
 
 const CHALLENGE_START_HELP_KEY = 'yoscore_challenge_start_help_seen';
 
@@ -62,12 +47,12 @@ export default function ChallengeDetail() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
   const [durationSeconds, setDurationSeconds] = useState<number>(0);
-  const [violations, setViolations] = useState<ViolationEvent[]>([]);
   const [violationCount, setViolationCount] = useState(0);
   const [isStartingProctoring, setIsStartingProctoring] = useState(false);
   const [isSessionPaused, setIsSessionPaused] = useState(false);
   const [pauseReason, setPauseReason] = useState('');
   const [showStartHelp, setShowStartHelp] = useState(false);
+  const [desktopBlockReasons, setDesktopBlockReasons] = useState<string[]>([]);
   const lastChallengeIdRef = useRef<string | undefined>(id);
 
   const { startSession } = useProctoring();
@@ -133,7 +118,36 @@ export default function ChallengeDetail() {
       return;
     }
 
+    const assessment = assessSessionEnvironment();
+    if (!assessment.supported) {
+      setDesktopBlockReasons(assessment.reasons);
+      return;
+    }
+
+    setDesktopBlockReasons([]);
     setShowProctoringModal(true);
+  };
+
+  const requestFullscreenForSession = async () => {
+    const root = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+
+    if (document.fullscreenElement) {
+      return;
+    }
+
+    if (typeof root.requestFullscreen === 'function') {
+      await root.requestFullscreen();
+      return;
+    }
+
+    if (typeof root.webkitRequestFullscreen === 'function') {
+      await Promise.resolve(root.webkitRequestFullscreen());
+      return;
+    }
+
+    throw new Error('Fullscreen is not supported in this browser.');
   };
 
   const handleProctoringConfirm = async (consent: ProctoringConsentPayload) => {
@@ -142,36 +156,45 @@ export default function ChallengeDetail() {
       return;
     }
 
+    const assessment = assessSessionEnvironment();
+    if (!assessment.supported) {
+      setDesktopBlockReasons(assessment.reasons);
+      toast.error(assessment.reasons[0] ?? 'Desktop environment is required to start this challenge.');
+      return;
+    }
+
     setIsStartingProctoring(true);
-    setShowProctoringModal(false);
 
     try {
-      const sessionMeta = await startSession(id, user.id, consent);
+      await requestFullscreenForSession();
+      const clientContext = getSessionClientContext();
+      if (!clientContext.fullscreen_active) {
+        throw new Error('You must stay in fullscreen mode to start the challenge.');
+      }
+
+      const sessionMeta = await startSession(id, user.id, consent, clientContext);
       setSessionId(sessionMeta.sessionId);
       setDeadlineAt(sessionMeta.deadlineAt);
       setDurationSeconds(sessionMeta.durationSeconds);
       setSessionStarted(true);
+      setShowProctoringModal(false);
       toast.success('Proctoring session started. Camera and microphone are now active.');
     } catch (error) {
-      toast.error('Failed to start proctoring session');
+      const message =
+        error instanceof Error ? error.message : 'Failed to start proctoring session';
+      toast.error(message);
       console.error(error);
-      setShowProctoringModal(true); // Re-open modal so user can try again
+      if (document.fullscreenElement) {
+        void document.exitFullscreen().catch(() => undefined);
+      }
+      setShowProctoringModal(true);
     } finally {
       setIsStartingProctoring(false);
     }
   };
 
-  const handleViolationDetected = (type: string, data: unknown) => {
-    setViolations(prev => {
-      const newViolations = [...prev, { type, timestamp: new Date(), data }];
-      setViolationCount(newViolations.length);
-      return newViolations;
-    });
-  };
-
-  const handlePauseStateChange = (state: PauseStatePayload) => {
-    setIsSessionPaused(state.isPaused);
-    setPauseReason(state.reason);
+  const handleViolationDetected = (_type: string, _data: unknown) => {
+    setViolationCount((previous) => previous + 1);
   };
 
   useEffect(() => {
@@ -208,10 +231,10 @@ export default function ChallengeDetail() {
     setSessionId(null);
     setDeadlineAt(null);
     setDurationSeconds(0);
-    setViolations([]);
     setViolationCount(0);
     setIsSessionPaused(false);
     setPauseReason('');
+    setDesktopBlockReasons([]);
     lastChallengeIdRef.current = id;
   }, [id, sessionId, sessionStarted]);
 
@@ -277,27 +300,44 @@ export default function ChallengeDetail() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Navbar />
+      {!sessionStarted && <Navbar />}
 
-      {/* Breadcrumb */}
-      <div className="bg-card border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex items-center gap-2 text-sm">
-            <Link 
-              to="/challenges" 
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Challenges
-            </Link>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium truncate">{challenge.title}</span>
+      {!sessionStarted && (
+        <div className="bg-card border-b border-border">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+            <div className="flex items-center gap-2 text-sm">
+              <Link 
+                to="/challenges" 
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Challenges
+              </Link>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <span className="font-medium truncate">{challenge.title}</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
+      <main
+        className={
+          sessionStarted
+            ? 'fixed inset-0 z-40 h-screen overflow-hidden bg-background'
+            : 'flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6'
+        }
+      >
         {!sessionStarted ? (
           <>
+            {desktopBlockReasons.length > 0 ? (
+              <DesktopRequiredPanel
+                reasons={desktopBlockReasons}
+                onBack={() => {
+                  setDesktopBlockReasons([]);
+                  navigate('/challenges');
+                }}
+              />
+            ) : (
+              <>
             {showStartHelp && (
               <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/20 p-4 flex items-start justify-between gap-3">
                 <div className="flex gap-2 text-sm">
@@ -323,20 +363,10 @@ export default function ChallengeDetail() {
                 canStartAssignedFlow ? 'Start Challenge Session' : 'Start From Matched Assignment'
               }
             />
+              </>
+            )}
           </>
         ) : (
-          <>
-            {/* Proctoring Monitor */}
-            {sessionId && user && (
-              <ProctoringMonitor
-                sessionId={sessionId}
-                userId={user.id}
-                challengeId={id!}
-                onViolation={handleViolationDetected}
-                onPauseStateChange={handlePauseStateChange}
-              />
-            )}
-            
             <ChallengeSession
               challenge={challenge}
               referenceDocs={referenceDocs}
@@ -353,8 +383,8 @@ export default function ChallengeDetail() {
               durationSeconds={durationSeconds}
               docsError={docsError}
               onRetryDocs={refetchDocs}
+              userId={user?.id ?? null}
             />
-          </>
         )}
       </main>
 
