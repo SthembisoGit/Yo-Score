@@ -150,6 +150,40 @@ export default function ChallengeDetail() {
     throw new Error('Fullscreen is not supported in this browser.');
   };
 
+  const waitForFullscreenActivation = async (timeoutMs: number = 2000) => {
+    if (document.fullscreenElement) {
+      return true;
+    }
+
+    await new Promise<void>((resolve) => {
+      let settled = false;
+
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener('fullscreenchange', handleChange);
+        clearTimeout(timer);
+        resolve();
+      };
+
+      const handleChange = () => {
+        if (document.fullscreenElement) {
+          finish();
+        }
+      };
+
+      const timer = window.setTimeout(finish, timeoutMs);
+      document.addEventListener('fullscreenchange', handleChange);
+      window.setTimeout(() => {
+        if (document.fullscreenElement) {
+          finish();
+        }
+      }, 50);
+    });
+
+    return Boolean(document.fullscreenElement);
+  };
+
   const handleProctoringConfirm = async (consent: ProctoringConsentPayload) => {
     if (!id || !user?.id) {
       toast.error('Missing challenge or user information. Please ensure you are logged in.');
@@ -167,8 +201,9 @@ export default function ChallengeDetail() {
 
     try {
       await requestFullscreenForSession();
+      const fullscreenActive = await waitForFullscreenActivation();
       const clientContext = getSessionClientContext();
-      if (!clientContext.fullscreen_active) {
+      if (!fullscreenActive || !clientContext.fullscreen_active) {
         throw new Error('You must stay in fullscreen mode to start the challenge.');
       }
 

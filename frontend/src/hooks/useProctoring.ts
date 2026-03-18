@@ -75,6 +75,9 @@ export const useProctoring = () => {
       };
     } catch (error) {
       console.error('Failed to start proctoring session:', error);
+      if (error instanceof Error && error.message) {
+        throw error;
+      }
       throw new Error('Proctoring service is unavailable. Please try again.');
     }
   }, [loadSettings]);
