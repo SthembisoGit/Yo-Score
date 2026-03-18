@@ -13,6 +13,10 @@ interface Props {
   challengeId: string;
   onViolation: (type: string, data: unknown) => void;
   onPauseStateChange?: (state: PauseStatePayload) => void;
+  presentation?: 'floating' | 'embedded';
+  fullscreenRequired?: boolean;
+  fullscreenActive?: boolean;
+  onRequestFullscreen?: () => Promise<void> | void;
 }
 
 interface ViolationAlert {
@@ -70,7 +74,7 @@ const SNAPSHOT_INTERVAL_MS = 25000;
 const SNAPSHOT_SAMPLE_RATE = 0.18;
 const MODEL_VERSION = 'browser-v2-consensus';
 const EMPTY_MISSING: MissingDevices = { camera: false, microphone: false, audio: false };
-type PauseSource = 'device' | 'risk' | 'server' | 'manual';
+type PauseSource = 'device' | 'risk' | 'server' | 'manual' | 'fullscreen';
 
 const ProctoringMonitor: React.FC<Props> = ({
   sessionId,
@@ -78,6 +82,10 @@ const ProctoringMonitor: React.FC<Props> = ({
   challengeId,
   onViolation,
   onPauseStateChange,
+  presentation = 'floating',
+  fullscreenRequired = false,
+  fullscreenActive = true,
+  onRequestFullscreen,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewVideoRef = useRef<HTMLVideoElement>(null);
@@ -122,6 +130,7 @@ const ProctoringMonitor: React.FC<Props> = ({
   const audioCapabilityEventLoggedRef = useRef(false);
   const mlHealthFailureStreakRef = useRef(0);
   const mlHealthAlertShownRef = useRef(false);
+  const lastFullscreenActiveRef = useRef(Boolean(fullscreenActive));
 
   const frameIntervalRef = useRef<NodeJS.Timeout>();
   const cameraCheckIntervalRef = useRef<NodeJS.Timeout>();
@@ -153,6 +162,7 @@ const ProctoringMonitor: React.FC<Props> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [showGuidance, setShowGuidance] = useState(false);
+  const isEmbedded = presentation === 'embedded';
 
   const getSupportedRecorderOptions = useCallback((): MediaRecorderOptions | undefined => {
     if (typeof MediaRecorder === 'undefined') return undefined;
@@ -1212,6 +1222,7 @@ const ProctoringMonitor: React.FC<Props> = ({
         audioReady: audioReadyRef.current,
         isPaused: pausedRef.current,
         windowFocused: document.hasFocus() && !document.hidden,
+        fullscreenActive,
         timestamp: new Date().toISOString(),
       });
       if (status.riskState) {
@@ -1253,7 +1264,7 @@ const ProctoringMonitor: React.FC<Props> = ({
         );
       }
     }
-  }, [addAlert, applyPauseState, buildMissingDevices, commitPauseState, sessionId]);
+  }, [addAlert, applyPauseState, buildMissingDevices, commitPauseState, fullscreenActive, sessionId]);
 
   const pollRiskState = useCallback(async () => {
     try {
@@ -1403,6 +1414,53 @@ const ProctoringMonitor: React.FC<Props> = ({
   }, [addAlert]);
 
   useEffect(() => {
+    if (!fullscreenRequired) return;
+
+    const wasActive = lastFullscreenActiveRef.current;
+    const nowActive = Boolean(fullscreenActive);
+    if (wasActive === nowActive) {
+      return;
+    }
+
+    lastFullscreenActiveRef.current = nowActive;
+
+    if (!nowActive) {
+      triggerViolation(
+        'fullscreen_exit',
+        'Fullscreen mode exited during the challenge',
+        'Fullscreen mode exited. Restore fullscreen to continue.',
+        'high',
+        4000,
+      );
+      void applyPauseState({
+        paused: true,
+        reason: 'Fullscreen mode exited. Restore fullscreen to continue.',
+        missing: missingDevicesRef.current,
+        source: 'fullscreen',
+      });
+      return;
+    }
+
+    queueEvent({
+      event_type: 'fullscreen_restore',
+      severity: 'low',
+      payload: {
+        restored: true,
+      },
+    });
+
+    if (pausedRef.current) {
+      void applyPauseState({
+        paused: true,
+        reason: 'Fullscreen restored. Click "Resume session" to continue.',
+        missing: missingDevicesRef.current,
+        source: 'fullscreen',
+        syncWithBackend: false,
+      });
+    }
+  }, [applyPauseState, fullscreenActive, fullscreenRequired, queueEvent, triggerViolation]);
+
+  useEffect(() => {
     let removeEvents: (() => void) | undefined;
     const activeAlertTimeouts = alertTimeoutsRef.current;
     void startProctoring()
@@ -1550,6 +1608,7 @@ const ProctoringMonitor: React.FC<Props> = ({
   const canResume =
     !missingDevices.camera &&
     !missingDevices.microphone &&
+    (!fullscreenRequired || fullscreenActive) &&
     !requiresLiveness &&
     !isResumingSession;
 
@@ -1564,7 +1623,7 @@ const ProctoringMonitor: React.FC<Props> = ({
         className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none"
       />
 
-      {alerts.length > 0 && !isMinimized && (
+      {alerts.length > 0 && !isMinimized && !isEmbedded && (
         <div className="fixed top-4 left-4 z-[60] space-y-2 max-w-md">
           {alerts.slice(-3).map((alert) => (
             <div key={alert.id} className="bg-card border-l-4 border-amber-500 rounded-lg shadow-lg p-3">
@@ -1594,6 +1653,14 @@ const ProctoringMonitor: React.FC<Props> = ({
             </div>
             <p className="text-sm text-muted-foreground">{pauseReason || 'Required proctoring device is missing.'}</p>
             <div className="space-y-2">
+              {fullscreenRequired && !fullscreenActive && (
+                <button
+                  onClick={() => void onRequestFullscreen?.()}
+                  className="w-full rounded border border-border px-3 py-2 text-sm hover:bg-muted"
+                >
+                  Restore fullscreen
+                </button>
+              )}
               <button onClick={() => void requestRecovery('camera')} disabled={!missingDevices.camera || isRecovering !== null} className="w-full px-3 py-2 rounded border border-border text-sm hover:bg-muted disabled:opacity-60">Turn on camera</button>
               <button onClick={() => void requestRecovery('microphone')} disabled={!missingDevices.microphone || isRecovering !== null} className="w-full px-3 py-2 rounded border border-border text-sm hover:bg-muted disabled:opacity-60">Turn on microphone</button>
               <button onClick={() => void requestRecovery('audio')} disabled={!missingDevices.audio || isRecovering !== null} className="w-full px-3 py-2 rounded border border-border text-sm hover:bg-muted disabled:opacity-60">Enable audio</button>
@@ -1666,6 +1733,98 @@ const ProctoringMonitor: React.FC<Props> = ({
         </div>
       )}
 
+      {isEmbedded ? (
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-primary" />
+              <div>
+                <h3 className="text-sm font-semibold">Integrity Monitor</h3>
+                <p className="text-xs text-muted-foreground">Session {sessionId.slice(0, 8)}...</p>
+              </div>
+            </div>
+            <span className="rounded-full border border-border px-2 py-1 text-[11px] capitalize text-muted-foreground">
+              {riskState}
+            </span>
+          </div>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+            <div className="relative overflow-hidden rounded-xl border border-border bg-black">
+              <video
+                ref={previewVideoRef}
+                autoPlay
+                muted
+                playsInline
+                className="h-44 w-full object-cover"
+              />
+              <div className="absolute left-2 top-2 rounded bg-black/65 px-2 py-1 text-[11px] text-white">
+                {faceGuidance}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+              <div className="rounded-xl border border-border bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">Camera</p>
+                <p className={cameraReady ? 'font-medium text-green-600' : 'font-medium text-red-600'}>
+                  {cameraReady ? 'Active' : 'Needs attention'}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">Microphone</p>
+                <p className={micReady ? 'font-medium text-green-600' : 'font-medium text-red-600'}>
+                  {micReady ? 'Active' : 'Needs attention'}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">Audio checks</p>
+                <p className={audioReady ? 'font-medium text-green-600' : 'font-medium text-amber-600'}>
+                  {audioReady ? 'Supported' : 'Limited'}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">Fullscreen</p>
+                <p className={fullscreenActive ? 'font-medium text-green-600' : 'font-medium text-red-600'}>
+                  {fullscreenActive ? 'Locked in' : 'Exited'}
+                </p>
+              </div>
+            </div>
+
+            {mlDegraded ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-300">
+                Some ML checks are degraded. Core monitoring continues. Developer is still improving this component.
+              </div>
+            ) : null}
+
+            {alerts.length > 0 ? (
+              <div className="space-y-2">
+                {alerts.slice(-4).map((alert) => (
+                  <div key={alert.id} className="rounded-xl border border-border bg-background p-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-500" />
+                      <div>
+                        <p className="text-sm">{alert.message}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {alert.timestamp.toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                Monitoring is active. Keep camera, microphone, and fullscreen enabled for the
+                whole attempt.
+              </div>
+            )}
+
+            <div className="space-y-2 text-xs text-muted-foreground">
+              <p>- Browser-first face and device checks stay active throughout the session.</p>
+              <p>- Exiting fullscreen or switching away from the challenge is recorded.</p>
+              <p>- Resume remains manual after recovery so the session state stays stable.</p>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="fixed z-50" style={{ left: `${position.x}px`, top: `${position.y}px`, cursor: isDragging ? 'grabbing' : 'default' }}>
         {isMinimized ? (
           <button onClick={() => setIsMinimized(false)} className="bg-red-600 text-white rounded-full p-3 shadow-lg hover:bg-red-700 transition-colors flex items-center gap-2">
@@ -1728,6 +1887,7 @@ const ProctoringMonitor: React.FC<Props> = ({
           </div>
         )}
       </div>
+      )}
     </>
   );
 };

@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChallengeSession } from './ChallengeSession';
 
@@ -7,6 +7,7 @@ const {
   submitChallengeMock,
   runCodeMock,
   getCoachHintMock,
+  getCoachChatMock,
   endSessionMock,
   navigateMock,
 } = vi.hoisted(() => ({
@@ -17,6 +18,7 @@ const {
   submitChallengeMock: vi.fn(),
   runCodeMock: vi.fn(),
   getCoachHintMock: vi.fn(),
+  getCoachChatMock: vi.fn(),
   endSessionMock: vi.fn(),
   navigateMock: vi.fn(),
 }));
@@ -51,11 +53,21 @@ vi.mock('./ReferenceDocsPanel', () => ({
   ReferenceDocsPanel: () => <div data-testid="reference-docs-panel" />,
 }));
 
+vi.mock('./SessionCoachChat', () => ({
+  SessionCoachChat: () => <div data-testid="session-coach-chat" />,
+}));
+
+vi.mock('@/components/proctoring/ProctoringMonitor', () => ({
+  __esModule: true,
+  default: () => <div data-testid="proctoring-monitor" />,
+}));
+
 vi.mock('@/services/challengeService', () => ({
   challengeService: {
     submitChallenge: submitChallengeMock,
     runCode: runCodeMock,
     getCoachHint: getCoachHintMock,
+    getCoachChat: getCoachChatMock,
   },
 }));
 
@@ -93,6 +105,7 @@ describe('ChallengeSession timer warnings and timeout submit', () => {
     submitChallengeMock.mockReset();
     runCodeMock.mockReset();
     getCoachHintMock.mockReset();
+    getCoachChatMock.mockReset();
     endSessionMock.mockReset();
     navigateMock.mockReset();
   });
@@ -113,6 +126,7 @@ describe('ChallengeSession timer warnings and timeout submit', () => {
         onLanguageChange={vi.fn()}
         challengeId={baseChallenge.challenge_id}
         sessionId="22222222-2222-2222-2222-222222222222"
+        userId="99999999-9999-9999-9999-999999999999"
         deadlineAt={deadlineAt}
         durationSeconds={40 * 60}
       />,
@@ -171,6 +185,7 @@ describe('ChallengeSession timer warnings and timeout submit', () => {
         onLanguageChange={vi.fn()}
         challengeId={baseChallenge.challenge_id}
         sessionId="44444444-4444-4444-4444-444444444444"
+        userId="99999999-9999-9999-9999-999999999999"
         isSessionPaused
         pauseReason="paused for test"
         deadlineAt={deadlineAt}
@@ -193,5 +208,32 @@ describe('ChallengeSession timer warnings and timeout submit', () => {
 
     expect(submitChallengeMock).toHaveBeenCalledTimes(2);
     expect(submitChallengeMock.mock.calls[1]?.[4]).toEqual({ timeoutSubmit: true });
+  });
+
+  it('forces the integrity dock open while the session is paused', async () => {
+    render(
+      <ChallengeSession
+        challenge={baseChallenge}
+        referenceDocs={[]}
+        selectedLanguage="python"
+        availableLanguages={['python']}
+        onLanguageChange={vi.fn()}
+        challengeId={baseChallenge.challenge_id}
+        sessionId="55555555-5555-5555-5555-555555555555"
+        userId="99999999-9999-9999-9999-999999999999"
+        isSessionPaused
+        pauseReason="camera off"
+        durationSeconds={40 * 60}
+      />,
+    );
+
+    await act(async () => {
+      await flushPromises();
+    });
+
+    expect(screen.getByTestId('proctoring-monitor')).toBeInTheDocument();
+    expect(screen.queryByTestId('session-coach-chat')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'AI Chat' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Collapse session dock' })).toBeDisabled();
   });
 });

@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
-  Camera,
-  FileText,
+  ChevronLeft,
+  ChevronRight,
+  Expand,
   Loader2,
-  Mic,
-  PanelLeftClose,
-  PanelLeftOpen,
   Shield,
-  Sparkles,
   WifiOff,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -17,16 +14,23 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { CodeEditor } from '@/components/CodeEditor';
 import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '@/components/ui/resizable';
+import {
   challengeService,
   type Challenge,
   type ChallengeDocs,
-  type CoachHintResponse,
   type RunCodeResponse,
 } from '@/services/challengeService';
 import { proctoringService } from '@/services/proctoring.service';
+import { assessSessionEnvironment } from '@/lib/sessionEnvironment';
+import ProctoringMonitor from '@/components/proctoring/ProctoringMonitor';
 import { DescriptionPanel } from './DescriptionPanel';
 import { LanguageSelector } from './LanguageSelector';
 import { ReferenceDocsPanel } from './ReferenceDocsPanel';
+import { SessionCoachChat } from './SessionCoachChat';
 import { normalizeLanguageCode, type SupportedLanguageCode } from '@/constants/languages';
 
 interface ChallengeSessionProps {
@@ -39,6 +43,7 @@ interface ChallengeSessionProps {
   onLanguageChange: (language: string) => void;
   challengeId: string;
   sessionId?: string | null;
+  userId: string | null;
   onViolation?: (type: string, data: unknown) => void;
   violationCount?: number;
   isSessionPaused?: boolean;
@@ -47,7 +52,18 @@ interface ChallengeSessionProps {
   durationSeconds?: number;
 }
 
-type SessionRailTab = 'task' | 'assist' | 'integrity';
+interface PauseStatePayload {
+  isPaused: boolean;
+  reason: string;
+  missingDevices: {
+    camera: boolean;
+    microphone: boolean;
+    audio: boolean;
+  };
+}
+
+type LeftRailTab = 'task' | 'docs';
+type RightDockTab = 'assistant' | 'integrity';
 type SessionBannerState = 'info' | 'warning' | 'error' | 'success';
 
 interface SessionBanner {
@@ -57,8 +73,8 @@ interface SessionBanner {
 }
 
 const AUTO_SAVE_INTERVAL_MS = 3000;
-const DEFAULT_HINT_NOTICE =
-  'AI Coach gives concepts and short examples only. Full solutions are blocked.';
+const MAX_AUTO_SUBMIT_RETRIES = 20;
+const AUTO_SUBMIT_RETRY_MS = 1500;
 
 const isCodePlaceholder = (value: string): boolean => {
   const text = value.trim();
@@ -95,9 +111,6 @@ const isSnapshotProcessingRetryable = (message: string): boolean => {
   );
 };
 
-const MAX_AUTO_SUBMIT_RETRIES = 20;
-const AUTO_SUBMIT_RETRY_MS = 1500;
-
 const sanitizeDurationSeconds = (rawSeconds: number | undefined, fallbackMinutes: number): number => {
   const fallbackSeconds = Math.max(300, Math.round(fallbackMinutes * 60));
   if (!Number.isFinite(rawSeconds) || (rawSeconds ?? 0) <= 0) {
@@ -120,6 +133,8 @@ export const ChallengeSession = ({
   onLanguageChange,
   challengeId,
   sessionId,
+  userId,
+  onViolation,
   violationCount: propViolationCount = 0,
   isSessionPaused = false,
   pauseReason = '',
@@ -127,8 +142,10 @@ export const ChallengeSession = ({
   durationSeconds = 0,
 }: ChallengeSessionProps) => {
   const navigate = useNavigate();
-  const [activeRailTab, setActiveRailTab] = useState<SessionRailTab>('task');
-  const [isRailCollapsed, setIsRailCollapsed] = useState(false);
+  const [activeLeftTab, setActiveLeftTab] = useState<LeftRailTab>('task');
+  const [activeRightTab, setActiveRightTab] = useState<RightDockTab>('assistant');
+  const [leftRailCollapsed, setLeftRailCollapsed] = useState(false);
+  const [rightDockCollapsed, setRightDockCollapsed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [code, setCode] = useState<string>('// Write your solution here\n');
@@ -139,9 +156,12 @@ export const ChallengeSession = ({
   const [remainingSeconds, setRemainingSeconds] = useState<number>(durationSeconds || 0);
   const [timeExpired, setTimeExpired] = useState(false);
   const [pendingReconnectSubmit, setPendingReconnectSubmit] = useState(false);
-  const [coachHints, setCoachHints] = useState<CoachHintResponse[]>([]);
-  const [isLoadingHint, setIsLoadingHint] = useState(false);
-  const [hintError, setHintError] = useState<string | null>(null);
+  const [lastClipboardWarningAt, setLastClipboardWarningAt] = useState<number>(0);
+  const [lastRunResult, setLastRunResult] = useState<RunCodeResponse | null>(null);
+  const [fullscreenActive, setFullscreenActive] = useState<boolean>(() => Boolean(document.fullscreenElement));
+  const [environmentReasons, setEnvironmentReasons] = useState<string[]>([]);
+  const [sessionPaused, setSessionPaused] = useState(isSessionPaused);
+  const [sessionPauseReason, setSessionPauseReason] = useState(pauseReason);
 
   const expiryHandledRef = useRef(false);
   const tenMinuteWarningShownRef = useRef(false);
@@ -156,12 +176,84 @@ export const ChallengeSession = ({
 
   const templates: Record<SupportedLanguageCode, string> = useMemo(() => {
     const defaults: Record<SupportedLanguageCode, string> = {
-      javascript: `function solve(input) {\n  // parse input and return output\n  return input.trim();\n}\n\nconst fs = require('fs');\nconst input = fs.readFileSync(0, 'utf8');\nprocess.stdout.write(String(solve(input)));`,
-      python: `def solve(input_data):\n    # parse input and return output\n    return input_data.strip()\n\nif __name__ == "__main__":\n    import sys\n    data = sys.stdin.read()\n    print(solve(data))`,
-      java: `import java.io.*;\n\npublic class Main {\n    static String solve(String input) {\n        // parse input and return output\n        return input.trim();\n    }\n\n    public static void main(String[] args) throws Exception {\n        String input = new String(System.in.readAllBytes());\n        System.out.print(solve(input));\n    }\n}`,
-      cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nstring solve(const string& input) {\n    // parse input and return output\n    return input;\n}\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    string input((istreambuf_iterator<char>(cin)), istreambuf_iterator<char>());\n    cout << solve(input);\n    return 0;\n}`,
-      go: `package main\n\nimport (\n    "fmt"\n    "io"\n    "os"\n)\n\nfunc solve(input string) string {\n    // parse input and return output\n    return input\n}\n\nfunc main() {\n    data, _ := io.ReadAll(os.Stdin)\n    fmt.Print(solve(string(data)))\n}`,
-      csharp: `using System;\nusing System.IO;\n\npublic class Program\n{\n    static string Solve(string input)\n    {\n        // parse input and return output\n        return input.Trim();\n    }\n\n    public static void Main()\n    {\n        string input = Console.In.ReadToEnd();\n        Console.Write(Solve(input));\n    }\n}`,
+      javascript: `function solve(input) {
+  // parse input and return output
+  return input.trim();
+}
+
+const fs = require('fs');
+const input = fs.readFileSync(0, 'utf8');
+process.stdout.write(String(solve(input)));`,
+      python: `def solve(input_data):
+    # parse input and return output
+    return input_data.strip()
+
+if __name__ == "__main__":
+    import sys
+    data = sys.stdin.read()
+    print(solve(data))`,
+      java: `import java.io.*;
+
+public class Main {
+    static String solve(String input) {
+        // parse input and return output
+        return input.trim();
+    }
+
+    public static void main(String[] args) throws Exception {
+        String input = new String(System.in.readAllBytes());
+        System.out.print(solve(input));
+    }
+}`,
+      cpp: `#include <bits/stdc++.h>
+using namespace std;
+
+string solve(const string& input) {
+    // parse input and return output
+    return input;
+}
+
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+    string input((istreambuf_iterator<char>(cin)), istreambuf_iterator<char>());
+    cout << solve(input);
+    return 0;
+}`,
+      go: `package main
+
+import (
+    "fmt"
+    "io"
+    "os"
+)
+
+func solve(input string) string {
+    // parse input and return output
+    return input
+}
+
+func main() {
+    data, _ := io.ReadAll(os.Stdin)
+    fmt.Print(solve(string(data)))
+}`,
+      csharp: `using System;
+using System.IO;
+
+public class Program
+{
+    static string Solve(string input)
+    {
+        // parse input and return output
+        return input.Trim();
+    }
+
+    public static void Main()
+    {
+        string input = Console.In.ReadToEnd();
+        Console.Write(Solve(input));
+    }
+}`,
     };
 
     if (!challenge.starter_templates) return defaults;
@@ -180,21 +272,22 @@ export const ChallengeSession = ({
     );
   }, [challenge.difficulty, challenge.duration_minutes, durationSeconds]);
 
-  const canRequestHint = coachHints.length < 3 && Boolean(sessionId) && !isSessionEnded;
-  const readOnlyEditor = isSubmitting || isSessionEnded || isSessionPaused || timeExpired;
-  const [lastClipboardWarningAt, setLastClipboardWarningAt] = useState<number>(0);
+  const readOnlyEditor = isSubmitting || isSessionEnded || sessionPaused || timeExpired;
   const sessionStateLabel = timeExpired
     ? 'Time Expired'
     : isSessionEnded
       ? 'Session Ended'
-      : isSessionPaused
+      : sessionPaused
         ? 'Paused'
         : 'Active';
-  const sessionStateClass = timeExpired || isSessionPaused
+  const sessionStateClass = timeExpired || sessionPaused
     ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
     : isSessionEnded
       ? 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
       : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
+  const integrityActionRequired = sessionPaused || !fullscreenActive;
+  const showAssistantPanel = activeRightTab === 'assistant' && !integrityActionRequired;
+  const showIntegrityPanel = activeRightTab === 'integrity' || integrityActionRequired;
 
   const sessionBanners = useMemo<SessionBanner[]>(() => {
     const banners: SessionBanner[] = [];
@@ -219,16 +312,32 @@ export const ChallengeSession = ({
       banners.push({
         key: 'proctoring-init',
         state: 'info',
-        message: 'Proctoring is initializing. Ensure camera and microphone are enabled.',
+        message: 'Proctoring is initializing. Keep camera, microphone, and fullscreen ready.',
       });
     }
 
-    if (isSessionPaused) {
+    if (sessionPaused) {
       banners.push({
         key: 'paused',
         state: 'error',
         message:
-          pauseReason || 'Session paused by proctoring. Restore required devices to continue.',
+          sessionPauseReason || 'Session paused by proctoring. Restore required devices and fullscreen to continue.',
+      });
+    }
+
+    if (!fullscreenActive) {
+      banners.push({
+        key: 'fullscreen-required',
+        state: 'warning',
+        message: 'Fullscreen is required for this challenge session. Restore fullscreen to continue.',
+      });
+    }
+
+    if (environmentReasons.length > 0) {
+      banners.push({
+        key: 'environment',
+        state: 'warning',
+        message: environmentReasons[0],
       });
     }
 
@@ -242,9 +351,11 @@ export const ChallengeSession = ({
 
     return banners;
   }, [
+    environmentReasons,
+    fullscreenActive,
     isOnline,
-    isSessionPaused,
-    pauseReason,
+    sessionPauseReason,
+    sessionPaused,
     pendingReconnectSubmit,
     proctoringReady,
     sessionId,
@@ -287,6 +398,57 @@ export const ChallengeSession = ({
     localStorage.removeItem(draftKey);
   }, [draftKey]);
 
+  const handleRunCode = useCallback(
+    async ({
+      language,
+      code: sourceCode,
+      stdin,
+    }: {
+      language: SupportedLanguageCode;
+      code: string;
+      stdin: string;
+    }): Promise<RunCodeResponse> =>
+      challengeService.runCode({
+        language,
+        code: sourceCode,
+        stdin,
+        challenge_id: challengeId,
+      }),
+    [challengeId],
+  );
+
+  const requestFullscreen = useCallback(async () => {
+    const root = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+
+    if (document.fullscreenElement) {
+      setFullscreenActive(true);
+      return;
+    }
+
+    if (typeof root.requestFullscreen === 'function') {
+      await root.requestFullscreen();
+      setFullscreenActive(true);
+      return;
+    }
+
+    if (typeof root.webkitRequestFullscreen === 'function') {
+      await Promise.resolve(root.webkitRequestFullscreen());
+      setFullscreenActive(true);
+      return;
+    }
+
+    throw new Error('Fullscreen is not supported in this browser.');
+  }, []);
+
+  const exitFullscreen = useCallback(async () => {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen().catch(() => undefined);
+    }
+    setFullscreenActive(false);
+  }, []);
+
   const handleSubmit = useCallback(
     async (auto = false, forceTimeoutSubmit = false) => {
       if (isSubmitting || isSessionEnded) return;
@@ -304,9 +466,9 @@ export const ChallengeSession = ({
         return;
       }
 
-      if (isSessionPaused && !isTimeoutAutoSubmit) {
+      if (sessionPaused && !isTimeoutAutoSubmit) {
         setSubmissionError(
-          'Session is paused. Re-enable camera, microphone, and audio to continue.',
+          'Session is paused. Re-enable camera, microphone, and fullscreen to continue.',
         );
         return;
       }
@@ -351,6 +513,7 @@ export const ChallengeSession = ({
           window.clearTimeout(autoSubmitRetryTimerRef.current);
           autoSubmitRetryTimerRef.current = null;
         }
+        await exitFullscreen();
         toast.success('Challenge submitted successfully.');
 
         setTimeout(() => {
@@ -386,49 +549,19 @@ export const ChallengeSession = ({
       challengeId,
       clearDraft,
       code,
+      exitFullscreen,
       isOnline,
       isSessionEnded,
-      isSessionPaused,
+      sessionPaused,
       isSubmitting,
       navigate,
       proctoringReady,
+      remainingSeconds,
       selectedLanguage,
       sessionId,
       timeExpired,
-      remainingSeconds,
     ],
   );
-
-  const handleRequestHint = useCallback(async () => {
-    if (!sessionId) {
-      setHintError('AI Coach is available after proctoring starts.');
-      return;
-    }
-
-    if (coachHints.length >= 3) {
-      setHintError('AI hint limit reached for this challenge.');
-      return;
-    }
-
-    setIsLoadingHint(true);
-    setHintError(null);
-    try {
-      const nextHint = await challengeService.getCoachHint({
-        challengeId,
-        sessionId,
-        language: mapToSubmissionLanguage(selectedLanguage),
-        code,
-        hintIndex: coachHints.length + 1,
-      });
-      setCoachHints((prev) => [...prev, nextHint]);
-    } catch (error: unknown) {
-      const message = getErrorMessage(error, 'Failed to request AI hint.');
-      setHintError(message);
-      toast.error(message);
-    } finally {
-      setIsLoadingHint(false);
-    }
-  }, [challengeId, code, coachHints.length, selectedLanguage, sessionId]);
 
   const handleEndSessionEarly = useCallback(async () => {
     if (!sessionId || !proctoringReady || isSessionEnded) return;
@@ -441,13 +574,15 @@ export const ChallengeSession = ({
       try {
         await proctoringService.endSession(sessionId);
         setIsSessionEnded(true);
+        await exitFullscreen();
         toast('Session ended early.');
+        navigate('/challenges');
       } catch (error) {
         console.error('Failed to end session:', error);
         toast.error('Failed to end session');
       }
     }
-  }, [isSessionEnded, proctoringReady, sessionId]);
+  }, [exitFullscreen, isSessionEnded, navigate, proctoringReady, sessionId]);
 
   useEffect(() => {
     const nextTemplate = templates[mapToSubmissionLanguage(selectedLanguage)];
@@ -459,7 +594,6 @@ export const ChallengeSession = ({
   useEffect(() => {
     if (sessionId) {
       setProctoringReady(true);
-      toast.success('Proctoring session is active.');
       loadDraft();
     }
   }, [loadDraft, sessionId]);
@@ -474,13 +608,49 @@ export const ChallengeSession = ({
   }, [propViolationCount]);
 
   useEffect(() => {
+    setSessionPaused(isSessionPaused);
+  }, [isSessionPaused]);
+
+  useEffect(() => {
+    setSessionPauseReason(pauseReason);
+  }, [pauseReason]);
+
+  const handlePauseStateChange = useCallback((state: PauseStatePayload) => {
+    setSessionPaused(state.isPaused);
+    setSessionPauseReason(state.reason);
+  }, []);
+
+  useEffect(() => {
+    if (!integrityActionRequired) return;
+    setRightDockCollapsed(false);
+    setActiveRightTab('integrity');
+  }, [integrityActionRequired]);
+
+  useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
+    const handleFullscreenChange = () => {
+      setFullscreenActive(Boolean(document.fullscreenElement));
+    };
+    const handleResize = () => {
+      const assessment = assessSessionEnvironment();
+      setEnvironmentReasons(assessment.supported ? [] : assessment.reasons);
+    };
+
+    const initialAssessment = assessSessionEnvironment();
+    setEnvironmentReasons(initialAssessment.supported ? [] : initialAssessment.reasons);
+    setFullscreenActive(Boolean(document.fullscreenElement));
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('resize', handleResize);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('resize', handleResize);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
   }, []);
 
@@ -571,342 +741,355 @@ export const ChallengeSession = ({
     toast.error('Copy and paste are disabled during challenge solving.');
   }, [lastClipboardWarningAt]);
 
-  const handleRunCode = useCallback(
-    async ({
-      language,
-      code: sourceCode,
-      stdin,
-    }: {
-      language: SupportedLanguageCode;
-      code: string;
-      stdin: string;
-    }): Promise<RunCodeResponse> =>
-      challengeService.runCode({
-        language,
-        code: sourceCode,
-        stdin,
-        challenge_id: challengeId,
-      }),
-    [challengeId],
-  );
-
   return (
-    <div className="flex flex-col gap-4 min-h-[680px]">
-      <section className="rounded-xl border border-border bg-card p-3 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2 justify-between">
-          <div className="flex items-center gap-2 text-sm">
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      <header className="border-b border-border bg-card/95 backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+              Challenge Workbench
+            </p>
+            <h1 className="truncate text-lg font-semibold sm:text-xl">{challenge.title}</h1>
+            <p className="text-xs text-muted-foreground">
+              {challenge.category} · {selectedLanguage} · {challenge.difficulty}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-xs">
             {isOnline ? (
-              <span className="rounded-full bg-green-100 px-2 py-1 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+              <span className="rounded-full bg-green-100 px-2.5 py-1 text-green-700 dark:bg-green-900/30 dark:text-green-300">
                 Online
               </span>
             ) : (
-              <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 inline-flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                 <WifiOff className="h-3.5 w-3.5" />
                 Offline
               </span>
             )}
-            <span className={`rounded-full px-2 py-1 text-xs font-medium ${sessionStateClass}`}>
+            <span className={`rounded-full px-2.5 py-1 font-medium ${sessionStateClass}`}>
               {sessionStateLabel}
             </span>
-            <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
+            <span
+              className={`rounded-full px-2.5 py-1 font-medium ${
+                fullscreenActive
+                  ? 'bg-primary/10 text-primary'
+                  : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+              }`}
+            >
+              {fullscreenActive ? 'Fullscreen locked' : 'Fullscreen exited'}
+            </span>
+            <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
               {violationCount} violation(s)
             </span>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-muted-foreground">Challenge Timer</p>
-            <strong className={`font-mono text-base ${timeExpired ? 'text-red-600' : ''}`}>
+            <div className="rounded-full border border-border px-3 py-1 font-mono text-sm text-foreground">
               {formatRemaining(remainingSeconds)}
-            </strong>
-          </div>
-        </div>
-      </section>
-
-      {sessionBanners.map((banner) => {
-        const tone =
-          banner.state === 'error'
-            ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20'
-            : banner.state === 'warning'
-              ? 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20'
-              : banner.state === 'success'
-                ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/20'
-                : 'border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/20';
-        return (
-          <Alert key={banner.key} className={tone}>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{banner.message}</AlertDescription>
-          </Alert>
-        );
-      })}
-
-      <div className="flex flex-col xl:flex-row gap-4">
-        <section className="min-w-0 flex-1 flex flex-col gap-4">
-          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-            <CodeEditor
-              language={mapToSubmissionLanguage(selectedLanguage)}
-              value={code}
-              onChange={setCode}
-              onRun={handleRunCode}
-              className="h-full"
-              readOnly={readOnlyEditor}
-              disableClipboardActions
-              onClipboardBlocked={handleClipboardBlocked}
-            />
-          </div>
-
-          <div className="sticky bottom-2 rounded-xl border border-border bg-card/95 backdrop-blur-sm p-3 shadow-sm">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">
-                Writing solution in <span className="font-medium text-foreground">{selectedLanguage}</span>
-              </p>
-              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:items-center">
-                <Button
-                  variant="outline"
-                  onClick={handleEndSessionEarly}
-                  disabled={!sessionId || isSessionEnded || isSubmitting || isSessionPaused}
-                  className="sm:px-4"
-                >
-                  End Session
-                </Button>
-                <Button
-                  onClick={() => void handleSubmit(false)}
-                  disabled={
-                    isSubmitting ||
-                    !selectedLanguage ||
-                    isSessionEnded ||
-                    isSessionPaused ||
-                    !isOnline ||
-                    timeExpired
-                  }
-                  className="sm:px-8"
-                  size="lg"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Submitting...
-                    </>
-                  ) : (
-                    'Submit Solution'
-                  )}
-                </Button>
-              </div>
             </div>
           </div>
-        </section>
 
-        <aside
-          className={`bg-card border border-border rounded-xl overflow-hidden shadow-sm transition-all ${
-            isRailCollapsed ? 'xl:w-[72px]' : 'xl:w-[360px]'
-          }`}
-          aria-label="Session assist rail"
-        >
-          <div className="border-b border-border p-2 flex items-center justify-between">
-            {!isRailCollapsed && (
-              <div className="grid grid-cols-3 gap-1 flex-1">
-                <button
-                  type="button"
-                  onClick={() => setActiveRailTab('task')}
-                  className={`rounded-md px-2 py-2 text-xs font-medium ${
-                    activeRailTab === 'task'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-muted'
-                  }`}
-                >
-                  Task
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveRailTab('assist')}
-                  className={`rounded-md px-2 py-2 text-xs font-medium ${
-                    activeRailTab === 'assist'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-muted'
-                  }`}
-                >
-                  Assist
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveRailTab('integrity')}
-                  className={`rounded-md px-2 py-2 text-xs font-medium ${
-                    activeRailTab === 'integrity'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-muted'
-                  }`}
-                >
-                  Integrity
-                </button>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => setIsRailCollapsed((prev) => !prev)}
-              className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-              aria-label={isRailCollapsed ? 'Expand assist rail' : 'Collapse assist rail'}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => void requestFullscreen()} disabled={fullscreenActive}>
+              <Expand className="mr-2 h-4 w-4" />
+              Restore Fullscreen
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleEndSessionEarly}
+              disabled={!sessionId || isSessionEnded || isSubmitting}
             >
-              {isRailCollapsed ? (
-                <PanelLeftOpen className="h-4 w-4" />
+              End Session
+            </Button>
+            <Button
+              onClick={() => void handleSubmit(false)}
+              disabled={
+                isSubmitting ||
+                !selectedLanguage ||
+                isSessionEnded ||
+                sessionPaused ||
+                !isOnline ||
+                timeExpired
+              }
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
               ) : (
-                <PanelLeftClose className="h-4 w-4" />
+                'Submit Solution'
               )}
-            </button>
+            </Button>
           </div>
+        </div>
+      </header>
+      {sessionBanners.length > 0 ? (
+        <div className="space-y-3 border-b border-border bg-background/95 px-4 py-3 sm:px-6">
+          {sessionBanners.map((banner) => {
+            const tone =
+              banner.state === 'error'
+                ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20'
+                : banner.state === 'warning'
+                  ? 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20'
+                  : banner.state === 'success'
+                    ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/20'
+                    : 'border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/20';
+            return (
+              <Alert key={banner.key} className={tone}>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{banner.message}</AlertDescription>
+              </Alert>
+            );
+          })}
+        </div>
+      ) : null}
 
-          <div className={`${isRailCollapsed ? 'hidden' : 'block'} p-4 max-h-[68vh] overflow-auto`}>
-            {activeRailTab === 'task' && (
-              <div className="space-y-4">
-                <DescriptionPanel challenge={challenge} compact />
-                <div className="pt-3 border-t border-border">
-                  <LanguageSelector
-                    selectedLanguage={selectedLanguage}
-                    onLanguageChange={onLanguageChange}
-                    availableLanguages={availableLanguages}
-                    label="Solution Language"
-                    size="sm"
-                  />
-                </div>
-              </div>
-            )}
-
-            {activeRailTab === 'assist' && (
-              <div className="space-y-4">
-                <section className="rounded-lg border border-border bg-muted/20 p-3">
-                  <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
-                    <FileText className="h-4 w-4 text-primary" />
-                    Reference Docs
-                  </h4>
-                  <ReferenceDocsPanel docs={referenceDocs} error={docsError} onRetry={onRetryDocs} />
-                </section>
-
-                <section className="rounded-lg border border-border bg-muted/20 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-sm flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      AI Coach
-                    </h4>
-                    <span className="text-xs text-muted-foreground">{coachHints.length}/3 used</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-3">{DEFAULT_HINT_NOTICE}</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={!canRequestHint || isLoadingHint || isSubmitting || isSessionPaused}
-                    onClick={() => void handleRequestHint()}
-                  >
-                    {isLoadingHint ? 'Requesting...' : 'Get AI Hint'}
-                  </Button>
-                  {hintError && <p className="text-xs text-destructive mt-2">{hintError}</p>}
-                  {coachHints.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      {coachHints.map((hint) => (
-                        <div key={hint.hint_index} className="rounded-md border border-border p-2 bg-background">
-                          <p className="text-xs font-medium mb-1">Hint {hint.hint_index}</p>
-                          <p className="text-xs text-muted-foreground">{hint.hint}</p>
-                          {hint.snippet && (
-                            <pre className="mt-2 p-2 rounded bg-muted border text-[11px] overflow-x-auto">
-                              <code>{hint.snippet}</code>
-                            </pre>
-                          )}
-                        </div>
-                      ))}
+      <div className="min-h-0 flex-1 px-4 py-4 sm:px-6 sm:py-5">
+        <ResizablePanelGroup direction="horizontal" className="min-h-0 rounded-3xl border border-border bg-card shadow-sm">
+          {!leftRailCollapsed ? (
+            <>
+              <ResizablePanel defaultSize={23} minSize={18} maxSize={30} className="min-h-0">
+                <div className="flex h-full min-h-0 flex-col border-r border-border bg-muted/10">
+                  <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                    <div>
+                      <h2 className="text-sm font-semibold">Task Rail</h2>
+                      <p className="text-xs text-muted-foreground">Prompt, docs, and language</p>
                     </div>
-                  )}
-                </section>
-              </div>
-            )}
-
-            {activeRailTab === 'integrity' && (
-              <div className="space-y-4">
-                <section className="rounded-lg border border-border bg-muted/20 p-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Shield className="h-4 w-4 text-primary" />
-                      <h4 className="font-medium text-sm">Proctoring Status</h4>
-                    </div>
-                    <span
-                      className={`text-xs px-2 py-1 rounded-full ${
-                        proctoringReady
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                          : 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
-                      }`}
+                    <button
+                      type="button"
+                      onClick={() => setLeftRailCollapsed(true)}
+                      className="rounded-md border border-border p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                      aria-label="Collapse task rail"
                     >
-                      {proctoringReady ? 'Active' : 'Starting...'}
-                    </span>
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
                   </div>
 
-                  <div className="space-y-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Camera className="h-3 w-3" />
-                        <span>Camera</span>
-                      </div>
-                      <span className={proctoringReady ? 'text-green-600' : 'text-muted-foreground'}>
-                        {proctoringReady ? 'Monitoring' : 'Initializing'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Mic className="h-3 w-3" />
-                        <span>Microphone</span>
-                      </div>
-                      <span className={proctoringReady ? 'text-green-600' : 'text-muted-foreground'}>
-                        {proctoringReady ? 'Monitoring' : 'Initializing'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="h-3 w-3" />
-                        <span>Violations</span>
-                      </div>
-                      <span className={violationCount > 0 ? 'text-amber-600' : 'text-green-600'}>
-                        {violationCount} detected
-                      </span>
+                  <div className="border-b border-border px-4 py-3">
+                    <LanguageSelector
+                      selectedLanguage={selectedLanguage}
+                      onLanguageChange={onLanguageChange}
+                      availableLanguages={availableLanguages}
+                      size="sm"
+                    />
+                  </div>
+
+                  <div className="border-b border-border px-4 py-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveLeftTab('task')}
+                        className={`rounded-xl px-3 py-2 text-sm font-medium ${
+                          activeLeftTab === 'task'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        Task
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveLeftTab('docs')}
+                        className={`rounded-xl px-3 py-2 text-sm font-medium ${
+                          activeLeftTab === 'docs'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        Docs
+                      </button>
                     </div>
                   </div>
-                </section>
-              </div>
-            )}
-          </div>
 
-          {isRailCollapsed && (
-            <div className="p-2 flex flex-col gap-2 items-center">
+                  <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+                    {activeLeftTab === 'task' ? (
+                      <div className="space-y-4">
+                        <DescriptionPanel challenge={challenge} compact />
+                        <div className="rounded-2xl border border-border bg-background p-4 text-sm text-muted-foreground">
+                          <p className="font-medium text-foreground">Session notes</p>
+                          <ul className="mt-3 space-y-2">
+                            <li>- Work entirely inside fullscreen during the attempt.</li>
+                            <li>- Use Run to test ideas before the final submission.</li>
+                            <li>- AI Coach can help with debugging, not full answers.</li>
+                          </ul>
+                        </div>
+                      </div>
+                    ) : (
+                      <ReferenceDocsPanel docs={referenceDocs} error={docsError} onRetry={onRetryDocs} />
+                    )}
+                  </div>
+                </div>
+              </ResizablePanel>
+              <ResizableHandle withHandle />
+            </>
+          ) : (
+            <div className="flex w-[56px] flex-col items-center gap-3 border-r border-border bg-muted/10 py-4">
               <button
                 type="button"
-                onClick={() => {
-                  setActiveRailTab('task');
-                  setIsRailCollapsed(false);
-                }}
-                className="w-10 h-10 rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground"
-                aria-label="Open task panel"
+                onClick={() => setLeftRailCollapsed(false)}
+                className="rounded-xl border border-border p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                aria-label="Expand task rail"
               >
-                <FileText className="h-4 w-4 mx-auto" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveRailTab('assist');
-                  setIsRailCollapsed(false);
-                }}
-                className="w-10 h-10 rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground"
-                aria-label="Open assist panel"
-              >
-                <Sparkles className="h-4 w-4 mx-auto" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveRailTab('integrity');
-                  setIsRailCollapsed(false);
-                }}
-                className="w-10 h-10 rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground"
-                aria-label="Open integrity panel"
-              >
-                <Shield className="h-4 w-4 mx-auto" />
+                <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           )}
-        </aside>
+
+          <ResizablePanel defaultSize={leftRailCollapsed && rightDockCollapsed ? 100 : 54} minSize={40} className="min-h-0">
+            <div className="flex h-full min-h-0 flex-col bg-background p-3 sm:p-4">
+              <CodeEditor
+                language={mapToSubmissionLanguage(selectedLanguage)}
+                value={code}
+                onChange={setCode}
+                onRun={handleRunCode}
+                onRunResult={(result) => setLastRunResult(result)}
+                className="h-full"
+                readOnly={readOnlyEditor}
+                disableClipboardActions
+                onClipboardBlocked={handleClipboardBlocked}
+              />
+            </div>
+          </ResizablePanel>
+
+          {!rightDockCollapsed ? (
+            <>
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={23} minSize={18} maxSize={30} className="min-h-0">
+                <div className="flex h-full min-h-0 flex-col border-l border-border bg-muted/10">
+                  <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                    <div>
+                      <h2 className="text-sm font-semibold">Session Dock</h2>
+                      <p className="text-xs text-muted-foreground">AI Coach and integrity</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (integrityActionRequired) return;
+                        setRightDockCollapsed(true);
+                      }}
+                      disabled={integrityActionRequired}
+                      className="rounded-md border border-border p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                      aria-label="Collapse session dock"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="border-b border-border px-4 py-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (integrityActionRequired) return;
+                          setActiveRightTab('assistant');
+                        }}
+                        disabled={integrityActionRequired}
+                        className={`rounded-xl px-3 py-2 text-sm font-medium ${
+                          activeRightTab === 'assistant'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        AI Chat
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveRightTab('integrity')}
+                        className={`rounded-xl px-3 py-2 text-sm font-medium ${
+                          activeRightTab === 'integrity'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        Integrity
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="min-h-0 flex-1 overflow-hidden">
+                    {showAssistantPanel ? (
+                      <div className="h-full">
+                        <SessionCoachChat
+                          challengeId={challengeId}
+                          sessionId={sessionId ?? null}
+                          language={mapToSubmissionLanguage(selectedLanguage)}
+                          code={code}
+                          runContext={lastRunResult}
+                          disabled={isSessionEnded || !isOnline}
+                        />
+                      </div>
+                    ) : null}
+                    {sessionId && userId ? (
+                      showIntegrityPanel ? (
+                        <div className="h-full">
+                          <ProctoringMonitor
+                            sessionId={sessionId}
+                            userId={userId}
+                            challengeId={challengeId}
+                            onViolation={onViolation ?? (() => undefined)}
+                            onPauseStateChange={handlePauseStateChange}
+                            presentation="embedded"
+                            fullscreenRequired
+                            fullscreenActive={fullscreenActive}
+                            onRequestFullscreen={requestFullscreen}
+                          />
+                        </div>
+                      ) : null
+                    ) : (
+                      <div className="flex h-full items-center justify-center p-4 text-sm text-muted-foreground">
+                        Integrity monitor unavailable.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </ResizablePanel>
+            </>
+          ) : (
+            <div className="flex w-[56px] flex-col items-center gap-3 border-l border-border bg-muted/10 py-4">
+              <button
+                type="button"
+                onClick={() => setRightDockCollapsed(false)}
+                className="rounded-xl border border-border p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                aria-label="Expand session dock"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRightDockCollapsed(false);
+                  setActiveRightTab('assistant');
+                }}
+                className="rounded-xl border border-border p-2 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              >
+                AI
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRightDockCollapsed(false);
+                  setActiveRightTab('integrity');
+                }}
+                className="rounded-xl border border-border p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              >
+                <Shield className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+        </ResizablePanelGroup>
+        {rightDockCollapsed && sessionId && userId ? (
+          <div className="hidden">
+            <ProctoringMonitor
+              sessionId={sessionId}
+              userId={userId}
+              challengeId={challengeId}
+              onViolation={onViolation ?? (() => undefined)}
+              onPauseStateChange={handlePauseStateChange}
+              presentation="embedded"
+              fullscreenRequired
+              fullscreenActive={fullscreenActive}
+              onRequestFullscreen={requestFullscreen}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   );

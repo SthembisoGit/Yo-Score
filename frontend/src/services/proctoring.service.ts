@@ -1,5 +1,6 @@
 import apiClient from './apiClient';
 import { unwrapData } from '@/lib/apiHelpers';
+import type { SessionClientContext } from '@/lib/sessionEnvironment';
 
 export interface ProctoringSession {
   sessionId: string;
@@ -119,6 +120,7 @@ export interface SessionHeartbeatPayload {
   audioReady: boolean;
   isPaused?: boolean;
   windowFocused?: boolean;
+  fullscreenActive?: boolean;
   timestamp?: string;
 }
 
@@ -148,9 +150,14 @@ class ProctoringService {
   async startSession(
     challengeId: string,
     consent: ProctoringConsentPayload,
+    clientContext: SessionClientContext,
   ): Promise<ProctoringSessionStartResponse> {
     try {
-      const response = await apiClient.post('/proctoring/session/start', { challengeId, consent });
+      const response = await apiClient.post('/proctoring/session/start', {
+        challengeId,
+        consent,
+        client_context: clientContext,
+      });
       return unwrapData<ProctoringSessionStartResponse>(response);
     } catch {
       throw new Error('Could not start proctoring session');
