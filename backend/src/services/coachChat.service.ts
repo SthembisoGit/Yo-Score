@@ -253,7 +253,7 @@ export class CoachChatService {
         [challengeId],
       ),
       query(
-        `SELECT id, status, accessibility_profile
+        `SELECT id, status
          FROM proctoring_sessions
          WHERE id = $1 AND user_id = $2 AND challenge_id = $3`,
         [sessionId, userId, challengeId],
@@ -278,8 +278,6 @@ export class CoachChatService {
     if (sessionResult.rows[0].status === 'completed') {
       throw new Error('Completed sessions cannot request AI coach chat');
     }
-
-    const accessibilityProfile = sessionResult.rows[0].accessibility_profile || 'none';
 
     const currentReplyCount = Number(replyCountResult.rows[0]?.count ?? 0);
     if (currentReplyCount >= MAX_ASSISTANT_REPLIES) {
@@ -319,13 +317,7 @@ export class CoachChatService {
         stdout ? `Latest stdout:\n${stdout}` : 'Latest stdout: [none]',
         stderr ? `Latest stderr:\n${stderr}` : 'Latest stderr: [none]',
         provider ? `Execution provider: ${provider}` : 'Execution provider: [unknown]',
-        accessibilityProfile === 'neurodiverse' 
-          ? 'EMPATHETIC MODE ACTIVE: The user has a Neurodiversity profile. Provide extremely structured, step-by-step guidance. Use clear bullet points. Avoid complex jargon. Be encouraging and patient.'
-          : '',
-        accessibilityProfile === 'silent'
-          ? 'SILENT MODE ACTIVE: Focus purely on technical collaboration. Keep responses concise and logic-driven.'
-          : '',
-      ].filter(Boolean).join('\n');
+      ].join('\n');
 
       try {
         const response = await aiClient.post(

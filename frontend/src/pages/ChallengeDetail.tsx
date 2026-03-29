@@ -8,16 +8,6 @@ import { ChallengeOverview } from '@/components/challenge-detail/ChallengeOvervi
 import { ChallengeSession } from '@/components/challenge-detail/ChallengeSession';
 import { DesktopRequiredPanel } from '@/components/challenge-detail/DesktopRequiredPanel';
 import { useChallengeData } from '@/hooks/useChallengeData';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import { ChevronRight, Loader2, AlertCircle, FileText, Info } from 'lucide-react';
-import { Navbar } from '@/components/Navbar';
-import { ProctoringModal } from '@/components/ProctoringModal';
-import { Button } from '@/components/ui/button';
-import { ChallengeOverview } from '@/components/challenge-detail/ChallengeOverview';
-import { ChallengeSession } from '@/components/challenge-detail/ChallengeSession';
-import { DesktopRequiredPanel } from '@/components/challenge-detail/DesktopRequiredPanel';
-import { useChallengeData } from '@/hooks/useChallengeData';
 import { useAuth } from '@/context/AuthContext';
 import type { ProgrammingLanguage } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
@@ -26,7 +16,6 @@ import { challengeService } from '@/services/challengeService';
 import { CODE_TO_DISPLAY, normalizeLanguageCode } from '@/constants/languages';
 import type { ProctoringConsentPayload } from '@/services/proctoring.service';
 import { assessSessionEnvironment, getSessionClientContext } from '@/lib/sessionEnvironment';
-import { useAccessibility } from '@/context/AccessibilityContext';
 
 const CHALLENGE_START_HELP_KEY = 'yoscore_challenge_start_help_seen';
 
@@ -35,7 +24,6 @@ export default function ChallengeDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, setPreferredLanguage, availableLanguages } = useAuth();
-  const { settings } = useAccessibility();
   const { challenge, referenceDocs, docsError, refetchDocs, isLoading, error } = useChallengeData(id);
   const supportedLanguages = useMemo(() => {
     const challengeSupportedLanguages = challenge?.supported_languages ?? [];
@@ -46,7 +34,7 @@ export default function ChallengeDetail() {
         const ai = preferredDisplayOrder.indexOf(a);
         const bi = preferredDisplayOrder.indexOf(b);
         const ao = ai === -1 ? Number.MAX_SAFE_INTEGER : ai;
-        const bo = bi === -1 ? Number.MAX_SAFE_INTEGER : bo;
+        const bo = bi === -1 ? Number.MAX_SAFE_INTEGER : bi;
         if (ao !== bo) return ao - bo;
         return a.localeCompare(b);
       });
@@ -156,6 +144,7 @@ export default function ChallengeDetail() {
 
     if (typeof root.webkitRequestFullscreen === 'function') {
       await Promise.resolve(root.webkitRequestFullscreen());
+      return;
     }
 
     throw new Error('Fullscreen is not supported in this browser.');
@@ -214,7 +203,11 @@ export default function ChallengeDetail() {
       await requestFullscreenForSession();
       const fullscreenActive = await waitForFullscreenActivation();
       const clientContext = getSessionClientContext();
-      const sessionMeta = await startSession(id, user.id, consent, clientContext, settings.profile);
+      if (!fullscreenActive || !clientContext.fullscreen_active) {
+        throw new Error('You must stay in fullscreen mode to start the challenge.');
+      }
+
+      const sessionMeta = await startSession(id, user.id, consent, clientContext);
       setSessionId(sessionMeta.sessionId);
       setDeadlineAt(sessionMeta.deadlineAt);
       setDurationSeconds(sessionMeta.durationSeconds);

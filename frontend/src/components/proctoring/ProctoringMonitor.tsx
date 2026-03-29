@@ -6,7 +6,6 @@ import {
   type FaceMonitorResult,
   type ProctoringEventInput,
 } from '@/services/proctoring.service';
-import { useAccessibility } from '@/context/AccessibilityContext';
 
 interface Props {
   sessionId: string;
@@ -164,9 +163,6 @@ const ProctoringMonitor: React.FC<Props> = ({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [showGuidance, setShowGuidance] = useState(false);
   const isEmbedded = presentation === 'embedded';
-
-  const { settings } = useAccessibility();
-  const { accommodations } = settings;
 
   const getSupportedRecorderOptions = useCallback((): MediaRecorderOptions | undefined => {
     if (typeof MediaRecorder === 'undefined') return undefined;
@@ -767,20 +763,18 @@ const ProctoringMonitor: React.FC<Props> = ({
         }
 
         if (speechStreakMsRef.current >= 2200) {
-          if (!accommodations.ignoreSpeechViolations) {
-            triggerViolation(
-              'speech_detected',
-              'Sustained speech energy detected by browser VAD',
-              'Speech detected. Please work in silence.',
-              'medium',
-              15000,
-              {
-                persist: false,
-                confidence: Math.min(0.95, 0.5 + rms * 5),
-                durationMs: speechStreakMsRef.current,
-              },
-            );
-          }
+          triggerViolation(
+            'speech_detected',
+            'Sustained speech energy detected by browser VAD',
+            'Speech detected. Please work in silence.',
+            'medium',
+            15000,
+            {
+              persist: false,
+              confidence: Math.min(0.95, 0.5 + rms * 5),
+              durationMs: speechStreakMsRef.current,
+            },
+          );
           speechStreakMsRef.current = 0;
         }
       }, AUDIO_SAMPLE_INTERVAL);
@@ -1119,7 +1113,7 @@ const ProctoringMonitor: React.FC<Props> = ({
       updateFaceGuidance(result);
       if (result.face_count === 0) {
         noFaceStreakRef.current += 1;
-        if (noFaceStreakRef.current >= NO_FACE_STREAK_THRESHOLD && !accommodations.ignoreMovementViolations) {
+        if (noFaceStreakRef.current >= NO_FACE_STREAK_THRESHOLD) {
           triggerViolation(
             'no_face',
             `No face detected in consecutive frames (${source})`,
@@ -1137,7 +1131,7 @@ const ProctoringMonitor: React.FC<Props> = ({
         noFaceStreakRef.current = 0;
       }
 
-      if (result.face_count > 1 && !accommodations.ignoreMovementViolations) {
+      if (result.face_count > 1) {
         triggerViolation(
           'multiple_faces',
           `Multiple faces detected (${result.face_count})`,
@@ -1156,16 +1150,7 @@ const ProctoringMonitor: React.FC<Props> = ({
       if (result.gaze_direction?.looking_away) {
         if (!lookAwayStartRef.current) lookAwayStartRef.current = now;
         lookAwayEventsRef.current = [...lookAwayEventsRef.current, now].filter((ts) => now - ts <= LOOK_AWAY_WINDOW_MS);
-        
-        // Assistive Feature: Head-Tilt Scrolling
-        if (accommodations.enableHeadTiltNavigation && result.face_box) {
-          const yOff = result.face_box.y_center - 0.5;
-          if (Math.abs(yOff) > 0.15) {
-            window.scrollBy({ top: yOff * 100, behavior: 'auto' });
-          }
-        }
-
-        if (lookAwayEventsRef.current.length >= LOOK_AWAY_THRESHOLD && !accommodations.ignoreGazeViolations) {
+        if (lookAwayEventsRef.current.length >= LOOK_AWAY_THRESHOLD) {
           triggerViolation(
             'looking_away',
             'Looked away repeatedly within one minute',
@@ -1180,7 +1165,7 @@ const ProctoringMonitor: React.FC<Props> = ({
           );
           lookAwayEventsRef.current = [];
         }
-        if (lookAwayStartRef.current && now - lookAwayStartRef.current >= LOOK_AWAY_CONTINUOUS_MS && !accommodations.ignoreGazeViolations) {
+        if (lookAwayStartRef.current && now - lookAwayStartRef.current >= LOOK_AWAY_CONTINUOUS_MS) {
           triggerViolation(
             'looking_away',
             'Looked away continuously for over one minute',

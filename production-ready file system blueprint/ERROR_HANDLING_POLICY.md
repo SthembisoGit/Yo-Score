@@ -254,6 +254,10 @@ A feature is NOT complete unless:
 
 **Command template:**
 
-“3”
+“Using ERROR_HANDLING_POLICY.md, ensure all new and modified logic follows structured error rules.
+Map domain errors correctly.
+Preserve standard error response format.
+Confirm no sensitive data leakage.
+Show file paths modified and confirm consistency.”
 
 ---
