@@ -23,6 +23,8 @@ import {
   type Challenge as ChallengeModel,
   type ChallengeStatus,
 } from '@/context/ChallengeContext';
+import { AccessibilityProfileSelector } from '@/components/accessibility/AccessibilityProfileSelector';
+import { GenerateQRCode } from '@/components/accessibility/GenerateQRCode';
 import {
   dashboardService,
   type DashboardData as ServiceDashboardData,
@@ -224,6 +226,8 @@ export default function Dashboard() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+              <AccessibilityProfileSelector />
+              <div className="h-8 w-[1px] bg-border mx-2 hidden sm:block" />
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger className="sm:w-[220px]">
                   <SelectValue placeholder="Select category" />
@@ -293,6 +297,11 @@ export default function Dashboard() {
                     Take Challenge
                   </Button>
                 </Link>
+                <GenerateQRCode 
+                  userId={user.id} 
+                  userName={user.name} 
+                  totalScore={totalScore} 
+                />
               </div>
             </div>
           </div>
