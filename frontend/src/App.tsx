@@ -24,6 +24,9 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const About = lazy(() => import("./pages/About"));
 const HowItWorks = lazy(() => import("./pages/HowItWorks"));
+const PublicTalentProfile = lazy(() => import("./pages/PublicTalentProfile"));
+
+import { AccessibilityProvider } from "@/context/AccessibilityContext";
 
 const queryClient = new QueryClient();
 
@@ -35,35 +38,38 @@ const RouteLoadingFallback = () => (
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <ChallengeProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <SubmissionStatusTracker />
-            <DemoCredentialsDialog />
-            <Suspense fallback={<RouteLoadingFallback />}>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/about" element={<About />} />
-                <Route path="/how-it-works" element={<HowItWorks />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<SignUp />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/challenges" element={<Challenges />} />
-                <Route path="/challenges/:id" element={<ChallengeDetail />} />
-                <Route path="/work-experience" element={<WorkExperience />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/submissions/:id" element={<SubmissionResult />} />
-                <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-          </BrowserRouter>
-        </TooltipProvider>
-      </ChallengeProvider>
-    </AuthProvider>
+    <AccessibilityProvider>
+      <AuthProvider>
+        <ChallengeProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <SubmissionStatusTracker />
+              <DemoCredentialsDialog />
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/about" element={<About />} />
+                  <Route path="/how-it-works" element={<HowItWorks />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<SignUp />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/challenges" element={<Challenges />} />
+                  <Route path="/challenges/:id" element={<ChallengeDetail />} />
+                  <Route path="/work-experience" element={<WorkExperience />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/profile/public/:userId" element={<PublicTalentProfile />} />
+                  <Route path="/submissions/:id" element={<SubmissionResult />} />
+                  <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </BrowserRouter>
+          </TooltipProvider>
+        </ChallengeProvider>
+      </AuthProvider>
+    </AccessibilityProvider>
   </QueryClientProvider>
 );
 

@@ -151,12 +151,14 @@ class ProctoringService {
     challengeId: string,
     consent: ProctoringConsentPayload,
     clientContext: SessionClientContext,
+    accessibilityProfile?: string,
   ): Promise<ProctoringSessionStartResponse> {
     try {
       const response = await apiClient.post('/proctoring/session/start', {
         challengeId,
         consent,
         client_context: clientContext,
+        accessibilityProfile,
       });
       return unwrapData<ProctoringSessionStartResponse>(response);
     } catch (error) {
