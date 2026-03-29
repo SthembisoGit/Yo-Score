@@ -303,8 +303,7 @@ export class ProctoringService {
          ADD COLUMN IF NOT EXISTS evidence_retention_days INTEGER DEFAULT 7,
          ADD COLUMN IF NOT EXISTS snapshot_processing_pending INTEGER DEFAULT 0,
          ADD COLUMN IF NOT EXISTS snapshot_processing_last_error TEXT,
-         ADD COLUMN IF NOT EXISTS snapshot_processing_updated_at TIMESTAMP,
-         ADD COLUMN IF NOT EXISTS accessibility_profile VARCHAR(40) DEFAULT 'none' `,
+         ADD COLUMN IF NOT EXISTS snapshot_processing_updated_at TIMESTAMP`,
     );
 
     await query(
@@ -598,7 +597,6 @@ export class ProctoringService {
     userId: string,
     challengeId: string,
     consent?: ProctoringConsentInput,
-    accessibilityProfile?: string,
   ): Promise<ProctoringSessionStartResult> {
     await this.ensureSessionSchemaExtensions();
 
@@ -639,8 +637,8 @@ export class ProctoringService {
         : [];
       result = await query(
         `INSERT INTO proctoring_sessions
-           (user_id, challenge_id, start_time, status, heartbeat_at, deadline_at, duration_seconds, paused_at, pause_reason, pause_count, total_paused_seconds, risk_state, risk_score, liveness_required, last_sequence_id, privacy_consent_at, privacy_policy_version, privacy_notice_locale, privacy_ip_hash, privacy_user_agent, privacy_consent_scope, evidence_retention_days, accessibility_profile)
-         VALUES ($1, $2, NOW(), 'active', NOW(), $3, $4, NULL, NULL, 0, 0, 'observe', 0, false, 0, $5, $6, $7, $8, $9, $10::jsonb, $11, $12)
+           (user_id, challenge_id, start_time, status, heartbeat_at, deadline_at, duration_seconds, paused_at, pause_reason, pause_count, total_paused_seconds, risk_state, risk_score, liveness_required, last_sequence_id, privacy_consent_at, privacy_policy_version, privacy_notice_locale, privacy_ip_hash, privacy_user_agent, privacy_consent_scope, evidence_retention_days)
+         VALUES ($1, $2, NOW(), 'active', NOW(), $3, $4, NULL, NULL, 0, 0, 'observe', 0, false, 0, $5, $6, $7, $8, $9, $10::jsonb, $11)
          RETURNING id`,
         [
           userId,
@@ -654,7 +652,6 @@ export class ProctoringService {
           consent?.userAgent ?? null,
           JSON.stringify(consentScope),
           this.evidenceRetentionDays,
-          accessibilityProfile || 'none',
         ],
       );
     } catch {
@@ -1341,25 +1338,6 @@ export class ProctoringService {
     }
   }
 
-  private async getAccessibilityAdjustedPenalty(sessionId: string, violationType: string, basePenalty: number): Promise<number> {
-    const result = await query(
-      `SELECT accessibility_profile FROM proctoring_sessions WHERE id = $1`,
-      [sessionId]
-    );
-    
-    if (result.rows.length === 0) return basePenalty;
-    const profile = result.rows[0].accessibility_profile || 'none';
-    const type = normalizeViolationType(violationType);
-
-    // Fairness Normalization Logic
-    if (profile === 'neurodiverse' && (type === 'looking_away' || type === 'eyes_closed')) return 0;
-    if (profile === 'mobility' && (type === 'no_face' || type === 'face_covered' || type === 'inactivity')) return 0;
-    if (profile === 'silent' && (type === 'speech_detected' || type === 'multiple_voices')) return 0;
-    if (profile === 'visual' && (type === 'looking_away' || type === 'no_face' || type === 'face_covered')) return 0;
-
-    return basePenalty;
-  }
-
   // Basic Violation Logging
   private mapMlViolation(
     violationType: string,
@@ -1398,13 +1376,11 @@ export class ProctoringService {
       penalty: getViolationPenalty(normalizedType),
     };
 
-    const adjustedPenalty = await this.getAccessibilityAdjustedPenalty(sessionId, normalizedType, base.penalty);
-
     const violation: ProctoringViolation = {
       ...base,
       type: normalizedType,
       description: description ?? base.description,
-      penalty: adjustedPenalty,
+      penalty: getViolationPenalty(normalizedType),
     };
 
     await query(
