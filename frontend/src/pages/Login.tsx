@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
-import { authService } from '@/services/authService';
 
 interface ApiLikeErrorShape {
   message?: unknown;
@@ -105,11 +104,8 @@ export default function Login() {
     setIsSubmitting(true);
 
     try {
-      await login(email, password);
-      const validated = await authService
-        .validateToken()
-        .catch(() => ({ valid: false, user: undefined }));
-      if (validated.valid && 'user' in validated && validated.user?.role === 'admin') {
+      const loggedInUser = await login(email, password);
+      if (loggedInUser.role === 'admin') {
         navigate('/admin');
       } else {
         navigate('/dashboard');
