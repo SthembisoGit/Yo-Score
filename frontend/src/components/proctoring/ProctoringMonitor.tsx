@@ -76,6 +76,7 @@ const SNAPSHOT_SAMPLE_RATE = 0.18;
 const MODEL_VERSION = 'browser-v2-consensus';
 const EMPTY_MISSING: MissingDevices = { camera: false, microphone: false, audio: false };
 const LIVENESS_CHECKS_ENABLED = false;
+const DEVICE_AUTO_PAUSE_ENABLED = false;
 type PauseSource = 'device' | 'risk' | 'server' | 'manual' | 'fullscreen';
 
 const ProctoringMonitor: React.FC<Props> = ({
@@ -1092,6 +1093,7 @@ const ProctoringMonitor: React.FC<Props> = ({
 
     if (!hasBlockingMissing) {
       if (
+        DEVICE_AUTO_PAUSE_ENABLED &&
         pausedRef.current &&
         !blockedByRiskPause &&
         deviceReadyStreakRef.current >= DEVICE_READY_STREAK_THRESHOLD
@@ -1115,6 +1117,36 @@ const ProctoringMonitor: React.FC<Props> = ({
     }
 
     if (deviceMissingStreakRef.current < DEVICE_MISSING_STREAK_THRESHOLD) {
+      return;
+    }
+
+    if (!DEVICE_AUTO_PAUSE_ENABLED) {
+      if (missing.camera) {
+        triggerViolation(
+          'camera_off',
+          'Camera unavailable',
+          'Camera is off. Monitoring continues and this is recorded.',
+          'high',
+          CAMERA_COOLDOWN_MS,
+        );
+      }
+      if (missing.microphone) {
+        triggerViolation(
+          'microphone_off',
+          'Microphone unavailable',
+          'Microphone is off. Monitoring continues and this is recorded.',
+          'high',
+          CAMERA_COOLDOWN_MS,
+        );
+      }
+      queueEvent({
+        event_type: 'device_warning',
+        severity: 'high',
+        payload: {
+          missing,
+          mode: 'warning_only',
+        },
+      });
       return;
     }
 

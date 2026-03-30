@@ -1,5 +1,5 @@
 // components/challenge-detail/ChallengeOverview.tsx
-import { ArrowLeft, Monitor } from 'lucide-react';
+import { ArrowLeft, Loader2, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DescriptionPanel } from './DescriptionPanel';
 import { LanguageSelector } from './LanguageSelector';
@@ -13,6 +13,7 @@ interface ChallengeOverviewProps {
   onStartSession: () => void;
   onBack: () => void;
   startDisabled?: boolean;
+  startLoading?: boolean;
   startLabel?: string;
 }
 
@@ -24,6 +25,7 @@ export const ChallengeOverview = ({
   onStartSession,
   onBack,
   startDisabled = false,
+  startLoading = false,
   startLabel = 'Start Challenge Session',
 }: ChallengeOverviewProps) => {
   return (
@@ -78,9 +80,10 @@ export const ChallengeOverview = ({
           <Button 
             size="lg" 
             onClick={onStartSession} 
-            disabled={startDisabled}
-            className="w-full sm:w-auto px-8"
+            disabled={startDisabled || startLoading}
+            className="w-full gap-2 sm:w-auto px-8"
           >
+            {startLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {startLabel}
           </Button>
         </div>

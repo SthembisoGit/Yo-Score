@@ -48,11 +48,13 @@ export default function ChallengeDetail() {
   const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
   const [durationSeconds, setDurationSeconds] = useState<number>(0);
   const [violationCount, setViolationCount] = useState(0);
+  const [isPreparingStart, setIsPreparingStart] = useState(false);
   const [isStartingProctoring, setIsStartingProctoring] = useState(false);
   const [isSessionPaused, setIsSessionPaused] = useState(false);
   const [pauseReason, setPauseReason] = useState('');
   const [showStartHelp, setShowStartHelp] = useState(false);
   const [desktopBlockReasons, setDesktopBlockReasons] = useState<string[]>([]);
+  const [assignmentValidated, setAssignmentValidated] = useState(false);
   const lastChallengeIdRef = useRef<string | undefined>(id);
 
   const { startSession } = useProctoring();
@@ -65,6 +67,14 @@ export default function ChallengeDetail() {
   const assignmentCategory =
     locationState?.assignmentCategory || params.get('assignmentCategory');
   const canStartAssignedFlow = assignedFromMatcher && Boolean(assignmentCategory);
+
+  const verifyAssignedChallenge = useCallback(async (category: string, challengeId: string) => {
+    const assigned = await challengeService.getNextChallenge(category);
+    return {
+      assigned,
+      matchesCurrent: assigned.challenge_id === challengeId,
+    };
+  }, []);
 
   // Initialize language from user preference
   useEffect(() => {
@@ -85,36 +95,67 @@ export default function ChallengeDetail() {
     }
   };
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const prepareAssignedStart = async () => {
+      if (!canStartAssignedFlow || !assignmentCategory || !id || !challenge) {
+        setAssignmentValidated(false);
+        setIsPreparingStart(false);
+        return;
+      }
+
+      setIsPreparingStart(true);
+      try {
+        const verification = await verifyAssignedChallenge(assignmentCategory, id);
+        if (cancelled) return;
+
+        if (!verification.matchesCurrent) {
+          toast('You were redirected to your assigned challenge for this category and seniority.');
+          navigate(
+            `/challenges/${verification.assigned.challenge_id}?assigned=1&assignmentCategory=${encodeURIComponent(
+              assignmentCategory,
+            )}`,
+            {
+              replace: true,
+              state: {
+                assignedFromMatcher: true,
+                assignmentCategory,
+              },
+            },
+          );
+          return;
+        }
+
+        setAssignmentValidated(true);
+      } catch {
+        if (cancelled) return;
+        setAssignmentValidated(false);
+      } finally {
+        if (!cancelled) {
+          setIsPreparingStart(false);
+        }
+      }
+    };
+
+    void prepareAssignedStart();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assignmentCategory, canStartAssignedFlow, challenge, id, navigate, verifyAssignedChallenge]);
+
   const handleStartSession = async () => {
     if (!id || !challenge) return;
+    if (isPreparingStart || isStartingProctoring) return;
 
     if (!canStartAssignedFlow || !assignmentCategory) {
       toast.error('Use "Start Matched Challenge" to begin a seniority-assigned attempt.');
       navigate('/challenges');
       return;
     }
-
-    try {
-      const assigned = await challengeService.getNextChallenge(assignmentCategory);
-      if (assigned.challenge_id !== id) {
-        toast('You were redirected to your assigned challenge for this category and seniority.');
-        navigate(
-          `/challenges/${assigned.challenge_id}?assigned=1&assignmentCategory=${encodeURIComponent(
-            assignmentCategory,
-          )}`,
-          {
-          replace: true,
-          state: {
-            assignedFromMatcher: true,
-            assignmentCategory,
-          },
-          },
-        );
-        return;
-      }
-    } catch (assignmentError) {
-      toast.error('Could not verify assigned challenge. Please restart from the challenge matcher.');
-      navigate('/challenges');
+    if (!assignmentValidated) {
+      toast.error('Preparing your matched challenge. Please wait a moment and try again.');
       return;
     }
 
@@ -267,9 +308,11 @@ export default function ChallengeDetail() {
     setDeadlineAt(null);
     setDurationSeconds(0);
     setViolationCount(0);
+    setIsPreparingStart(false);
     setIsSessionPaused(false);
     setPauseReason('');
     setDesktopBlockReasons([]);
+    setAssignmentValidated(false);
     lastChallengeIdRef.current = id;
   }, [id, sessionId, sessionStarted]);
 
@@ -394,8 +437,14 @@ export default function ChallengeDetail() {
               onLanguageChange={handleLanguageChange}
               onStartSession={handleStartSession}
               onBack={() => navigate('/challenges')}
+              startDisabled={isPreparingStart}
+              startLoading={isPreparingStart}
               startLabel={
-                canStartAssignedFlow ? 'Start Challenge Session' : 'Start From Matched Assignment'
+                isPreparingStart
+                  ? 'Preparing Challenge Session...'
+                  : canStartAssignedFlow
+                    ? 'Start Challenge Session'
+                    : 'Start From Matched Assignment'
               }
             />
               </>
