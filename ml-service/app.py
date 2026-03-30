@@ -9,6 +9,15 @@ import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
+try:
+    from dotenv import load_dotenv
+except Exception:
+    def load_dotenv(*_args, **_kwargs):
+        return False
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
 app = FastAPI(title="YoScore ML Proctoring Service")
 logger = logging.getLogger("yoscore.ml")
 logging.basicConfig(level=logging.INFO)

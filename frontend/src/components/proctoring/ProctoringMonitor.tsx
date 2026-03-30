@@ -468,6 +468,19 @@ const ProctoringMonitor: React.FC<Props> = ({
       } catch (error) {
         console.error('Failed syncing pause state with backend:', error);
         if (!paused && error instanceof Error && error.message.toLowerCase().includes('liveness')) {
+          const currentMissing = buildMissingDevices(
+            cameraReadyRef.current,
+            micReadyRef.current,
+            audioReadyRef.current,
+          );
+          setIsLivenessRequired(true);
+          commitPauseState(
+            true,
+            'Complete liveness verification before resuming.',
+            currentMissing,
+            'risk',
+          );
+          await issueLivenessChallenge(true);
           addAlert('Complete liveness verification before resuming.', 'medium');
         } else if (!paused) {
           addAlert('Unable to resume session right now. Confirm devices and try again.', 'medium');
@@ -479,7 +492,7 @@ const ProctoringMonitor: React.FC<Props> = ({
         }
       }
     },
-    [addAlert, commitPauseState, equalMissingDevices, sessionId],
+    [addAlert, buildMissingDevices, commitPauseState, equalMissingDevices, sessionId],
   );
 
   const flushEventBuffer = useCallback(async () => {
@@ -1276,21 +1289,30 @@ const ProctoringMonitor: React.FC<Props> = ({
         setLivenessChallenge(null);
       }
 
-      if (risk.risk_state === 'paused' && risk.pause_recommended) {
-        const reasonDetail = risk.reasons?.[0] || 'session paused by consensus proctoring policy';
-        const reason = `Consensus risk pause: ${reasonDetail}`;
-        lastRiskPauseReasonRef.current = reason;
-        await applyPauseState({
+        if (risk.risk_state === 'paused' && risk.pause_recommended) {
+          const reasonDetail = risk.reasons?.[0] || 'session paused by consensus proctoring policy';
+          const reason = `Consensus risk pause: ${reasonDetail}`;
+          lastRiskPauseReasonRef.current = reason;
+          await applyPauseState({
           paused: true,
           reason,
           missing: missingDevicesRef.current,
-          source: 'risk',
-        });
-      }
+            source: 'risk',
+          });
+        } else if (
+          pausedRef.current &&
+          lastPauseSourceRef.current === 'risk' &&
+          !livenessRequiredNow &&
+          !missingDevicesRef.current.camera &&
+          !missingDevicesRef.current.microphone &&
+          (!fullscreenRequired || fullscreenActive)
+        ) {
+          commitPauseState(false, '', EMPTY_MISSING, 'risk');
+        }
 
-      if (livenessRequiredNow) {
-        await issueLivenessChallenge(false);
-      }
+        if (livenessRequiredNow) {
+          await issueLivenessChallenge(false);
+        }
     } catch (error) {
       console.error('Failed to poll session risk:', error);
       if (!connectionIssueAlertShownRef.current) {
@@ -1553,12 +1575,19 @@ const ProctoringMonitor: React.FC<Props> = ({
           micReadyRef.current,
           audioReadyRef.current,
         );
-        if (pausedRef.current && !currentMissing.camera && !currentMissing.microphone) {
+        const blockingDevicesMissing = currentMissing.camera || currentMissing.microphone;
+        const fullscreenBlocked = Boolean(fullscreenRequired && !fullscreenActive);
+
+        if (!result.liveness_required && !blockingDevicesMissing && !fullscreenBlocked) {
+          commitPauseState(false, '', EMPTY_MISSING, 'risk');
+        } else if (pausedRef.current && !blockingDevicesMissing) {
           await applyPauseState({
             paused: true,
-            reason: 'Liveness verified. Click "Resume session" to continue.',
+            reason: fullscreenBlocked
+              ? 'Fullscreen mode exited. Restore fullscreen to continue.'
+              : 'Liveness verified. Click "Resume session" to continue.',
             missing: currentMissing,
-            source: 'risk',
+            source: fullscreenBlocked ? 'fullscreen' : 'risk',
             syncWithBackend: false,
           });
         }
@@ -1573,7 +1602,17 @@ const ProctoringMonitor: React.FC<Props> = ({
     } finally {
       setIsVerifyingLiveness(false);
     }
-  }, [addAlert, applyPauseState, buildMissingDevices, livenessAction, livenessChallenge, sessionId]);
+  }, [
+    addAlert,
+    applyPauseState,
+    buildMissingDevices,
+    commitPauseState,
+    fullscreenActive,
+    fullscreenRequired,
+    livenessAction,
+    livenessChallenge,
+    sessionId,
+  ]);
 
   const handleDragStart = (event: React.MouseEvent) => {
     if ((event.target as HTMLElement).closest('button')) return;

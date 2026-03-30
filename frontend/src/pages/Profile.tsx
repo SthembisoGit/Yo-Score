@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { User, Mail, Save, MapPin, Link2, Github, Linkedin, Globe } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { ScoreCard } from '@/components/ScoreCard';
@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Loader } from '@/components/Loader';
 import { useAuth } from '@/context/AuthContext';
 import { Link } from 'react-router-dom';
-import { dashboardService } from '@/services/dashboardService';
+import { dashboardService, type DashboardData } from '@/services/dashboardService';
 import { challengeService } from '@/services/challengeService';
 import { buildCategoryScoresFromSubmissions, type CategoryScoreView } from '@/lib/categoryScores';
 import { toast } from 'react-hot-toast';
@@ -38,11 +38,13 @@ const isValidUrl = (value: string) => {
 
 export default function Profile() {
   const { user, updateUser } = useAuth();
+  const userId = user?.id ?? null;
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [dashboardSummary, setDashboardSummary] = useState<DashboardData | null>(null);
   const [categoryScores, setCategoryScores] = useState<CategoryScoreView[]>([]);
-  const [isCategoryScoresLoading, setIsCategoryScoresLoading] = useState(false);
+  const [isMetricsLoading, setIsMetricsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -56,45 +58,86 @@ export default function Profile() {
   });
 
   useEffect(() => {
-    if (user) {
-      setFormData({
-        name: user.name || '',
-        email: user.email || '',
-        avatar_url: user.avatar || '',
-        headline: user.headline || '',
-        bio: user.bio || '',
-        location: user.location || '',
-        github_url: user.githubUrl || '',
-        linkedin_url: user.linkedinUrl || '',
-        portfolio_url: user.portfolioUrl || '',
+    if (!user || isEditing) return;
+
+    setFormData({
+      name: user.name || '',
+      email: user.email || '',
+      avatar_url: user.avatar || '',
+      headline: user.headline || '',
+      bio: user.bio || '',
+      location: user.location || '',
+      github_url: user.githubUrl || '',
+      linkedin_url: user.linkedinUrl || '',
+      portfolio_url: user.portfolioUrl || '',
+    });
+  }, [
+    isEditing,
+    user?.avatar,
+    user?.bio,
+    user?.email,
+    user?.githubUrl,
+    user?.headline,
+    user?.linkedinUrl,
+    user?.location,
+    user?.name,
+    user?.portfolioUrl,
+  ]);
+
+  const loadProfileMetrics = useCallback(async () => {
+    if (!userId) return;
+
+    setIsMetricsLoading(true);
+    try {
+      const [dashboard, submissions, challenges] = await Promise.all([
+        dashboardService.getDashboardData(),
+        dashboardService.getUserSubmissions(),
+        challengeService.getAllChallenges(),
+      ]);
+      const mappedChallenges = challenges.map((challenge) => ({
+        id: challenge.challenge_id,
+        category: challenge.category,
+      }));
+
+      setDashboardSummary(dashboard);
+      setCategoryScores(buildCategoryScoresFromSubmissions(submissions, mappedChallenges));
+      updateUser({
+        totalScore: dashboard.total_score,
+        trustLevel: dashboard.trust_level,
+        workExperienceMonths: dashboard.work_experience_summary?.trusted_months ?? 0,
+        seniorityBand: dashboard.seniority_band,
       });
+    } catch {
+      setDashboardSummary(null);
+      setCategoryScores([]);
+    } finally {
+      setIsMetricsLoading(false);
     }
-  }, [user]);
+  }, [updateUser, userId]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
 
-    const loadCategoryScores = async () => {
-      setIsCategoryScoresLoading(true);
-      try {
-        const [submissions, challenges] = await Promise.all([
-          dashboardService.getUserSubmissions(),
-          challengeService.getAllChallenges(),
-        ]);
-        const mappedChallenges = challenges.map((challenge) => ({
-          id: challenge.challenge_id,
-          category: challenge.category,
-        }));
-        setCategoryScores(buildCategoryScoresFromSubmissions(submissions, mappedChallenges));
-      } catch {
-        setCategoryScores([]);
-      } finally {
-        setIsCategoryScoresLoading(false);
+    void loadProfileMetrics();
+
+    const handleFocus = () => {
+      void loadProfileMetrics();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void loadProfileMetrics();
       }
     };
 
-    void loadCategoryScores();
-  }, [user]);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loadProfileMetrics, userId]);
 
   const initials = useMemo(() => {
     if (!user?.name) return 'YS';
@@ -105,6 +148,9 @@ export default function Profile() {
       .map((part) => part[0]?.toUpperCase() ?? '')
       .join('');
   }, [user?.name]);
+
+  const totalScore = dashboardSummary?.total_score ?? user.totalScore;
+  const trustLevel = dashboardSummary?.trust_level ?? user.trustLevel;
 
   if (!user) {
     return (
@@ -439,8 +485,8 @@ export default function Profile() {
           <div className="space-y-6">
             <ScoreCard
               title="Total Trust Score"
-              score={user.totalScore}
-              trustLevel={user.trustLevel}
+              score={totalScore}
+              trustLevel={trustLevel}
               size="lg"
               colorVariant="primary"
             />
@@ -457,15 +503,15 @@ export default function Profile() {
             <div className="bg-card border border-border rounded-lg p-6">
                 <h3 className="font-semibold mb-4">Category Breakdown</h3>
                 <div className="space-y-4">
-                {isCategoryScoresLoading && (
+                {isMetricsLoading && (
                   <p className="text-sm text-muted-foreground">Loading category scores...</p>
                 )}
-                {!isCategoryScoresLoading && categoryScores.length === 0 && (
+                {!isMetricsLoading && categoryScores.length === 0 && (
                   <p className="text-sm text-muted-foreground">
                     No scored categories yet. Complete challenges to build your category profile.
                   </p>
                 )}
-                {!isCategoryScoresLoading && categoryScores.map((cat, index) => {
+                {!isMetricsLoading && categoryScores.map((cat, index) => {
                   const colors = [
                     'bg-[hsl(210,80%,50%)]',
                     'bg-[hsl(270,60%,55%)]',
