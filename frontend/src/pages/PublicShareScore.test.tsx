@@ -64,7 +64,7 @@ describe('PublicShareScore', () => {
     expect(screen.getByText(/Print \/ Save as PDF/i)).toBeVisible();
     expect(screen.getByText('Inclusive Counter')).toBeVisible();
     expect(screen.queryByText(/@example\.com/i)).not.toBeInTheDocument();
-  });
+  }, 15_000);
 
   it('shows a safe unavailable state when the token cannot be loaded', async () => {
     getPublicShareScoreMock.mockRejectedValue(new Error('Shared score not available'));

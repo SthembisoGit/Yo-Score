@@ -10,6 +10,9 @@ import {
   type RiskState,
 } from './proctoringRisk.service';
 
+// Demo-safe mode: keep device-off events auditable without auto-pausing the session.
+const DEVICE_AUTO_PAUSE_ENABLED = false;
+
 export interface ProctoringViolation {
   type: string;
   severity: 'low' | 'medium' | 'high';
@@ -886,7 +889,8 @@ export class ProctoringService {
       throw new Error('Session not found');
     }
 
-    const currentStatus = sessionResult.rows[0].status as 'active' | 'paused' | 'completed';
+    let currentStatus = sessionResult.rows[0].status as 'active' | 'paused' | 'completed';
+    const currentPauseReason = sessionResult.rows[0].pause_reason ?? null;
 
     if (currentStatus === 'completed') {
       return {
@@ -911,7 +915,17 @@ export class ProctoringService {
 
     const missingRequiredDevice = payload.cameraReady === false || payload.microphoneReady === false;
 
-    if (missingRequiredDevice) {
+    if (
+      !DEVICE_AUTO_PAUSE_ENABLED &&
+      currentStatus === 'paused' &&
+      typeof currentPauseReason === 'string' &&
+      currentPauseReason.startsWith('Required proctoring device unavailable:')
+    ) {
+      await this.resumeSession(sessionId, userId).catch(() => undefined);
+      currentStatus = 'active';
+    }
+
+    if (DEVICE_AUTO_PAUSE_ENABLED && missingRequiredDevice) {
       const reasonParts: string[] = [];
       if (!payload.cameraReady) reasonParts.push('camera');
       if (!payload.microphoneReady) reasonParts.push('microphone');
