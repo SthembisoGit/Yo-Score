@@ -126,6 +126,9 @@ Expected response:
 }
 ```
 
+If `ENABLE_AUDIO_ANALYZER=true` is set and the analyzer initializes successfully, the `audio` and
+`audio_live` fields will report `true` instead of `false`.
+
 ### Test Face Analysis
 
 ```bash
@@ -149,10 +152,13 @@ Set the ML service URL in your backend `.env`:
 ```env
 ML_SERVICE_URL=http://localhost:5000
 ENABLE_FACE_DETECTOR=true
-ENABLE_AUDIO_ANALYZER=false
+ENABLE_AUDIO_ANALYZER=true
 ENABLE_OBJECT_DETECTOR=false
 AUDIO_TRANSCRIPTION_MODE=disabled
 ```
+
+`ENABLE_AUDIO_ANALYZER` remains off unless you set it explicitly in `.env`. The example above turns
+it on intentionally for local voice-analysis testing.
 
 ## Production Deployment
 

@@ -50,7 +50,8 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
 };
 
 export default function Dashboard() {
-  const { user, availableCategories } = useAuth();
+  const { user, updateUser, availableCategories } = useAuth();
+  const userId = user?.id ?? null;
   const navigate = useNavigate();
   const { challenges } = useChallenges();
 
@@ -64,7 +65,7 @@ export default function Dashboard() {
   const [isAssigning, setIsAssigning] = useState(false);
 
   const loadDashboardData = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
     setIsLoading(true);
     try {
       const [dashboard, submissions] = await Promise.all([
@@ -73,19 +74,25 @@ export default function Dashboard() {
       ]);
       setDashboardData(dashboard);
       setRecentSubmissions(submissions);
+      updateUser({
+        totalScore: dashboard.total_score,
+        trustLevel: dashboard.trust_level,
+        workExperienceMonths: dashboard.work_experience_summary?.trusted_months ?? 0,
+        seniorityBand: dashboard.seniority_band,
+      });
     } catch (error) {
       console.error('Dashboard data fetch failed', error);
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [updateUser, userId]);
 
   useEffect(() => {
     void loadDashboardData();
   }, [loadDashboardData]);
 
   useEffect(() => {
-    if (!user) return undefined;
+    if (!userId) return undefined;
 
     const handleFocus = () => {
       void loadDashboardData();
@@ -104,7 +111,7 @@ export default function Dashboard() {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [loadDashboardData, user]);
+  }, [loadDashboardData, userId]);
 
   const handleStartMatchedChallenge = async () => {
     setIsAssigning(true);

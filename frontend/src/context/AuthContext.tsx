@@ -333,7 +333,16 @@ const login = useCallback(async (email: string, password: string) => {
   }, []);
 
   const updateUser = useCallback((updates: Partial<User>) => {
-    setUser((prev) => (prev ? { ...prev, ...updates } : null));
+    setUser((prev) => {
+      if (!prev) return null;
+
+      const next = { ...prev, ...updates };
+      const hasChanges = (Object.keys(updates) as Array<keyof User>).some(
+        (key) => !Object.is(prev[key], next[key]),
+      );
+
+      return hasChanges ? next : prev;
+    });
   }, []);
 
   const setPreferredLanguage = useCallback((language: ProgrammingLanguage) => {

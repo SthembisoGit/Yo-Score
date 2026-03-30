@@ -35,51 +35,96 @@ Demo credentials are for evaluation only and may be reset.
 - ML service: FastAPI (lightweight live checks + degraded-mode handling)
 - Deployment target: Render + Supabase + Upstash
 
-## Local Run (Quick)
+## Local Run
 
-### Prerequisites
+### 1. Prerequisites
 
 - Node.js 20+
 - Python 3.11+
-- PostgreSQL connection (`DATABASE_URL`)
-- Redis connection (`REDIS_URL`) for judge queue
-- FFmpeg available in PATH (for audio handling in ML service)
+- PostgreSQL running and reachable from `DATABASE_URL`
+- Redis running and reachable from `REDIS_URL`
+- FFmpeg available in PATH (needed by the ML audio pipeline)
 
-### Backend
+### 2. Create local env files
+
+```powershell
+Copy-Item backend/.env.example backend/.env
+Copy-Item frontend/.env.example frontend/.env
+Copy-Item ml-service/.env.example ml-service/.env
+```
+
+Fill in the required secrets and URLs before starting the app:
+
+- `backend/.env`: at minimum set `DATABASE_URL`, `JWT_SECRET`, and `REDIS_URL`
+- `frontend/.env`: set `VITE_API_BASE_URL` to your backend API, usually `http://localhost:3000/api`
+- `ml-service/.env`: set `ENABLE_AUDIO_ANALYZER=true` to enable local voice analysis
+
+If you are not running a separate worker, set `RUN_JUDGE_IN_API=true` in `backend/.env`.
+
+### 3. Install dependencies
 
 ```bash
 cd backend
 npm install
-npm run migrate
-npm run seed:build-pack
-npm run seed:easy-challenges
-npm run seed:verify-readiness
-npm run build
-npm run start
 ```
-
-### Judge Worker
-
-```bash
-cd backend
-npm run worker
-```
-
-### Frontend
 
 ```bash
 cd frontend
 npm install
-npm run dev
 ```
-
-### ML Service
 
 ```bash
 cd ml-service
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
+```
+
+### 4. Prepare the database
+
+```bash
+cd backend
+npm run migrate
+npm run seed:build-pack
+npm run seed:easy-challenges
+npm run seed:verify-readiness
+```
+
+### 5. Start the services
+
+Backend API:
+
+```bash
+cd backend
+npm run dev
+```
+
+Judge worker:
+
+```bash
+cd backend
+npm run build
+npm run worker
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm run dev
+```
+
+ML service:
+
+```bash
+cd ml-service
 python -m uvicorn app:app --host 0.0.0.0 --port 5000
 ```
+
+### 6. Open the app
+
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:3000/api`
+- Backend health: `http://localhost:3000/health`
+- ML health: `http://localhost:5000/health`
 
 ## Environment Notes
 
@@ -121,8 +166,9 @@ Avatar uploads use Supabase Storage directly from the frontend. Create the bucke
 
 - `ENABLE_FACE_DETECTOR=true`
 - `FACE_DETECTOR_BACKEND=opencv` (default)
-- `ENABLE_AUDIO_ANALYZER=false` (default on free tier)
+- `ENABLE_AUDIO_ANALYZER=true` (enable this explicitly for local voice analysis)
 - `ENABLE_OBJECT_DETECTOR=false` (default on free tier)
+- `AUDIO_TRANSCRIPTION_MODE=disabled` (keeps local speech checks on without cloud transcription)
 
 ## Render SPA Routing Note
 
@@ -154,3 +200,7 @@ npm run e2e
 
 - Product and architecture docs: `docs/`
 - Academic submission package: `academic-submission/`
+
+## License
+
+This repository is licensed under the MIT License. See `LICENSE`.
