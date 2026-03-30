@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { ChevronRight, Loader2, AlertCircle, FileText, Info } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
