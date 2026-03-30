@@ -2,11 +2,21 @@ import { Response } from 'express';
 
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { UserService } from '../services/user.service';
+import { ShareScoreService } from '../services/shareScore.service';
 import { safeErrorMessage } from '../utils/safeErrorMessage';
 
-const userService = new UserService();
-
 export class UserController {
+  private readonly userService: UserService;
+  private readonly shareScoreService: ShareScoreService;
+
+  constructor(
+    userService: UserService = new UserService(),
+    shareScoreService: ShareScoreService = new ShareScoreService(),
+  ) {
+    this.userService = userService;
+    this.shareScoreService = shareScoreService;
+  }
+
   async getProfile(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
@@ -16,7 +26,7 @@ export class UserController {
         });
       }
 
-      const user = await userService.getUserById(req.user.id);
+      const user = await this.userService.getUserById(req.user.id);
 
       return res.status(200).json({
         success: true,
@@ -72,7 +82,7 @@ export class UserController {
         });
       }
 
-      const user = await userService.updateUser(req.user.id, {
+      const user = await this.userService.updateUser(req.user.id, {
         name:
           typeof name === 'string'
             ? (name.trim() || undefined)
@@ -160,6 +170,89 @@ export class UserController {
         success: false,
         message,
         error: errorCode
+      });
+    }
+  }
+
+  async getShareScoreSettings(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated',
+        });
+      }
+
+      const settings = await this.shareScoreService.getShareSettings(req.user.id);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Share score settings retrieved successfully',
+        data: settings,
+      });
+    } catch (error) {
+      const message = safeErrorMessage(error, 'Failed to retrieve share score settings', [
+        'User not found',
+      ]);
+
+      return res.status(404).json({
+        success: false,
+        message,
+        error: 'USER_NOT_FOUND',
+      });
+    }
+  }
+
+  async updateShareScoreSettings(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated',
+        });
+      }
+
+      const settings = await this.shareScoreService.updateShareSettings(req.user.id, {
+        enabled: req.body.enabled,
+        regenerate: req.body.regenerate,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Share score settings updated successfully',
+        data: settings,
+      });
+    } catch (error) {
+      const message = safeErrorMessage(error, 'Failed to update share score settings', [
+        'User not found',
+      ]);
+
+      return res.status(404).json({
+        success: false,
+        message,
+        error: 'USER_NOT_FOUND',
+      });
+    }
+  }
+
+  async getPublicShareScore(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { token } = req.params;
+      const shareScore = await this.shareScoreService.getPublicSharedScore(token);
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+
+      return res.status(200).json({
+        success: true,
+        message: 'Shared score retrieved successfully',
+        data: shareScore,
+      });
+    } catch (error) {
+      const message = safeErrorMessage(error, 'Shared score not available', ['Shared score not found']);
+
+      return res.status(404).json({
+        success: false,
+        message,
+        error: 'SHARED_SCORE_NOT_FOUND',
       });
     }
   }

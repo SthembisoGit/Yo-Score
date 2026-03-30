@@ -10,6 +10,7 @@ import dashboardRoutes from './routes/dashboard.routes';
 import proctoringRoutes from './routes/proctoring.routes';
 import adminRoutes from './routes/admin.routes';
 import codeRoutes from './routes/code.routes';
+import publicRoutes from './routes/public.routes';
 import { enableJudge, runJudgeInApi } from './config';
 import { getCorsConfig } from './utils/corsConfig';
 import { captureException, initSentry } from './observability/sentry';
@@ -137,6 +138,7 @@ export function createApp() {
   });
 
   app.use('/api/auth', authRoutes);
+  app.use('/api/public', publicRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/challenges', challengeRoutes);
   app.use('/api/submissions', submissionRoutes);

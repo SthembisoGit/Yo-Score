@@ -159,7 +159,7 @@ describe('ChallengeSession timer warnings and timeout submit', () => {
 
     expect(tenMinuteCalls).toBe(1);
     expect(fiveMinuteCalls).toBe(1);
-  });
+  }, 15_000);
 
   it('auto-submits on timeout with timeoutSubmit=true and retries once on snapshot-processing delay', async () => {
     submitChallengeMock

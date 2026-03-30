@@ -72,9 +72,22 @@ export const updateProfileSchema = z
     },
   );
 
+export const updateShareScoreSchema = z
+  .object({
+    enabled: z.boolean(),
+    regenerate: z.boolean().optional(),
+  })
+  .strict();
+
 export const sessionIdParamSchema = z
   .object({
     sessionId: z.string().uuid(),
+  })
+  .strict();
+
+export const shareScoreTokenParamSchema = z
+  .object({
+    token: z.string().uuid(),
   })
   .strict();
 

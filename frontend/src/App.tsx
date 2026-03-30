@@ -20,6 +20,7 @@ const ChallengeDetail = lazy(() => import("./pages/ChallengeDetail"));
 const WorkExperience = lazy(() => import("./pages/WorkExperience"));
 const Profile = lazy(() => import("./pages/Profile"));
 const SubmissionResult = lazy(() => import("./pages/SubmissionResult"));
+const PublicShareScore = lazy(() => import("./pages/PublicShareScore"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const About = lazy(() => import("./pages/About"));
@@ -56,6 +57,7 @@ const App = () => (
                 <Route path="/work-experience" element={<WorkExperience />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/submissions/:id" element={<SubmissionResult />} />
+                <Route path="/share/:token" element={<PublicShareScore />} />
                 <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
