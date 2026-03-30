@@ -69,6 +69,7 @@ const LOOK_AWAY_THRESHOLD = 3;
 const NO_FACE_STREAK_THRESHOLD = 4;
 const DEVICE_MISSING_STREAK_THRESHOLD = 2;
 const DEVICE_READY_STREAK_THRESHOLD = 2;
+const DEVICE_WARMUP_MS = 5000;
 const MAX_EVENT_BUFFER = 100;
 const SNAPSHOT_INTERVAL_MS = 25000;
 const SNAPSHOT_SAMPLE_RATE = 0.18;
@@ -115,6 +116,7 @@ const ProctoringMonitor: React.FC<Props> = ({
   const lastLivenessIssuedAtRef = useRef(0);
   const deviceMissingStreakRef = useRef(0);
   const deviceReadyStreakRef = useRef(0);
+  const deviceWarmupUntilRef = useRef(0);
   const cameraReadyRef = useRef(false);
   const micReadyRef = useRef(false);
   const audioReadyRef = useRef(false);
@@ -1002,6 +1004,7 @@ const ProctoringMonitor: React.FC<Props> = ({
     initializeNativeFaceDetector();
     setupAudioEnergySampler(stream);
     setupAudioRecorder(stream);
+    deviceWarmupUntilRef.current = Date.now() + DEVICE_WARMUP_MS;
     setCameraReady(true);
     setMicReady(stream.getAudioTracks().length > 0);
     await checkAudioSupport();
@@ -1011,14 +1014,33 @@ const ProctoringMonitor: React.FC<Props> = ({
     const stream = mediaStreamRef.current;
     const videoTrack = stream?.getVideoTracks()[0];
     const audioTrack = stream?.getAudioTracks()[0];
-    const cameraOn = Boolean(
+    const inWarmupWindow = Date.now() < deviceWarmupUntilRef.current;
+    const cameraTrackReady = Boolean(
       videoTrack &&
       videoTrack.readyState === 'live' &&
       videoTrack.enabled &&
-      !videoTrack.muted &&
       stream?.active,
     );
-    const micOn = Boolean(audioTrack && audioTrack.readyState === 'live' && audioTrack.enabled && !audioTrack.muted);
+    const micTrackReady = Boolean(
+      audioTrack &&
+      audioTrack.readyState === 'live' &&
+      audioTrack.enabled &&
+      stream?.active,
+    );
+    const cameraOn = cameraTrackReady || Boolean(
+      inWarmupWindow &&
+      videoTrack &&
+      videoTrack.readyState !== 'ended' &&
+      videoTrack.enabled &&
+      stream?.active,
+    );
+    const micOn = micTrackReady || Boolean(
+      inWarmupWindow &&
+      audioTrack &&
+      audioTrack.readyState !== 'ended' &&
+      audioTrack.enabled &&
+      stream?.active,
+    );
     const audioOn = audioReadyRef.current;
 
     setCameraReady(cameraOn);
