@@ -207,7 +207,6 @@ npm run e2e
 - `frontend/`: React client and challenge-session interface
 - `ml-service/`: FastAPI proctoring analysis service
 - `docs/`: product, system, and security documentation
-- `academic-submission/`: lecturer-facing submission artifacts
 - `production-ready file system blueprint/`: governance and engineering reference docs
 - `scripts/`: repository-level helper scripts
 
