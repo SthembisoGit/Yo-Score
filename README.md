@@ -201,6 +201,16 @@ npm run e2e
 - Product and architecture docs: `docs/`
 - Academic submission package: `academic-submission/`
 
+## Repository Map
+
+- `backend/`: API, worker, database, and seeding logic
+- `frontend/`: React client and challenge-session interface
+- `ml-service/`: FastAPI proctoring analysis service
+- `docs/`: product, system, and security documentation
+- `academic-submission/`: lecturer-facing submission artifacts
+- `production-ready file system blueprint/`: governance and engineering reference docs
+- `scripts/`: repository-level helper scripts
+
 ## License
 
 This repository is licensed under the MIT License. See `LICENSE`.

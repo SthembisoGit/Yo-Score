@@ -1,4 +1,5 @@
 services:
+  # Core API service with queue-backed judging support.
   - type: web
     name: yoscore-backend
     runtime: node
@@ -35,6 +36,7 @@ services:
       - key: SENTRY_TRACES_SAMPLE_RATE
         value: "0.1"
 
+  # ML service for proctoring analysis and degraded-mode fallbacks.
   - type: web
     name: yoscore-ml-service
     runtime: python
@@ -44,6 +46,7 @@ services:
     healthCheckPath: /health
     autoDeploy: true
 
+  # Static frontend application with SPA rewrite support.
   - type: web
     name: yoscore-frontend
     runtime: static

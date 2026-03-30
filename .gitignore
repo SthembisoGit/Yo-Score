@@ -25,6 +25,12 @@ frontend/playwright-report/
 frontend/.turbo/
 backend/.turbo/
 
+# Temporary local verification builds
+dist-verify/
+dist-login-verify/
+frontend/dist-verify/
+frontend/dist-login-verify/
+
 # Python artifacts
 __pycache__/
 *.py[cod]
