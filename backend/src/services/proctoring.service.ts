@@ -773,7 +773,7 @@ export class ProctoringService {
     await this.ensureSessionSchemaExtensions();
 
     const sessionResult = await query(
-      `SELECT status, paused_at, liveness_required
+      `SELECT status, paused_at
        FROM proctoring_sessions
        WHERE id = $1 AND user_id = $2`,
       [sessionId, userId],
@@ -834,10 +834,6 @@ export class ProctoringService {
     if (current.status === 'completed') {
       throw new Error('Completed sessions cannot be resumed');
     }
-    if (Boolean(current.liveness_required)) {
-      throw new Error('Liveness check required before resume');
-    }
-
     const pausedAtValue = current.paused_at ? new Date(current.paused_at) : null;
     const pausedDurationSeconds = pausedAtValue
       ? Math.max(0, Math.floor((Date.now() - pausedAtValue.getTime()) / 1000))
@@ -851,6 +847,8 @@ export class ProctoringService {
              WHEN COALESCE(risk_score, 0) >= 25 THEN 'warn'
              ELSE 'observe'
            END,
+           liveness_required = false,
+           liveness_challenge = '{}'::jsonb,
            pause_reason = NULL,
            paused_at = NULL,
            heartbeat_at = NOW(),
@@ -1058,16 +1056,13 @@ export class ProctoringService {
       const paused = await this.pauseSession(sessionId, userId, reason);
       status = paused.status;
 
-      if (risk.livenessRequired) {
-        const challenge = this.createLivenessChallenge();
-        await query(
-          `UPDATE proctoring_sessions
-           SET liveness_required = true,
-               liveness_challenge = $2::jsonb
-           WHERE id = $1`,
-          [sessionId, JSON.stringify(challenge)],
-        );
-      }
+      await query(
+        `UPDATE proctoring_sessions
+         SET liveness_required = false,
+             liveness_challenge = '{}'::jsonb
+         WHERE id = $1`,
+        [sessionId],
+      );
     }
 
     return {
@@ -2087,6 +2082,14 @@ export class ProctoringService {
       throw new Error('Session not found');
     }
 
+    await query(
+      `UPDATE proctoring_sessions
+       SET liveness_required = false,
+           liveness_challenge = '{}'::jsonb
+       WHERE id = $1 AND user_id = $2`,
+      [sessionId, userId],
+    );
+
     const risk = await this.computeRiskForSession(sessionId);
     await this.persistSessionRiskState(sessionId, risk);
 
@@ -2098,7 +2101,7 @@ export class ProctoringService {
       risk_state: computedState,
       risk_score: risk.riskScore,
       pause_recommended: risk.pauseRecommended,
-      liveness_required: Boolean(sessionResult.rows[0].liveness_required ?? risk.livenessRequired),
+      liveness_required: false,
       reasons: risk.reasons,
     };
   }
@@ -2128,21 +2131,12 @@ export class ProctoringService {
       throw new Error('Completed sessions cannot request liveness checks');
     }
 
-    const challenge = this.createLivenessChallenge();
-    await query(
-      `UPDATE proctoring_sessions
-       SET liveness_required = true,
-           liveness_challenge = $3::jsonb
-       WHERE id = $1 AND user_id = $2`,
-      [sessionId, userId, JSON.stringify(challenge)],
-    );
-
     return {
-      required: true,
-      challenge_id: challenge.challenge_id,
-      expected_action: challenge.expected_action,
-      prompt: challenge.prompt,
-      expires_at: challenge.expires_at,
+      required: false,
+      challenge_id: 'disabled',
+      expected_action: 'turn_left',
+      prompt: 'Liveness checks are currently disabled.',
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
     };
   }
 
@@ -2168,38 +2162,6 @@ export class ProctoringService {
       throw new Error('Session not found');
     }
 
-    const session = sessionResult.rows[0];
-    const challengePayload =
-      typeof session.liveness_challenge === 'string'
-        ? JSON.parse(session.liveness_challenge)
-        : session.liveness_challenge ?? {};
-
-    const expectedAction = String(challengePayload.expected_action || '').trim();
-    const expiresAt = new Date(String(challengePayload.expires_at || '')).getTime();
-    const normalizedResponse = String(responseAction || '').trim();
-
-    if (!expectedAction || !expiresAt || Number.isNaN(expiresAt)) {
-      throw new Error('No active liveness challenge');
-    }
-
-    if (Date.now() > expiresAt) {
-      return {
-        verified: false,
-        message: 'Liveness challenge expired. Request a new one.',
-        risk_state: 'paused',
-        liveness_required: true,
-      };
-    }
-
-    if (normalizedResponse !== expectedAction) {
-      return {
-        verified: false,
-        message: 'Liveness verification failed. Please try again.',
-        risk_state: 'paused',
-        liveness_required: true,
-      };
-    }
-
     await query(
       `UPDATE proctoring_sessions
        SET liveness_required = false,
@@ -2210,17 +2172,9 @@ export class ProctoringService {
       [sessionId, userId],
     );
 
-    if (
-      String(session.status) === 'paused' &&
-      typeof session.pause_reason === 'string' &&
-      session.pause_reason.startsWith('Consensus risk pause:')
-    ) {
-      await this.resumeSession(sessionId, userId).catch(() => undefined);
-    }
-
     return {
       verified: true,
-      message: 'Liveness verified. You can continue.',
+      message: 'Liveness checks are currently disabled.',
       risk_state: 'observe',
       liveness_required: false,
     };

@@ -738,8 +738,14 @@ public class Program
     const now = Date.now();
     if (now - lastClipboardWarningAt < 1200) return;
     setLastClipboardWarningAt(now);
+    setViolationCount((previous) => previous + 1);
+    onViolation?.('copy_paste', {
+      type: 'copy_paste',
+      description: 'Editor clipboard action blocked',
+      source: 'editor-blocked',
+    });
     toast.error('Copy and paste are disabled during challenge solving.');
-  }, [lastClipboardWarningAt]);
+  }, [lastClipboardWarningAt, onViolation]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -751,7 +757,7 @@ public class Program
             </p>
             <h1 className="truncate text-lg font-semibold sm:text-xl">{challenge.title}</h1>
             <p className="text-xs text-muted-foreground">
-              {challenge.category} · {selectedLanguage} · {challenge.difficulty}
+              {challenge.category} - {selectedLanguage} - {challenge.difficulty}
             </p>
           </div>
 

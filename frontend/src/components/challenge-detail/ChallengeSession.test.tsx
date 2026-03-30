@@ -36,8 +36,19 @@ vi.mock('react-router-dom', async () => {
 });
 
 vi.mock('@/components/CodeEditor', () => ({
-  CodeEditor: ({ value = '' }: { value?: string }) => (
-    <div data-testid="mock-code-editor">{String(value).slice(0, 20)}</div>
+  CodeEditor: ({
+    value = '',
+    onClipboardBlocked,
+  }: {
+    value?: string;
+    onClipboardBlocked?: () => void;
+  }) => (
+    <div data-testid="mock-code-editor">
+      <div>{String(value).slice(0, 20)}</div>
+      <button type="button" onClick={() => onClipboardBlocked?.()}>
+        Trigger clipboard block
+      </button>
+    </div>
   ),
 }));
 
@@ -235,5 +246,34 @@ describe('ChallengeSession timer warnings and timeout submit', () => {
     expect(screen.queryByTestId('session-coach-chat')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'AI Chat' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Collapse session dock' })).toBeDisabled();
+  });
+
+  it('increments the visible violation count when clipboard blocking fires from the editor', async () => {
+    render(
+      <ChallengeSession
+        challenge={baseChallenge}
+        referenceDocs={[]}
+        selectedLanguage="python"
+        availableLanguages={['python']}
+        onLanguageChange={vi.fn()}
+        challengeId={baseChallenge.challenge_id}
+        sessionId="66666666-6666-6666-6666-666666666666"
+        userId="99999999-9999-9999-9999-999999999999"
+        durationSeconds={40 * 60}
+      />,
+    );
+
+    await act(async () => {
+      await flushPromises();
+    });
+
+    expect(screen.getByText('0 violation(s)')).toBeInTheDocument();
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Trigger clipboard block' }).click();
+      await flushPromises();
+    });
+
+    expect(screen.getByText('1 violation(s)')).toBeInTheDocument();
   });
 });
