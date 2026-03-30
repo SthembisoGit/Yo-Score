@@ -75,6 +75,7 @@ const SNAPSHOT_INTERVAL_MS = 25000;
 const SNAPSHOT_SAMPLE_RATE = 0.18;
 const MODEL_VERSION = 'browser-v2-consensus';
 const EMPTY_MISSING: MissingDevices = { camera: false, microphone: false, audio: false };
+const LIVENESS_CHECKS_ENABLED = false;
 type PauseSource = 'device' | 'risk' | 'server' | 'manual' | 'fullscreen';
 
 const ProctoringMonitor: React.FC<Props> = ({
@@ -202,11 +203,11 @@ const ProctoringMonitor: React.FC<Props> = ({
   }, [mlDegraded]);
 
   useEffect(() => {
-    livenessChallengeRef.current = livenessChallenge;
+    livenessChallengeRef.current = LIVENESS_CHECKS_ENABLED ? livenessChallenge : null;
   }, [livenessChallenge]);
 
   useEffect(() => {
-    livenessRequiredRef.current = isLivenessRequired;
+    livenessRequiredRef.current = LIVENESS_CHECKS_ENABLED ? isLivenessRequired : false;
   }, [isLivenessRequired]);
 
   useEffect(() => {
@@ -338,7 +339,7 @@ const ProctoringMonitor: React.FC<Props> = ({
       message: string,
       severity: 'low' | 'medium' | 'high',
       cooldownMs = DEFAULT_COOLDOWN_MS,
-      options?: { persist?: boolean; confidence?: number; durationMs?: number },
+      options?: { persist?: boolean; confidence?: number; durationMs?: number; countInSession?: boolean },
     ) => {
       if (!canTrigger(type, cooldownMs)) return;
       const confidence =
@@ -363,19 +364,21 @@ const ProctoringMonitor: React.FC<Props> = ({
         confidence,
         duration_ms: durationMs,
       });
-      onViolation(type, {
-        type,
-        description,
-        severity,
-        confidence,
-        duration_ms: durationMs,
-        sessionId,
-        userId,
-        challengeId,
-        source: 'frontend-live',
-        persisted: options?.persist !== false,
-        timestamp: new Date().toISOString(),
-      });
+      if (options?.countInSession !== false) {
+        onViolation(type, {
+          type,
+          description,
+          severity,
+          confidence,
+          duration_ms: durationMs,
+          sessionId,
+          userId,
+          challengeId,
+          source: 'frontend-live',
+          persisted: options?.persist !== false,
+          timestamp: new Date().toISOString(),
+        });
+      }
       if (severity === 'high') {
         void uploadSnapshot(type, { description, severity, confidence, duration_ms: durationMs, risk_state: riskState });
       }
@@ -469,7 +472,12 @@ const ProctoringMonitor: React.FC<Props> = ({
         }
       } catch (error) {
         console.error('Failed syncing pause state with backend:', error);
-        if (!paused && error instanceof Error && error.message.toLowerCase().includes('liveness')) {
+        if (
+          LIVENESS_CHECKS_ENABLED &&
+          !paused &&
+          error instanceof Error &&
+          error.message.toLowerCase().includes('liveness')
+        ) {
           const currentMissing = buildMissingDevices(
             cameraReadyRef.current,
             micReadyRef.current,
@@ -509,7 +517,7 @@ const ProctoringMonitor: React.FC<Props> = ({
       if (!response) return;
 
       setRiskState(response.risk_state);
-      const livenessRequiredNow = Boolean(response.liveness_required);
+      const livenessRequiredNow = LIVENESS_CHECKS_ENABLED && Boolean(response.liveness_required);
       setIsLivenessRequired(livenessRequiredNow);
       if (!livenessRequiredNow && livenessChallengeRef.current) {
         setLivenessChallenge(null);
@@ -537,6 +545,7 @@ const ProctoringMonitor: React.FC<Props> = ({
 
   const issueLivenessChallenge = useCallback(
     async (force: boolean = false) => {
+      if (!LIVENESS_CHECKS_ENABLED) return;
       if (!force && livenessChallengeRef.current) return;
       if (livenessIssueInFlightRef.current) return;
 
@@ -1305,7 +1314,7 @@ const ProctoringMonitor: React.FC<Props> = ({
     try {
       const risk = await proctoringService.getSessionRisk(sessionId);
       setRiskState(risk.risk_state);
-      const livenessRequiredNow = Boolean(risk.liveness_required);
+      const livenessRequiredNow = LIVENESS_CHECKS_ENABLED && Boolean(risk.liveness_required);
       setIsLivenessRequired(livenessRequiredNow);
       if (!livenessRequiredNow && livenessChallengeRef.current) {
         setLivenessChallenge(null);
@@ -1332,7 +1341,7 @@ const ProctoringMonitor: React.FC<Props> = ({
           commitPauseState(false, '', EMPTY_MISSING, 'risk');
         }
 
-        if (livenessRequiredNow) {
+        if (LIVENESS_CHECKS_ENABLED && livenessRequiredNow) {
           await issueLivenessChallenge(false);
         }
     } catch (error) {
@@ -1360,11 +1369,15 @@ const ProctoringMonitor: React.FC<Props> = ({
       };
       const handleCopy = (event: ClipboardEvent) => {
         event.preventDefault();
-        triggerViolation('copy_paste', 'Copy attempted', 'Copy/paste is disabled.', 'high');
+        triggerViolation('copy_paste', 'Copy attempted', 'Copy/paste is disabled.', 'high', undefined, {
+          countInSession: false,
+        });
       };
       const handlePaste = (event: ClipboardEvent) => {
         event.preventDefault();
-        triggerViolation('copy_paste', 'Paste attempted', 'Copy/paste is disabled.', 'high');
+        triggerViolation('copy_paste', 'Paste attempted', 'Copy/paste is disabled.', 'high', undefined, {
+          countInSession: false,
+        });
       };
       document.addEventListener('visibilitychange', handleVisibilityChange);
       window.addEventListener('blur', handleWindowBlur);
@@ -1573,6 +1586,7 @@ const ProctoringMonitor: React.FC<Props> = ({
   }, [addAlert, checkAudioSupport, checkRequiredDevices, queueEvent, restartStream, sendHeartbeat]);
 
   const requestLivenessChallenge = useCallback(async () => {
+    if (!LIVENESS_CHECKS_ENABLED) return;
     try {
       await issueLivenessChallenge(true);
     } catch (error) {
@@ -1582,6 +1596,7 @@ const ProctoringMonitor: React.FC<Props> = ({
   }, [addAlert, issueLivenessChallenge]);
 
   const verifyLiveness = useCallback(async () => {
+    if (!LIVENESS_CHECKS_ENABLED) return;
     if (!livenessChallenge) return;
     setIsVerifyingLiveness(true);
     try {
@@ -1665,7 +1680,7 @@ const ProctoringMonitor: React.FC<Props> = ({
     };
   }, [handleDrag, handleDragEnd, isDragging]);
 
-  const requiresLiveness = Boolean(livenessChallenge) || isLivenessRequired;
+  const requiresLiveness = LIVENESS_CHECKS_ENABLED && (Boolean(livenessChallenge) || isLivenessRequired);
   const canResume =
     !missingDevices.camera &&
     !missingDevices.microphone &&

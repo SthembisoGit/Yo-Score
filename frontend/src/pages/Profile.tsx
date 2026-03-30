@@ -587,13 +587,13 @@ export default function Profile() {
               </div>
             </div>
 
-            <div className="bg-card border border-border rounded-lg p-6 space-y-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="font-semibold">Public Score Sharing</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Create a recruiter-friendly public score sheet that anyone with the link can open and print.
-                  </p>
+              <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="font-semibold">Public Score Sharing</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Create a recruiter-friendly public score sheet that anyone with the link can open and print.
+                    </p>
                 </div>
                 <Switch
                   checked={Boolean(shareSettings?.enabled)}
@@ -610,83 +610,83 @@ export default function Profile() {
                   <Loader size="sm" />
                   <span>Loading share settings...</span>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-                    <p>
-                      {shareSettings?.enabled
-                        ? 'Anyone with this secret link can view and print your score sheet. Disable sharing any time to stop access.'
-                        : 'Sharing is off. Turn it on to generate a public link for your score sheet.'}
-                    </p>
-                    <p className="mt-2">
-                      Last updated: <span className="font-medium text-foreground">{shareLastUpdated}</span>
-                    </p>
-                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                      <p className="leading-6">
+                        {shareSettings?.enabled
+                          ? 'Anyone with this secret link can view and print your score sheet. Disable sharing any time to stop access.'
+                          : 'Sharing is off. Turn it on to generate a public link for your score sheet.'}
+                      </p>
+                      <p className="mt-2 text-xs uppercase tracking-[0.12em] text-muted-foreground/80">
+                        Last updated
+                        <span className="ml-2 text-sm font-medium normal-case tracking-normal text-foreground">
+                          {shareLastUpdated}
+                        </span>
+                      </p>
+                    </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="public-score-link">Public share link</Label>
-                    <Input
-                      id="public-score-link"
-                      value={shareSettings?.public_url ?? 'Enable sharing to generate a public link'}
-                      readOnly
-                      disabled
-                    />
-                  </div>
-
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="gap-2"
-                      disabled={!shareSettings?.public_url || isShareSaving}
-                      onClick={() => void handleCopyShareLink()}
-                    >
-                      <Copy className="h-4 w-4" />
-                      Copy Link
-                    </Button>
-
-                    {shareSettings?.public_url && !isShareSaving ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="gap-2"
-                        asChild
-                      >
-                        <a
-                          href={shareSettings.public_url}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          <Printer className="h-4 w-4" />
-                          Preview Page
-                        </a>
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="gap-2"
+                    <div className="space-y-2">
+                      <Label htmlFor="public-score-link">Public share link</Label>
+                      <Input
+                        id="public-score-link"
+                        value={shareSettings?.public_url ?? 'Enable sharing to generate a public link'}
+                        readOnly
                         disabled
-                      >
-                        <Printer className="h-4 w-4" />
-                        Preview Page
-                      </Button>
-                    )}
+                        className="text-xs sm:text-sm"
+                      />
+                    </div>
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="gap-2"
-                      disabled={!shareSettings?.enabled || isShareSaving}
-                      onClick={() => void handleRegenerateLink()}
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                      Regenerate Link
-                    </Button>
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-center gap-2"
+                        disabled={!shareSettings?.public_url || isShareSaving}
+                        onClick={() => void handleCopyShareLink()}
+                      >
+                        <Copy className="h-4 w-4 shrink-0" />
+                        <span>Copy Link</span>
+                      </Button>
+
+                      {shareSettings?.public_url && !isShareSaving ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-center gap-2"
+                          asChild
+                        >
+                          <a href={shareSettings.public_url} target="_blank" rel="noreferrer">
+                            <Printer className="h-4 w-4 shrink-0" />
+                            <span>Preview Page</span>
+                          </a>
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-center gap-2"
+                          disabled
+                        >
+                          <Printer className="h-4 w-4 shrink-0" />
+                          <span>Preview Page</span>
+                        </Button>
+                      )}
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-center gap-2"
+                        disabled={!shareSettings?.enabled || isShareSaving}
+                        onClick={() => void handleRegenerateLink()}
+                      >
+                        <RotateCcw className="h-4 w-4 shrink-0" />
+                        <span>Regenerate Link</span>
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
 
             <div className="bg-card border border-border rounded-lg p-6">
                 <h3 className="font-semibold mb-4">Category Breakdown</h3>

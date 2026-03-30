@@ -16,6 +16,10 @@ export interface RiskEvaluation {
   reasons: string[];
 }
 
+// Demo-safe mode: keep integrity scoring and pauses, but do not block sessions
+// behind the liveness challenge flow until that feature is stabilized.
+const LIVENESS_CHECKS_ENABLED = false;
+
 const DEVICE_INTEGRITY_EVENTS = new Set(['camera_off', 'microphone_off', 'audio_off', 'heartbeat_timeout']);
 
 const HIGH_DURATION_MS = 6000;
@@ -156,8 +160,8 @@ export function evaluateRiskSignals(
     riskState,
     riskScore: score,
     pauseRecommended,
-    livenessRequired: pauseRecommended && !allHighAreDeviceIntegrity,
+    livenessRequired:
+      LIVENESS_CHECKS_ENABLED && pauseRecommended && !allHighAreDeviceIntegrity,
     reasons,
   };
 }
-
