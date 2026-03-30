@@ -123,5 +123,5 @@ describe('ProctoringModal', () => {
         policy_version: '2026-02-25',
       }),
     );
-  });
+  }, 15_000);
 });

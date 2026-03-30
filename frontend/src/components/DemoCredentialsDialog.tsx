@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -7,13 +8,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { useAuth } from '@/context/AuthContext';
 
 const STORAGE_KEY = 'yoscore_demo_credentials_dismissed';
 
 export function DemoCredentialsDialog() {
+  const { isAuthenticated } = useAuth();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
+  const shouldSuppress = isAuthenticated || location.pathname.startsWith('/share/');
 
   useEffect(() => {
+    if (shouldSuppress) {
+      setOpen(false);
+      return;
+    }
+
     try {
       const dismissed = localStorage.getItem(STORAGE_KEY);
       if (!dismissed) {
@@ -22,7 +32,11 @@ export function DemoCredentialsDialog() {
     } catch {
       setOpen(true);
     }
-  }, []);
+  }, [shouldSuppress]);
+
+  if (shouldSuppress) {
+    return null;
+  }
 
   const handleClose = () => {
     setOpen(false);

@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { User, Mail, Save, MapPin, Link2, Github, Linkedin, Globe } from 'lucide-react';
+import { User, Mail, Save, MapPin, Link2, Github, Linkedin, Globe, Copy, RotateCcw, Printer } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { ScoreCard } from '@/components/ScoreCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Loader } from '@/components/Loader';
 import { useAuth } from '@/context/AuthContext';
 import { Link } from 'react-router-dom';
 import { dashboardService, type DashboardData } from '@/services/dashboardService';
 import { challengeService } from '@/services/challengeService';
 import { buildCategoryScoresFromSubmissions, type CategoryScoreView } from '@/lib/categoryScores';
+import { shareScoreService, type ShareScoreSettings } from '@/services/shareScoreService';
 import { toast } from 'react-hot-toast';
 
 const getErrorMessage = (error: unknown, fallback: string) => {
@@ -36,6 +38,18 @@ const isValidUrl = (value: string) => {
   }
 };
 
+const formatProfileDate = (value: string) => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Unavailable';
+  return new Intl.DateTimeFormat('en-ZA', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(parsed);
+};
+
 export default function Profile() {
   const { user, updateUser } = useAuth();
   const userId = user?.id ?? null;
@@ -45,6 +59,9 @@ export default function Profile() {
   const [dashboardSummary, setDashboardSummary] = useState<DashboardData | null>(null);
   const [categoryScores, setCategoryScores] = useState<CategoryScoreView[]>([]);
   const [isMetricsLoading, setIsMetricsLoading] = useState(false);
+  const [shareSettings, setShareSettings] = useState<ShareScoreSettings | null>(null);
+  const [isShareLoading, setIsShareLoading] = useState(false);
+  const [isShareSaving, setIsShareSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -115,6 +132,20 @@ export default function Profile() {
     }
   }, [updateUser, userId]);
 
+  const loadShareSettings = useCallback(async () => {
+    if (!userId) return;
+
+    setIsShareLoading(true);
+    try {
+      const settings = await shareScoreService.getMyShareSettings();
+      setShareSettings(settings);
+    } catch {
+      setShareSettings(null);
+    } finally {
+      setIsShareLoading(false);
+    }
+  }, [userId]);
+
   useEffect(() => {
     if (!userId) return;
 
@@ -139,6 +170,11 @@ export default function Profile() {
     };
   }, [loadProfileMetrics, userId]);
 
+  useEffect(() => {
+    if (!userId) return;
+    void loadShareSettings();
+  }, [loadShareSettings, userId]);
+
   const initials = useMemo(() => {
     if (!user?.name) return 'YS';
     return user.name
@@ -151,6 +187,7 @@ export default function Profile() {
 
   const totalScore = dashboardSummary?.total_score ?? user.totalScore;
   const trustLevel = dashboardSummary?.trust_level ?? user.trustLevel;
+  const shareLastUpdated = shareSettings?.updated_at ? formatProfileDate(shareSettings.updated_at) : 'Not created yet';
 
   if (!user) {
     return (
@@ -182,6 +219,56 @@ export default function Profile() {
   const handleAvatarClick = () => {
     if (!isEditing) return;
     toast('Profile photo upload is temporarily disabled.');
+  };
+
+  const updateShareSettings = async (input: { enabled: boolean; regenerate?: boolean }) => {
+    setIsShareSaving(true);
+    try {
+      const settings = await shareScoreService.updateMyShareSettings(input);
+      setShareSettings(settings);
+      toast.success(
+        input.enabled
+          ? input.regenerate
+            ? 'Public score link regenerated'
+            : 'Public score sharing enabled'
+          : 'Public score sharing disabled',
+      );
+      return settings;
+    } catch (error) {
+      const message = getErrorMessage(error, 'Failed to update public score sharing.');
+      toast.error(message);
+      throw error;
+    } finally {
+      setIsShareSaving(false);
+    }
+  };
+
+  const handleShareToggle = async (enabled: boolean) => {
+    try {
+      await updateShareSettings({ enabled });
+    } catch {
+      // toast handled in updateShareSettings
+    }
+  };
+
+  const handleCopyShareLink = async () => {
+    const link = shareSettings?.public_url;
+    if (!link) return;
+
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success('Public score link copied');
+    } catch {
+      toast.error('Could not copy the public score link.');
+    }
+  };
+
+  const handleRegenerateLink = async () => {
+    try {
+      await updateShareSettings({ enabled: true, regenerate: true });
+    } catch {
+      // toast handled in updateShareSettings
+    }
   };
 
   const handleCancel = () => {
@@ -498,6 +585,107 @@ export default function Profile() {
                 <ProfileLink label="LinkedIn" value={user.linkedinUrl} icon={<Linkedin className="h-4 w-4" />} />
                 <ProfileLink label="Portfolio" value={user.portfolioUrl} icon={<Globe className="h-4 w-4" />} />
               </div>
+            </div>
+
+            <div className="bg-card border border-border rounded-lg p-6 space-y-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="font-semibold">Public Score Sharing</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Create a recruiter-friendly public score sheet that anyone with the link can open and print.
+                  </p>
+                </div>
+                <Switch
+                  checked={Boolean(shareSettings?.enabled)}
+                  disabled={isShareLoading || isShareSaving}
+                  onCheckedChange={(checked) => {
+                    void handleShareToggle(checked);
+                  }}
+                  aria-label="Enable public score sharing"
+                />
+              </div>
+
+              {isShareLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader size="sm" />
+                  <span>Loading share settings...</span>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                    <p>
+                      {shareSettings?.enabled
+                        ? 'Anyone with this secret link can view and print your score sheet. Disable sharing any time to stop access.'
+                        : 'Sharing is off. Turn it on to generate a public link for your score sheet.'}
+                    </p>
+                    <p className="mt-2">
+                      Last updated: <span className="font-medium text-foreground">{shareLastUpdated}</span>
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="public-score-link">Public share link</Label>
+                    <Input
+                      id="public-score-link"
+                      value={shareSettings?.public_url ?? 'Enable sharing to generate a public link'}
+                      readOnly
+                      disabled
+                    />
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="gap-2"
+                      disabled={!shareSettings?.public_url || isShareSaving}
+                      onClick={() => void handleCopyShareLink()}
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copy Link
+                    </Button>
+
+                    {shareSettings?.public_url && !isShareSaving ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="gap-2"
+                        asChild
+                      >
+                        <a
+                          href={shareSettings.public_url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <Printer className="h-4 w-4" />
+                          Preview Page
+                        </a>
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="gap-2"
+                        disabled
+                      >
+                        <Printer className="h-4 w-4" />
+                        Preview Page
+                      </Button>
+                    )}
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="gap-2"
+                      disabled={!shareSettings?.enabled || isShareSaving}
+                      onClick={() => void handleRegenerateLink()}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Regenerate Link
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="bg-card border border-border rounded-lg p-6">

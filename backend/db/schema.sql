@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS users (
     github_url TEXT,
     linkedin_url TEXT,
     portfolio_url TEXT,
+    score_share_enabled BOOLEAN NOT NULL DEFAULT false,
+    score_share_token UUID,
+    score_share_updated_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -464,6 +467,15 @@ ALTER TABLE users
 ALTER TABLE users
     ADD COLUMN IF NOT EXISTS portfolio_url TEXT;
 
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS score_share_enabled BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS score_share_token UUID;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS score_share_updated_at TIMESTAMP;
+
 CREATE TABLE IF NOT EXISTS proctoring_event_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     session_id UUID REFERENCES proctoring_sessions(id) ON DELETE CASCADE,
@@ -643,6 +655,9 @@ CREATE INDEX IF NOT EXISTS idx_submissions_language ON submissions(language);
 CREATE INDEX IF NOT EXISTS idx_work_experience_user_id ON work_experience(user_id);
 CREATE INDEX IF NOT EXISTS idx_work_experience_status ON work_experience(verification_status);
 CREATE INDEX IF NOT EXISTS idx_work_experience_risk ON work_experience(risk_score);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_score_share_token_unique
+ON users(score_share_token)
+WHERE score_share_token IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_reference_docs_challenge_id ON reference_docs(challenge_id);
 CREATE INDEX IF NOT EXISTS idx_challenges_publish_status ON challenges(publish_status);
 CREATE INDEX IF NOT EXISTS idx_challenges_target_seniority ON challenges(target_seniority);
