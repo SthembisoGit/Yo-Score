@@ -96,7 +96,7 @@ const ProctoringMonitor: React.FC<Props> = ({
   const audioAnalyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const audioSampleBufferRef = useRef<Uint8Array | null>(null);
+  const audioSampleBufferRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const nativeFaceDetectorRef = useRef<InstanceType<NativeFaceDetectorConstructor> | null>(null);
   const cooldownRef = useRef<Record<string, number>>({});
   const noFaceStreakRef = useRef(0);
@@ -759,7 +759,7 @@ const ProctoringMonitor: React.FC<Props> = ({
       analyser.smoothingTimeConstant = 0.2;
       source.connect(analyser);
       audioAnalyserRef.current = analyser;
-      audioSampleBufferRef.current = new Uint8Array(analyser.fftSize);
+      audioSampleBufferRef.current = new Uint8Array(new ArrayBuffer(analyser.fftSize));
 
       if (audioSampleIntervalRef.current) clearInterval(audioSampleIntervalRef.current);
       audioSampleIntervalRef.current = setInterval(() => {
