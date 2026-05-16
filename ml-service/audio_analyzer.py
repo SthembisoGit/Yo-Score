@@ -197,13 +197,13 @@ class AudioAnalyzer:
                     start = i * hop_length / sr
                     in_speech = True
             else:
-                consecutive_frames = 0
-                if in_speech and consecutive_frames == 0:
+                if in_speech:
                     # Only add interval if it was long enough
                     duration = (i * hop_length / sr) - start
                     if duration >= 0.2:  # At least 200ms
                         speech_intervals.append((start, i * hop_length / sr))
                     in_speech = False
+                consecutive_frames = 0
         
         if in_speech:
             end = len(y) / sr
