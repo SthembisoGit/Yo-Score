@@ -4,7 +4,7 @@ const queuedSubmission = {
   submission_id: 'sub-1',
   challenge_id: 'challenge-1',
   challenge_title: 'Two Sum',
-  language: 'javascript',
+  language: 'java',
   status: 'pending',
   judge_status: 'running',
   judge_error: null,
@@ -13,7 +13,7 @@ const queuedSubmission = {
   score: 0,
   score_breakdown: {
     components: {
-      correctness: 0,
+      correctness: 0,45
       efficiency: 0,
       style: 0,
       skill: 0,
