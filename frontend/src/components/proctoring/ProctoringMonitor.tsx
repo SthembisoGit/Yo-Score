@@ -1282,7 +1282,6 @@ const ProctoringMonitor: React.FC<Props> = ({
     canvas.toBlob(async (blob) => {
       if (!blob) return;
       const result = await proctoringService.analyzeFrame(sessionId, blob);
-      const result = await proctoringService.analyzeFrame(sessionId, blob);
       if (!result) {
         setFaceGuidance('Face analysis unavailable. Keep your face visible.');
         noFaceStreakRef.current = 0;
