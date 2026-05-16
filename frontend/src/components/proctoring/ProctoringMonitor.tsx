@@ -1268,7 +1268,7 @@ const ProctoringMonitor: React.FC<Props> = ({
     const video = videoRef.current;
     if (video.videoWidth === 0 || video.videoHeight === 0) return;
     const local = await detectFacesLocally();
-    if (local) {
+    if (local !== null) {
       applyFaceSignal(local, 'browser');
       return;
     }
@@ -1282,8 +1282,10 @@ const ProctoringMonitor: React.FC<Props> = ({
     canvas.toBlob(async (blob) => {
       if (!blob) return;
       const result = await proctoringService.analyzeFrame(sessionId, blob);
+      const result = await proctoringService.analyzeFrame(sessionId, blob);
       if (!result) {
         setFaceGuidance('Face analysis unavailable. Keep your face visible.');
+        noFaceStreakRef.current = 0;
         return;
       }
       applyFaceSignal(result, 'ml');
