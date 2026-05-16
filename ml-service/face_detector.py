@@ -134,7 +134,7 @@ class FaceDetector:
     def _gaze_from_face_box(self, x_center: float) -> Dict[str, Any]:
         horizontal_offset = float(x_center - 0.5)
         abs_offset = abs(horizontal_offset)
-        looking_away = abs_offset > 0.12
+        looking_away = abs_offset > 0.23
         direction = "center"
         if looking_away:
             direction = "left" if horizontal_offset < 0 else "right"
@@ -186,7 +186,7 @@ class FaceDetector:
         eyes_center_x = (left_eye_center_x + right_eye_center_x) / 2
 
         horizontal_offset = abs(eyes_center_x - nose_tip.x)
-        looking_away = horizontal_offset > 0.1
+        looking_away = horizontal_offset > 0.23
         direction = "center"
         if looking_away:
             direction = "left" if eyes_center_x < nose_tip.x else "right"
