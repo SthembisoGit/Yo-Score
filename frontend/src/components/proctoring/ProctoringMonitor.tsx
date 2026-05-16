@@ -709,22 +709,22 @@ const ProctoringMonitor: React.FC<Props> = ({
       const faceCount = Array.isArray(detected) ? detected.length : 0;
       const largest = Array.isArray(detected)
         ? detected.reduce<{ boundingBox?: DOMRectReadOnly } | null>((best, face) => {
-            if (!face?.boundingBox) return best;
-            if (!best?.boundingBox) return face;
-            const currentArea = face.boundingBox.width * face.boundingBox.height;
-            const bestArea = best.boundingBox.width * best.boundingBox.height;
-            return currentArea > bestArea ? face : best;
-          }, null)
+          if (!face?.boundingBox) return best;
+          if (!best?.boundingBox) return face;
+          const currentArea = face.boundingBox.width * face.boundingBox.height;
+          const bestArea = best.boundingBox.width * best.boundingBox.height;
+          return currentArea > bestArea ? face : best;
+        }, null)
         : null;
 
       const box = largest?.boundingBox;
       const normalizedBox = box
         ? {
-            x_center: (box.x + box.width / 2) / canvas.width,
-            y_center: (box.y + box.height / 2) / canvas.height,
-            width: box.width / canvas.width,
-            height: box.height / canvas.height,
-          }
+          x_center: (box.x + box.width / 2) / canvas.width,
+          y_center: (box.y + box.height / 2) / canvas.height,
+          width: box.width / canvas.width,
+          height: box.height / canvas.height,
+        }
         : undefined;
 
       return {
@@ -732,15 +732,15 @@ const ProctoringMonitor: React.FC<Props> = ({
         face_box: normalizedBox,
         gaze_direction: normalizedBox
           ? {
-              looking_away: Math.abs(normalizedBox.x_center - 0.5) > 0.18,
-              direction:
-                normalizedBox.x_center < 0.42
-                  ? 'left'
-                  : normalizedBox.x_center > 0.58
-                    ? 'right'
-                    : 'center',
-              confidence: 0.72,
-            }
+            looking_away: Math.abs(normalizedBox.x_center - 0.5) > 0.18,
+            direction:
+              normalizedBox.x_center < 0.42
+                ? 'left'
+                : normalizedBox.x_center > 0.58
+                  ? 'right'
+                  : 'center',
+            confidence: 0.72,
+          }
           : undefined,
         eyes_closed: false,
         face_coverage: 0,
@@ -781,13 +781,13 @@ const ProctoringMonitor: React.FC<Props> = ({
           sumSquares += centered * centered;
         }
         const rms = Math.sqrt(sumSquares / audioSampleBufferRef.current.length);
-        if (rms >= 0.055) {
+        if (rms >= 0.09) {
           speechStreakMsRef.current += AUDIO_SAMPLE_INTERVAL;
         } else {
           speechStreakMsRef.current = Math.max(0, speechStreakMsRef.current - AUDIO_SAMPLE_INTERVAL);
         }
 
-        if (speechStreakMsRef.current >= 2200) {
+        if (speechStreakMsRef.current >= 3500) {
           triggerViolation(
             'speech_detected',
             'Sustained speech energy detected by browser VAD',
@@ -1352,30 +1352,30 @@ const ProctoringMonitor: React.FC<Props> = ({
         setLivenessChallenge(null);
       }
 
-        if (risk.risk_state === 'paused' && risk.pause_recommended) {
-          const reasonDetail = risk.reasons?.[0] || 'session paused by consensus proctoring policy';
-          const reason = `Consensus risk pause: ${reasonDetail}`;
-          lastRiskPauseReasonRef.current = reason;
-          await applyPauseState({
+      if (risk.risk_state === 'paused' && risk.pause_recommended) {
+        const reasonDetail = risk.reasons?.[0] || 'session paused by consensus proctoring policy';
+        const reason = `Consensus risk pause: ${reasonDetail}`;
+        lastRiskPauseReasonRef.current = reason;
+        await applyPauseState({
           paused: true,
           reason,
           missing: missingDevicesRef.current,
-            source: 'risk',
-          });
-        } else if (
-          pausedRef.current &&
-          lastPauseSourceRef.current === 'risk' &&
-          !livenessRequiredNow &&
-          !missingDevicesRef.current.camera &&
-          !missingDevicesRef.current.microphone &&
-          (!fullscreenRequired || fullscreenActive)
-        ) {
-          commitPauseState(false, '', EMPTY_MISSING, 'risk');
-        }
+          source: 'risk',
+        });
+      } else if (
+        pausedRef.current &&
+        lastPauseSourceRef.current === 'risk' &&
+        !livenessRequiredNow &&
+        !missingDevicesRef.current.camera &&
+        !missingDevicesRef.current.microphone &&
+        (!fullscreenRequired || fullscreenActive)
+      ) {
+        commitPauseState(false, '', EMPTY_MISSING, 'risk');
+      }
 
-        if (LIVENESS_CHECKS_ENABLED && livenessRequiredNow) {
-          await issueLivenessChallenge(false);
-        }
+      if (LIVENESS_CHECKS_ENABLED && livenessRequiredNow) {
+        await issueLivenessChallenge(false);
+      }
     } catch (error) {
       console.error('Failed to poll session risk:', error);
       if (!connectionIssueAlertShownRef.current) {
@@ -1933,68 +1933,68 @@ const ProctoringMonitor: React.FC<Props> = ({
           </div>
         </div>
       ) : (
-      <div className="fixed z-50" style={{ left: `${position.x}px`, top: `${position.y}px`, cursor: isDragging ? 'grabbing' : 'default' }}>
-        {isMinimized ? (
-          <button onClick={() => setIsMinimized(false)} className="bg-red-600 text-white rounded-full p-3 shadow-lg hover:bg-red-700 transition-colors flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-          </button>
-        ) : (
-          <div className="bg-card rounded-lg shadow-xl border border-border w-80 select-none" onMouseDown={handleDragStart}>
-            <div className="flex items-center justify-between p-3 border-b border-border cursor-move">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-primary" />
-                <div>
-                  <h3 className="font-semibold text-sm">{isPaused ? 'Proctoring Paused' : 'Proctoring Active'}</h3>
-                  <p className="text-xs text-muted-foreground">Session: {sessionId.substring(0, 8)}...</p>
+        <div className="fixed z-50" style={{ left: `${position.x}px`, top: `${position.y}px`, cursor: isDragging ? 'grabbing' : 'default' }}>
+          {isMinimized ? (
+            <button onClick={() => setIsMinimized(false)} className="bg-red-600 text-white rounded-full p-3 shadow-lg hover:bg-red-700 transition-colors flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+            </button>
+          ) : (
+            <div className="bg-card rounded-lg shadow-xl border border-border w-80 select-none" onMouseDown={handleDragStart}>
+              <div className="flex items-center justify-between p-3 border-b border-border cursor-move">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-primary" />
+                  <div>
+                    <h3 className="font-semibold text-sm">{isPaused ? 'Proctoring Paused' : 'Proctoring Active'}</h3>
+                    <p className="text-xs text-muted-foreground">Session: {sessionId.substring(0, 8)}...</p>
+                  </div>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-muted text-foreground capitalize">
+                  {riskState}
+                </span>
+                <button onClick={() => setIsMinimized(true)} className="text-muted-foreground hover:text-foreground p-1">
+                  <Minimize2 className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="p-3">
+                <div className="relative rounded-lg overflow-hidden border border-border bg-black">
+                  <video
+                    ref={previewVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="w-full h-40 object-cover"
+                  />
+                  <div className="absolute top-2 right-2 flex gap-1">
+                    <div className={`w-2 h-2 rounded-full ${cameraReady ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                    <div className={`w-2 h-2 rounded-full ${micReady ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                  </div>
+                  <div className="absolute top-2 left-2 text-[11px] px-2 py-1 rounded bg-amber-600/85 text-white max-w-[78%]">
+                    {faceGuidance}
+                  </div>
                 </div>
               </div>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-muted text-foreground capitalize">
-                {riskState}
-              </span>
-              <button onClick={() => setIsMinimized(true)} className="text-muted-foreground hover:text-foreground p-1">
-                <Minimize2 className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="p-3">
-              <div className="relative rounded-lg overflow-hidden border border-border bg-black">
-                <video
-                  ref={previewVideoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  className="w-full h-40 object-cover"
-                />
-                <div className="absolute top-2 right-2 flex gap-1">
-                  <div className={`w-2 h-2 rounded-full ${cameraReady ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                  <div className={`w-2 h-2 rounded-full ${micReady ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                </div>
-                <div className="absolute top-2 left-2 text-[11px] px-2 py-1 rounded bg-amber-600/85 text-white max-w-[78%]">
-                  {faceGuidance}
-                </div>
+              <div className="px-3 pb-3">
+                <button
+                  type="button"
+                  onClick={() => setShowGuidance((previous) => !previous)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {showGuidance ? 'Hide guidance' : 'Show guidance'}
+                </button>
+                {showGuidance && (
+                  <div className="mt-2 text-xs text-muted-foreground space-y-1">
+                    <p>- Camera and microphone must stay on</p>
+                    <p>- Session pauses automatically on device-off</p>
+                    <p>- Browser-first face/audio checks with consensus policy</p>
+                    {mlDegraded && (
+                      <p>- ML analysis currently degraded. Core checks continue; the developer is still improving this component.</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-            <div className="px-3 pb-3">
-              <button
-                type="button"
-                onClick={() => setShowGuidance((previous) => !previous)}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                {showGuidance ? 'Hide guidance' : 'Show guidance'}
-              </button>
-              {showGuidance && (
-                <div className="mt-2 text-xs text-muted-foreground space-y-1">
-                  <p>- Camera and microphone must stay on</p>
-                  <p>- Session pauses automatically on device-off</p>
-                  <p>- Browser-first face/audio checks with consensus policy</p>
-                  {mlDegraded && (
-                    <p>- ML analysis currently degraded. Core checks continue; the developer is still improving this component.</p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
       )}
     </>
   );
