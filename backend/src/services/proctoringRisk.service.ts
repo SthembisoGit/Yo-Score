@@ -24,7 +24,7 @@ const DEVICE_INTEGRITY_EVENTS = new Set(['camera_off', 'microphone_off', 'audio_
 
 const HIGH_DURATION_MS = 6000;
 const HIGH_REPEAT_COUNT = 3;
-const CORROBORATION_WINDOW_MS = 15000;
+const CORROBORATION_WINDOW_MS = 30000;
 
 function toMs(value: Date | string | null | undefined): number {
   if (!value) return 0;
