@@ -127,7 +127,8 @@ class FaceDetector:
             else:
                 results.eyes_closed = False
 
-            results.face_coverage = 0.2 if results.eyes_closed else 0.0
+            face_area = (w / frame_w) * (h / frame_h)
+            results.face_coverage = max(0.0, min(1.0, 1.0 - (face_area / 0.25)))
 
         return self._to_dict(results)
 
