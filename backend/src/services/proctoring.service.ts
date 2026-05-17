@@ -125,6 +125,8 @@ const MAX_SNAPSHOT_BYTES = 400 * 1024;
 const MAX_SNAPSHOTS_PER_SESSION = 40;
 const SNAPSHOT_MAX_PROCESSING_ERROR_LEN = 240;
 
+let schemaEnsuredPromise: Promise<void> | null = null;
+
 export class ProctoringService {
   private violationWeights: Record<string, ProctoringViolation> = {
     tab_switch: {
@@ -280,6 +282,12 @@ export class ProctoringService {
   }
 
   private async ensureSessionSchemaExtensions(): Promise<void> {
+    if (schemaEnsuredPromise) return schemaEnsuredPromise;
+    schemaEnsuredPromise = this._runSchemaExtensions();
+    return schemaEnsuredPromise;
+  }
+
+  private async _runSchemaExtensions(): Promise<void> {
     if (this.schemaEnsured) return;
 
     await query(
@@ -428,6 +436,7 @@ export class ProctoringService {
 
     this.schemaEnsured = true;
   }
+  // end _runSchemaExtensions
 
   private buildEvidenceExpiryDate(baseDate?: Date): Date {
     const anchor = baseDate ?? new Date();
