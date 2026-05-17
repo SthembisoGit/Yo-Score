@@ -1021,16 +1021,15 @@ export class ProctoringService {
       }))
       .filter((event) => !Number.isNaN(event.timestamp.getTime()));
 
-    for (const event of validEvents) {
-      const clientTs =
-        event.clientTimestamp && !Number.isNaN(event.clientTimestamp.getTime())
-          ? event.clientTimestamp.toISOString()
-          : null;
-      await query(
-        `INSERT INTO proctoring_event_logs
-           (session_id, user_id, event_type, severity, payload, created_at, sequence_id, client_timestamp, confidence, duration_ms, model_version)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11)`,
-        [
+    if (validEvents.length > 0) {
+      const bulkParams: unknown[] = [];
+      const valueClauses = validEvents.map((event, i) => {
+        const base = i * 11;
+        const clientTs =
+          event.clientTimestamp && !Number.isNaN(event.clientTimestamp.getTime())
+            ? event.clientTimestamp.toISOString()
+            : null;
+        bulkParams.push(
           sessionId,
           userId,
           event.eventType,
@@ -1042,7 +1041,14 @@ export class ProctoringService {
           event.confidence,
           event.durationMs,
           event.modelVersion,
-        ],
+        );
+        return `($${base+1},$${base+2},$${base+3},$${base+4},$${base+5}::jsonb,$${base+6},$${base+7},$${base+8},$${base+9},$${base+10},$${base+11})`;
+      });
+      await query(
+        `INSERT INTO proctoring_event_logs
+           (session_id, user_id, event_type, severity, payload, created_at, sequence_id, client_timestamp, confidence, duration_ms, model_version)
+         VALUES ${valueClauses.join(', ')}`,
+        bulkParams,
       );
     }
 
